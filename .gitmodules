@@ -4,3 +4,6 @@
 [submodule "lib/dn404"]
 	path = lib/dn404
 	url = https://github.com/vectorized/dn404
+[submodule "lib/solady"]
+	path = lib/solady
+	url = https://github.com/vectorized/solady
