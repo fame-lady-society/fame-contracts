@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "dn404/DN404.sol";
-import "dn404/DN404Mirror.sol";
+import "./DN404.sol";
+import "./DN404Mirror.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
@@ -53,7 +53,7 @@ contract SimpleDN404 is DN404, Ownable {
     }
 
     /// @dev Amount of token balance that is equal to one NFT.
-    function _unit() internal view virtual returns (uint256) {
+    function _unit() internal view virtual override returns (uint256) {
         return _tokenSupply / (888 * (10 ** 18));
     }
 
