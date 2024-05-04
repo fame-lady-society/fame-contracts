@@ -18,7 +18,7 @@ contract SimpleDN404 is DN404, Ownable {
     string private _symbol;
     string private _baseURI;
 
-    uint96 private constant _tokenSupply = 1_000_000_000 * 10 ** 18;
+    uint96 private constant _tokenSupply = 1_000_000_000 * (10 ** 18);
 
     constructor(
         string memory name_,
@@ -54,7 +54,7 @@ contract SimpleDN404 is DN404, Ownable {
 
     /// @dev Amount of token balance that is equal to one NFT.
     function _unit() internal view virtual returns (uint256) {
-        return _tokenSupply / (888 * 10 ** 18);
+        return _tokenSupply / (888 * (10 ** 18));
     }
 
     function setBaseURI(string calldata baseURI_) public onlyOwner {
