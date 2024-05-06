@@ -13,12 +13,10 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
  * When a user has at least one base unit (10^18) amount of tokens, they will automatically receive an NFT.
  * NFTs are minted as an address accumulates each base unit amount of tokens.
  */
-contract SimpleDN404 is DN404, Ownable {
+contract Fame is DN404, Ownable {
     string private _name;
     string private _symbol;
     string private _baseURI;
-
-    uint96 private constant _tokenSupply = 1_000_000_000 * (10 ** 18);
 
     constructor(
         string memory name_,
@@ -31,7 +29,7 @@ contract SimpleDN404 is DN404, Ownable {
         _symbol = symbol_;
 
         address mirror = address(new DN404Mirror(msg.sender));
-        _initializeDN404(_tokenSupply, initialSupplyOwner, mirror);
+        _initializeDN404(888 * _unit(), initialSupplyOwner, mirror);
     }
 
     function name() public view override returns (string memory) {
@@ -54,7 +52,7 @@ contract SimpleDN404 is DN404, Ownable {
 
     /// @dev Amount of token balance that is equal to one NFT.
     function _unit() internal view virtual override returns (uint256) {
-        return _tokenSupply / (888 * (10 ** 18));
+        return 1_000_000 * 10 ** 18;
     }
 
     function setBaseURI(string calldata baseURI_) public onlyOwner {
