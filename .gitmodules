@@ -22,6 +22,3 @@
 [submodule "lib/openzeppelin-contracts-5"]
 	path = lib/openzeppelin-contracts-5
 	url = https://github.com/openzeppelin/openzeppelin-contracts
-[submodule "lib/abdk-libraries-solidity"]
-	path = lib/abdk-libraries-solidity
-	url = https://github.com/abdk-consulting/abdk-libraries-solidity

@@ -4,7 +4,6 @@ out = "out"
 libs = ["lib"]
 remappings = [
   "forge-std=lib/forge-std/src",
-  "abdk-libraries/=lib/abdk-libraries-solidity/",
   "solady=lib/solady/src",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
   "@openzeppelin5/contracts/=lib/openzeppelin-contracts-5/contracts/",
