@@ -12,6 +12,7 @@ import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {INonfungiblePositionManager} from "./v3-periphery/INonfungiblePositionManager.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
+import {TickMath} from "./v3-core/TickMath.sol";
 
 contract FameLauncher is Ownable {
     using FixedPointMathLib for uint256;
@@ -46,6 +47,15 @@ contract FameLauncher is Ownable {
         return uniswapV2Factory.createPair(address(tokenA), address(tokenB));
     }
 
+    function createV3Pool() internal returns (address pool) {
+        return
+            uniswapV3Factory.createPool(address(tokenA), address(tokenB), 3000);
+    }
+
+    function getV3TickSpacing() public view returns (int24 tickSpacing) {
+        return uniswapV3Factory.feeAmountTickSpacing(3000);
+    }
+
     function createV2Liquidity()
         external
         payable
@@ -66,50 +76,92 @@ contract FameLauncher is Ownable {
         liquidity = IUniswapV2Pair(v2Pair).mint(address(this));
     }
 
-    function createV3Pool() internal returns (address pool) {
-        return
-            uniswapV3Factory.createPool(address(tokenA), address(tokenB), 3000);
+    function initializeV3Pool(uint160 sqrtPriceX96) external onlyOwner {
+        // v3Pool = IUniswapV3Pool(createV3Pool());
+        // v3Pool.initialize(sqrtPriceX96);
+        v3Pool = IUniswapV3Pool(
+            nonfungiblePositionManager.createAndInitializePoolIfNecessary(
+                address(tokenA),
+                address(tokenB),
+                3000,
+                sqrtPriceX96
+            )
+        );
     }
 
-    function createV3Liquidity(
-        uint160 sqrtPriceX96,
-        uint256 postSaleAmountA
-    ) external payable onlyOwner {
-        v3Pool = IUniswapV3Pool(createV3Pool());
-        v3Pool.initialize(sqrtPriceX96);
-
-        // Calculate the current tick based on sqrtPriceX96
-        int24 tick = getTickFromSqrtPriceX96(sqrtPriceX96);
-
-        // Set tickLower and tickUpper to be around the current tick
-        int24 tickSpacing = uniswapV3Factory.feeAmountTickSpacing(3000); // Example tick spacing, adjust based on your pool settings
-        int24 tickLower = (tick / tickSpacing) * tickSpacing - tickSpacing;
-        int24 tickUpper = (tick / tickSpacing) * tickSpacing + tickSpacing;
-
+    function createV3LiquidityPostSale(
+        uint256 postSaleAmountA,
+        int24 tickLower,
+        int24 tickUpper
+    )
+        external
+        payable
+        onlyOwner
+        returns (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        )
+    {
         tokenA.approve(address(nonfungiblePositionManager), postSaleAmountA);
 
-        nonfungiblePositionManager.mint(
-            INonfungiblePositionManager.MintParams({
-                token0: address(tokenA),
-                token1: address(tokenB),
-                fee: 3000,
-                tickLower: tickLower,
-                tickUpper: tickUpper,
-                amount0Desired: postSaleAmountA,
-                amount1Desired: 0,
-                amount0Min: 0,
-                amount1Min: 0,
-                recipient: address(this),
-                deadline: block.timestamp
-            })
-        );
+        return
+            nonfungiblePositionManager.mint(
+                INonfungiblePositionManager.MintParams({
+                    token0: address(tokenA),
+                    token1: address(tokenB),
+                    fee: 3000,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    amount0Desired: postSaleAmountA,
+                    amount1Desired: 0,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: address(this),
+                    deadline: block.timestamp
+                })
+            );
+    }
+
+    function createV3LiquidityRest(
+        uint256 restAmountA,
+        int24 tickLower
+    )
+        external
+        payable
+        onlyOwner
+        returns (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        )
+    {
+        //create a second position with singleSidedAmountA from the current tick to max tick (887200)
+        tokenA.approve(address(nonfungiblePositionManager), restAmountA);
+
+        return
+            nonfungiblePositionManager.mint(
+                INonfungiblePositionManager.MintParams({
+                    token0: address(tokenA),
+                    token1: address(tokenB),
+                    fee: 3000,
+                    tickLower: tickLower,
+                    tickUpper: 887220,
+                    amount0Desired: restAmountA,
+                    amount1Desired: 0,
+                    amount0Min: 0,
+                    amount1Min: 0,
+                    recipient: address(this),
+                    deadline: block.timestamp
+                })
+            );
     }
 
     function getTickFromSqrtPriceX96(
         uint160 sqrtPriceX96
-    ) internal pure returns (int24 tick) {
-        // Calculate the tick based on sqrtPriceX96
-        uint256 ratio = uint256(sqrtPriceX96) << 32;
-        tick = int24((int256(ratio.log2()) - (1 << 96)) / (1 << 64));
+    ) external pure returns (int24 tick) {
+        return TickMath.getTickAtSqrtRatio(sqrtPriceX96);
     }
 }
