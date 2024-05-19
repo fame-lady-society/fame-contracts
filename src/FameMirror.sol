@@ -1,44 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721Votes.sol";
+import "@openzeppelin/contracts/governance/utils/Votes.sol";
 import "./DN404Mirror.sol";
-
-interface IERC6372 {
-    function clock() external view returns (uint48);
-    function CLOCK_MODE() external view returns (string memory);
-}
-
-interface IERC5805 is IERC6372 {
-    event DelegateChanged(
-        address indexed delegator,
-        address indexed fromDelegate,
-        address indexed toDelegate
-    );
-    event DelegateVotesChanged(
-        address indexed delegate,
-        uint256 previousBalance,
-        uint256 newBalance
-    );
-
-    function getVotes(address account) external view returns (uint256);
-    function getPastVotes(
-        address account,
-        uint256 timepoint
-    ) external view returns (uint256);
-    function delegates(address account) external view returns (address);
-    function nonces(address owner) external view returns (uint256);
-
-    function delegate(address delegatee) external;
-    function delegateBySig(
-        address delegatee,
-        uint256 nonce,
-        uint256 expiry,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
-}
 
 /**
  * @title FameMirror
@@ -46,11 +10,19 @@ interface IERC5805 is IERC6372 {
  * This contract is used to mint NFTs for users who have accumulated a certain amount of fungible tokens.
  * Also Implements the EIP-5805 standard (ERC721Votes) and EIP-6372 standard (clock)
  */
-contract FameMirror is DN404Mirror, IERC6372 {
-    constructor(address owner) DN404Mirror(owner) {}
+contract FameMirror is DN404Mirror, Votes {
+    constructor(address owner) DN404Mirror(owner) EIP712("Fame404", "1") {}
+
+    error OnlyERC20CanCall();
+
+    modifier onlyERC20() {
+        if (msg.sender != address(_getDN404NFTStorage().baseERC20)) {
+            revert OnlyERC20CanCall();
+        }
+        _;
+    }
 
     /* --- EIP-5805 implementation --- */
-
     /**
      * @notice Returns the current timestamp.
      * @return The current timestamp.
@@ -65,5 +37,25 @@ contract FameMirror is DN404Mirror, IERC6372 {
      */
     function CLOCK_MODE() public pure override returns (string memory) {
         return "mode=timestamp&from=default";
+    }
+
+    /* --- Votes implementation --- */
+    /**
+     * @dev Returns the balance of `account`.
+     *
+     * WARNING: Overriding this function will likely result in incorrect vote tracking.
+     */
+    function _getVotingUnits(
+        address account
+    ) internal view virtual override returns (uint256) {
+        return balanceOf(account);
+    }
+
+    function updateVotingUnits(
+        address from,
+        address to,
+        uint256
+    ) external onlyERC20 {
+        _transferVotingUnits(from, to, 1);
     }
 }

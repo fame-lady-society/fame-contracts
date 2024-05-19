@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import "./DN404.sol";
-import "./DN404Mirror.sol";
+import "./FameMirror.sol";
 import {Ownable} from "solady/auth/Ownable.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
@@ -28,7 +28,7 @@ contract Fame is DN404, Ownable {
         _name = name_;
         _symbol = symbol_;
 
-        address mirror = address(new DN404Mirror(msg.sender));
+        address mirror = address(new FameMirror(msg.sender));
         _initializeDN404(888 * _unit(), initialSupplyOwner, mirror);
     }
 
@@ -61,5 +61,18 @@ contract Fame is DN404, Ownable {
 
     function withdraw() public onlyOwner {
         SafeTransferLib.safeTransferAllETH(msg.sender);
+    }
+
+    /// @dev Hook that is called after any NFT token transfers, including minting and burning.
+    function _afterNFTTransfer(
+        address from,
+        address to,
+        uint256 id
+    ) internal override {
+        FameMirror(_getDN404Storage().mirrorERC721).updateVotingUnits(
+            from,
+            to,
+            id
+        );
     }
 }
