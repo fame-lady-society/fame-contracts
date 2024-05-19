@@ -6,5 +6,6 @@ remappings = [
   "forge-std=lib/forge-std/src",
   "solady=lib/solady/src",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "@uniswap/v3-core/=lib/vs-core/contracts/",
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
