@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "@openzeppelin/contracts/governance/utils/Votes.sol";
+import "@openzeppelin5/contracts/governance/utils/Votes.sol";
 import "./DN404Mirror.sol";
 
 /**
