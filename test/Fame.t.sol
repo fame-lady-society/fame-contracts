@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {DN404Mirror} from "../src/DN404Mirror.sol";
+import {FameMirror} from "../src/FameMirror.sol";
 import {Fame} from "../src/Fame.sol";
 
 contract FameTest is Test {
@@ -22,7 +22,7 @@ contract FameTest is Test {
         address account = address(111);
         assertEq(fame.balanceOf(account), 0);
 
-        DN404Mirror dn404 = DN404Mirror(payable(fame.mirrorERC721()));
+        FameMirror dn404 = FameMirror(payable(fame.mirrorERC721()));
         assertEq(dn404.balanceOf(account), 0);
 
         fame.transfer(account, 888000000000000000000000000);

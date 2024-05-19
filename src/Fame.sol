@@ -69,10 +69,9 @@ contract Fame is DN404, Ownable {
         address to,
         uint256 id
     ) internal override {
-        FameMirror(_getDN404Storage().mirrorERC721).updateVotingUnits(
-            from,
-            to,
-            id
+        FameMirror fameMirror = FameMirror(
+            payable(_getDN404Storage().mirrorERC721)
         );
+        fameMirror.updateVotingUnits(from, to, id);
     }
 }
