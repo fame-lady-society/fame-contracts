@@ -8,14 +8,20 @@ import {FameSaleToken} from "../src/FameSaleToken.sol";
 contract DeployPresale is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address multiSig = vm.envAddress("MULTISIG_ADDRESS");
+        address multiSig = vm.envAddress("BASE_MULTISIG_ADDRESS");
         vm.startBroadcast(deployerPrivateKey);
 
         FameSale fs = new FameSale();
-        fs.grantRoles(multiSig, fs.roleTreasurer() | fs.roleExecutive() | fs.roleAllowlist());
+        fs.grantRoles(
+            multiSig,
+            fs.roleTreasurer() | fs.roleExecutive() | fs.roleAllowlist()
+        );
         fs.transferOwnership(multiSig);
         FameSaleToken fst = FameSaleToken(fs.fameSaleToken());
-        fst.grantRoles(address(fs), fst.roleBurner() | fst.roleController() | fst.roleMinter());
+        fst.grantRoles(
+            address(fs),
+            fst.roleBurner() | fst.roleController() | fst.roleMinter()
+        );
         fst.transferOwnership(multiSig);
 
         vm.stopBroadcast();
