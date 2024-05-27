@@ -3,14 +3,16 @@ pragma solidity ^0.8.24;
 
 import {FameSaleToken} from "./FameSaleToken.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
+import {MerkleProofLib} from "solady/utils/MerkleProofLib.sol";
 
 contract FameSale is OwnableRoles {
     address public immutable fameSaleToken;
     bool public isPaused;
+    bytes32 public merkleRoot;
 
     constructor() {
         _initializeOwner(msg.sender);
-
+        isPaused = true;
         fameSaleToken = address(new FameSaleToken(msg.sender));
     }
 
@@ -24,6 +26,12 @@ contract FameSale is OwnableRoles {
 
     function roleExecutive() public pure returns (uint256) {
         return EXECUTIVE;
+    }
+
+    uint256 internal constant ALLOWLIST = _ROLE_2;
+
+    function roleAllowlist() public pure returns (uint256) {
+        return ALLOWLIST;
     }
 
     function fameTotalSupply() public view returns (uint256) {
@@ -50,9 +58,39 @@ contract FameSale is OwnableRoles {
         return maxRaise - fameTotalSupply();
     }
 
+    function setMerkleRoot(bytes32 _merkleRoot) public onlyRoles(ALLOWLIST) {
+        merkleRoot = _merkleRoot;
+    }
+
+    function canProve(
+        bytes32[] calldata proof,
+        address check
+    ) public view returns (bool) {
+        bytes32 leaf = keccak256(abi.encodePacked(check));
+        return MerkleProofLib.verifyCalldata(proof, merkleRoot, leaf);
+    }
+
+    error NotAllowed();
+    modifier isAllowed(bytes32[] calldata proof, address check) {
+        if (!canProve(proof, check)) {
+            revert NotAllowed();
+        }
+        _;
+    }
+
+    error Paused();
+    modifier whenNotPaused() {
+        if (isPaused) {
+            revert Paused();
+        }
+        _;
+    }
+
     error MaxRaisedExceeded();
     error MaxBuyExceeded();
-    function buy() public payable {
+    function buy(
+        bytes32[] calldata merkleProof
+    ) public payable isAllowed(merkleProof, msg.sender) whenNotPaused {
         if (raiseRemaining() < msg.value) {
             revert MaxRaisedExceeded();
         }
@@ -70,11 +108,11 @@ contract FameSale is OwnableRoles {
         if (address(this).balance < amount) {
             revert NoFundsAvailable();
         }
-        if (amount > fameBalanceOf(msg.sender)) {
+        if (amount > fameBalanceOf(to)) {
             revert NoRefundAvailable();
         }
 
-        FameSaleToken(fameSaleToken).burn(msg.sender, amount);
+        FameSaleToken(fameSaleToken).burn(to, amount);
 
         (bool success, ) = payable(to).call{value: amount}("");
         require(success);
@@ -91,5 +129,9 @@ contract FameSale is OwnableRoles {
     function withdraw() public onlyRoles(EXECUTIVE) {
         isPaused = true;
         payable(msg.sender).transfer(address(this).balance);
+    }
+
+    receive() external payable {
+        revert("No direct deposits allowed");
     }
 }

@@ -1,0 +1,24 @@
+{
+  "name": "fame-contracts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:fame-lady-society/fame-contracts.git",
+  "author": "flick <github@0xflick.xyz>",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@safe-global/api-kit": "^2.4.0",
+    "@safe-global/protocol-kit": "^4.0.0",
+    "@safe-global/safe-core-sdk-types": "^5.0.0",
+    "@wagmi/cli": "^2.1.8",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.12.1",
+    "merkletreejs": "^0.3.11",
+    "viem": "^2.12.1"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}

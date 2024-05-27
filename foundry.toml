@@ -12,3 +12,9 @@ remappings = [
   "@uniswap/v3-periphery/contracts/=lib/v3-periphery/contracts/"
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[rpc_endpoints]
+sepolia = "${SEPOLIA_RPC}"
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_API_KEY}" }

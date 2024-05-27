@@ -23,7 +23,7 @@ interface IWETH {
     function withdraw(uint) external;
 }
 
-contract FameTest is Test {
+contract FameLauncherTest is Test {
     Fame public fame;
     FameLauncher public fameLauncher;
     IWETH weth = IWETH(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9);

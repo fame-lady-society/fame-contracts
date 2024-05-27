@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {FameSale} from "../src/FameSale.sol";
 import {FameSaleToken} from "../src/FameSaleToken.sol";
 
-contract FameSaleTest is Test {
+contract FameSaleTokenTest is Test {
     FameSaleToken public fameSaleToken;
 
     function setUp() public {
