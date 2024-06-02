@@ -192,8 +192,6 @@ abstract contract DN404 {
         Uint32Map oo;
         // Mapping of user account AddressData.
         mapping(address => AddressData) addressData;
-        // Mapping of tokenId storage
-        mapping(uint256 => uint256) tokenData;
     }
 
     /// @dev Returns a storage pointer for DN404Storage.

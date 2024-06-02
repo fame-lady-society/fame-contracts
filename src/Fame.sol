@@ -7,6 +7,7 @@ import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
+import {IBurnedPoolManager} from "./IBurnedPoolManager.sol";
 
 /**
  * @title SimpleDN404
@@ -20,20 +21,28 @@ contract Fame is DN404, OwnableRoles {
     string private _symbol;
     string private _baseURI;
 
-    uint256 private constant _STAKE_BIT = 1 << 0;
-
-    uint256 internal constant RENDERER = 1 << 0;
+    uint256 internal constant RENDERER = _ROLE_0;
 
     function roleRenderer() public pure returns (uint256) {
         return RENDERER;
     }
 
-    uint256 internal constant METADATA = 1 << 1;
+    uint256 internal constant METADATA = _ROLE_1;
 
     function roleMetadata() public pure returns (uint256) {
         return METADATA;
     }
 
+    uint256 internal constant BURN_POOL_MANAGER = _ROLE_2;
+
+    function roleBurnPoolManager() public pure returns (uint256) {
+        return BURN_POOL_MANAGER;
+    }
+
+    // The proxy owner role for managing roles
+    uint256 internal constant ADMIN = _ROLE_255;
+
+    IBurnedPoolManager public burnedPoolManager;
     ITokenURIGenerator public renderer;
 
     constructor(
@@ -63,6 +72,11 @@ contract Fame is DN404, OwnableRoles {
         return 1_000_000 * 10 ** 18;
     }
 
+    /// @dev Amount of token balance that is equal to one NFT.
+    function unit() public view returns (uint256) {
+        return _unit();
+    }
+
     function withdraw() public onlyOwner {
         SafeTransferLib.safeTransferAllETH(msg.sender);
     }
@@ -75,19 +89,7 @@ contract Fame is DN404, OwnableRoles {
         address to,
         uint256 id
     ) internal override {
-        FameMirror fameMirror = FameMirror(
-            payable(_getDN404Storage().mirrorERC721)
-        );
-        fameMirror.updateVotingUnits(from, to, id);
-
-        // if stake bit is set then deny transfer
-        // if (_getAux(id) & _STAKE_BIT != 0) {
-        //     revert NoTransferWhenStaked();
-        // }
-    }
-
-    function _canBurnNFT(uint256 id) internal view override returns (bool) {
-        return _getTokenAux(id) & _STAKE_BIT == 0;
+        // nothing rn
     }
 
     /**
@@ -96,26 +98,21 @@ contract Fame is DN404, OwnableRoles {
     function _addToBurnedPool(
         uint256 totalNFTSupplyAfterBurn,
         uint256 totalSupplyAfterBurn
-    ) internal pure override returns (bool) {
-        // Silence unused variable compiler warning.
-        totalSupplyAfterBurn = totalNFTSupplyAfterBurn;
+    ) internal view override returns (bool) {
+        if (address(burnedPoolManager) != address(0)) {
+            return
+                burnedPoolManager.addToBurnedPool(
+                    totalNFTSupplyAfterBurn,
+                    totalSupplyAfterBurn
+                );
+        }
         return true;
     }
 
-    /// @dev Returns the auxiliary data for `owner`.
-    /// Minting, transferring, burning the tokens of `owner` will not change the auxiliary data.
-    /// Auxiliary data can be set for any address, even if it does not have any tokens.
-    function _getTokenAux(
-        uint256 tokenId
-    ) internal view virtual returns (uint256) {
-        return _getDN404Storage().tokenData[tokenId];
-    }
-
-    /// @dev Set the auxiliary data for `owner` to `value`.
-    /// Minting, transferring, burning the tokens of `owner` will not change the auxiliary data.
-    /// Auxiliary data can be set for any address, even if it does not have any tokens.
-    function _setTokenAux(uint256 tokenId, uint256 tokenData) internal virtual {
-        _getDN404Storage().tokenData[tokenId] = tokenData;
+    function setBurnedPoolManager(
+        address newBurnedPoolManager
+    ) public onlyRoles(BURN_POOL_MANAGER) {
+        burnedPoolManager = IBurnedPoolManager(newBurnedPoolManager);
     }
 
     /**
@@ -137,33 +134,6 @@ contract Fame is DN404, OwnableRoles {
         _baseURI = baseURI_;
     }
 
-    error NotOwner();
-    function stake(uint256[] calldata tokenIds) public {
-        FameMirror fameMirror = FameMirror(
-            payable(_getDN404Storage().mirrorERC721)
-        );
-        uint256 length = tokenIds.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (fameMirror.ownerOf(tokenIds[i]) != msg.sender) {
-                revert NotOwner();
-            }
-            _setTokenAux(tokenIds[i], _STAKE_BIT | _getTokenAux(tokenIds[i]));
-        }
-    }
-
-    function unstake(uint256[] calldata tokenIds) public {
-        FameMirror fameMirror = FameMirror(
-            payable(_getDN404Storage().mirrorERC721)
-        );
-        uint256 length = tokenIds.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (fameMirror.ownerOf(tokenIds[i]) != msg.sender) {
-                revert NotOwner();
-            }
-            _setTokenAux(tokenIds[i], _getTokenAux(tokenIds[i]) & ~_STAKE_BIT);
-        }
-    }
-
     /**
      * @dev Updates the renderer to a new render contract. Can only be called by an address with the UPDATE_RENDERER_ROLE. Emits an EIP4906 BatchMetadataUpdate event
      *
@@ -174,6 +144,38 @@ contract Fame is DN404, OwnableRoles {
         renderer = ITokenURIGenerator(newRenderer);
         if (address(renderer) != address(0))
             _grantRoles(address(renderer), RENDERER);
-        // emit BatchMetadataUpdate(1, 888);
+    }
+
+    function emitMetadataUpdate(uint256 tokenId) external onlyRoles(RENDERER) {
+        fameMirror().emitMetadataUpdate(tokenId);
+    }
+
+    function emitBatchMetadataUpdate(
+        uint256 fromTokenId,
+        uint256 toTokenId
+    ) external onlyRoles(RENDERER) {
+        fameMirror().emitBatchMetadataUpdate(fromTokenId, toTokenId);
+    }
+
+    function fameMirror() public view returns (FameMirror) {
+        return FameMirror(payable(_getDN404Storage().mirrorERC721));
+    }
+
+    /// @dev Allows the ADMIN to grant `user` `roles`.
+    /// If the `user` already has a role, then it will be an no-op for the role.
+    function grantRoles(
+        address user,
+        uint256 roles
+    ) public payable override onlyRoles(ADMIN) {
+        _grantRoles(user, roles);
+    }
+
+    /// @dev Allows the ADMIN to remove `user` `roles`.
+    /// If the `user` does not have a role, then it will be an no-op for the role.
+    function revokeRoles(
+        address user,
+        uint256 roles
+    ) public payable override onlyRoles(ADMIN) {
+        _removeRoles(user, roles);
     }
 }
