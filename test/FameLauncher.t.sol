@@ -31,9 +31,12 @@ contract FameLauncherTest is Test {
 
     function setUp() public {
         fame = new Fame("Fame", "FAME", address(this));
+
+        bool fameIsLower = address(fame) < address(this);
+        console.log("Fame is lower: %s", fameIsLower);
         fameLauncher = new FameLauncher(
-            address(fame),
-            address(weth), // WETH on sepolia
+            fameIsLower ? address(fame) : address(weth),
+            fameIsLower ? address(weth) : address(fame),
             0xB7f907f7A9eBC822a80BD25E224be42Ce0A698A0, // v2 factory on sepolia
             0x0227628f3F023bb0B980b67D528571c95c6DaC1c, // v3 factory on sepolia
             0x1238536071E1c677A632429e3655c799b22cDA52 //  v3 nonfungiblePositionManager on sepolia
@@ -72,6 +75,7 @@ contract FameLauncherTest is Test {
 
         // Set tickLower and tickUpper to be around the current tick
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
+
         // get current tick
         int24 tickLower = tick + tickSpacing;
         int24 tickUpper = tick + 2 * tickSpacing;
@@ -81,8 +85,9 @@ contract FameLauncherTest is Test {
             uint128 liquidity,
             uint256 amount0,
             uint256 amount1
-        ) = fameLauncher.createV3LiquidityPostSale(
+        ) = fameLauncher.createV3Liquidity(
                 100_000_000 ether,
+                0 ether,
                 tickLower,
                 tickUpper
             );
@@ -114,7 +119,7 @@ contract FameLauncherTest is Test {
         );
     }
 
-    function test_LauncV3LiquidityRest() public {
+    function test_LaunchV3LiquidityRest() public {
         uint160 price = sqrtPriceX96(888_000_000 ether, 8 ether);
         fameLauncher.initializeV3Pool(price);
         fame.transfer(address(fameLauncher), 100_000_000 ether);
@@ -131,7 +136,12 @@ contract FameLauncherTest is Test {
             uint128 liquidity,
             uint256 amount0,
             uint256 amount1
-        ) = fameLauncher.createV3LiquidityRest(100_000_000 ether, tickUpper);
+        ) = fameLauncher.createV3Liquidity(
+                100_000_000 ether,
+                0 ether,
+                tickUpper,
+                887220
+            );
 
         assertEq(tokenId, 15896);
         assertEq(liquidity, 9567655433000195384683);
@@ -164,16 +174,19 @@ contract FameLauncherTest is Test {
         int24 tickUpper = tick + 2 * tickSpacing;
 
         fame.transfer(address(fameLauncher), 100_000_000 ether);
-        fameLauncher.createV3LiquidityPostSale(
+        fameLauncher.createV3Liquidity(
             100_000_000 ether,
+            0 ether,
             tickLower,
             tickUpper
         );
 
         fame.transfer(address(fameLauncher), 66_000_000 ether);
-        fameLauncher.createV3LiquidityRest(
+        fameLauncher.createV3Liquidity(
             66_000_000 ether,
-            tick + tickSpacing
+            0 ether,
+            tick + tickSpacing,
+            887220
         );
 
         weth.deposit{value: 100 ether}();
@@ -267,9 +280,11 @@ contract FameLauncherTest is Test {
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
 
         fame.transfer(address(fameLauncher), 266_000_000 ether);
-        fameLauncher.createV3LiquidityRest(
+        fameLauncher.createV3Liquidity(
             266_000_000 ether,
-            tick + tickSpacing
+            0 ether,
+            tick + tickSpacing,
+            887220
         );
 
         weth.deposit{value: 100 ether}();

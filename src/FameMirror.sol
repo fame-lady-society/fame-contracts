@@ -3,6 +3,8 @@ pragma solidity ^0.8.4;
 
 import "@openzeppelin5/contracts/governance/utils/Votes.sol";
 import "./DN404Mirror.sol";
+import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
+import {IERC4906} from "./IERC4906.sol";
 
 /**
  * @title FameMirror
@@ -10,8 +12,8 @@ import "./DN404Mirror.sol";
  * This contract is used to mint NFTs for users who have accumulated a certain amount of fungible tokens.
  * Also Implements the EIP-5805 standard (ERC721Votes) and EIP-6372 standard (clock)
  */
-contract FameMirror is DN404Mirror, Votes {
-    constructor(address owner) DN404Mirror(owner) EIP712("Fame404", "1") {}
+contract FameMirror is DN404Mirror, Votes, IERC4906 {
+    constructor(address _owner) DN404Mirror(_owner) EIP712("Fame404", "1") {}
 
     error OnlyERC20CanCall();
 

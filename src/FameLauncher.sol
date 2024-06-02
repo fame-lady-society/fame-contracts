@@ -89,8 +89,9 @@ contract FameLauncher is Ownable {
         );
     }
 
-    function createV3LiquidityPostSale(
+    function createV3Liquidity(
         uint256 postSaleAmountA,
+        uint256 postSaleAmountB,
         int24 tickLower,
         int24 tickUpper
     )
@@ -115,42 +116,7 @@ contract FameLauncher is Ownable {
                     tickLower: tickLower,
                     tickUpper: tickUpper,
                     amount0Desired: postSaleAmountA,
-                    amount1Desired: 0,
-                    amount0Min: 0,
-                    amount1Min: 0,
-                    recipient: address(this),
-                    deadline: block.timestamp
-                })
-            );
-    }
-
-    function createV3LiquidityRest(
-        uint256 restAmountA,
-        int24 tickLower
-    )
-        external
-        payable
-        onlyOwner
-        returns (
-            uint256 tokenId,
-            uint128 liquidity,
-            uint256 amount0,
-            uint256 amount1
-        )
-    {
-        //create a second position with singleSidedAmountA from the current tick to max tick (887200)
-        tokenA.approve(address(nonfungiblePositionManager), restAmountA);
-
-        return
-            nonfungiblePositionManager.mint(
-                INonfungiblePositionManager.MintParams({
-                    token0: address(tokenA),
-                    token1: address(tokenB),
-                    fee: 3000,
-                    tickLower: tickLower,
-                    tickUpper: 887220,
-                    amount0Desired: restAmountA,
-                    amount1Desired: 0,
+                    amount1Desired: postSaleAmountB,
                     amount0Min: 0,
                     amount1Min: 0,
                     recipient: address(this),
