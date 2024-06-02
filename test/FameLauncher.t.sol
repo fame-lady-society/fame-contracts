@@ -30,8 +30,8 @@ contract FameLauncherTest is Test {
     using LibString for uint256;
 
     function setUp() public {
-        fame = new Fame("Fame", "FAME", address(this));
-
+        fame = new Fame("Fame", "FAME1", address(this));
+        console.log("Fame address: %s", address(fame));
         bool fameIsLower = address(fame) < address(this);
         console.log("Fame is lower: %s", fameIsLower);
         fameLauncher = new FameLauncher(
