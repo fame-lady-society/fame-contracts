@@ -105,7 +105,18 @@ contract FameLauncher is Ownable {
             uint256 amount1
         )
     {
-        tokenA.approve(address(nonfungiblePositionManager), postSaleAmountA);
+        if (postSaleAmountA > 0) {
+            tokenA.approve(
+                address(nonfungiblePositionManager),
+                postSaleAmountA
+            );
+        }
+        if (postSaleAmountB > 0) {
+            tokenB.approve(
+                address(nonfungiblePositionManager),
+                postSaleAmountB
+            );
+        }
 
         return
             nonfungiblePositionManager.mint(

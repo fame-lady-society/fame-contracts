@@ -25,18 +25,46 @@ interface IWETH {
 
 contract FameLauncherTest is Test {
     Fame public fame;
+    Fame public fame1;
     FameLauncher public fameLauncher;
+    FameLauncher public fameLauncher1;
     IWETH weth = IWETH(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9);
     using LibString for uint256;
 
+    // function toBytes(uint256 x) internal returns (bytes32 b) {
+    //     b = new bytes32(32);
+    //     assembly {
+    //         mstore(add(b, 32), x)
+    //     }
+    // }
+
     function setUp() public {
-        fame = new Fame("Fame", "FAME1", address(this));
-        console.log("Fame address: %s", address(fame));
+        // salt is a bytes32
+        uint256 salt = 0x1;
+        fame = new Fame{salt: bytes32(abi.encodePacked(salt))}(
+            "Fame",
+            "FAME",
+            address(this)
+        );
+        salt = 0x2;
+        fame1 = new Fame{salt: bytes32(abi.encodePacked(salt))}(
+            "Fame",
+            "FAME",
+            address(this)
+        );
         bool fameIsLower = address(fame) < address(this);
         console.log("Fame is lower: %s", fameIsLower);
         fameLauncher = new FameLauncher(
-            fameIsLower ? address(fame) : address(weth),
-            fameIsLower ? address(weth) : address(fame),
+            address(fame),
+            address(weth),
+            0xB7f907f7A9eBC822a80BD25E224be42Ce0A698A0, // v2 factory on sepolia
+            0x0227628f3F023bb0B980b67D528571c95c6DaC1c, // v3 factory on sepolia
+            0x1238536071E1c677A632429e3655c799b22cDA52 //  v3 nonfungiblePositionManager on sepolia
+        );
+
+        fameLauncher1 = new FameLauncher(
+            address(weth),
+            address(fame1),
             0xB7f907f7A9eBC822a80BD25E224be42Ce0A698A0, // v2 factory on sepolia
             0x0227628f3F023bb0B980b67D528571c95c6DaC1c, // v3 factory on sepolia
             0x1238536071E1c677A632429e3655c799b22cDA52 //  v3 nonfungiblePositionManager on sepolia
@@ -100,6 +128,41 @@ contract FameLauncherTest is Test {
         assertEq(fameLauncher.v3Pool().liquidity(), 0);
     }
 
+    function test_LaunchV3LiquidityPostSale1() public {
+        uint160 price = sqrtPriceX96(8 ether, 888_000_000 ether);
+        fameLauncher1.initializeV3Pool(price);
+        fame1.transfer(address(fameLauncher1), 100_000_000 ether);
+
+        // Calculate the current tick based on sqrtPriceX96
+        int24 tick = fameLauncher1.getTickFromSqrtPriceX96(price);
+
+        // Set tickLower and tickUpper to be around the current tick
+        int24 tickSpacing = fameLauncher1.getV3TickSpacing();
+
+        // get current tick
+        int24 tickUpper = tick - tickSpacing;
+        int24 tickLower = tick - 2 * tickSpacing;
+
+        (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        ) = fameLauncher1.createV3Liquidity(
+                0 ether,
+                100_000_000 ether,
+                tickLower,
+                tickUpper
+            );
+
+        assertEq(tokenId, 15896);
+        assertEq(liquidity, 3184596500010477641152027);
+        assertEq(amount0, 0);
+        assertEq(amount1, 99999999999999999999999992);
+
+        assertEq(fameLauncher1.v3Pool().liquidity(), 0);
+    }
+
     function test_v3LiquidityAmount() public view {
         uint160 price = sqrtPriceX96(888_000_000 ether, 8 ether);
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
@@ -155,6 +218,47 @@ contract FameLauncherTest is Test {
         assertEq(
             IERC20(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9).balanceOf(
                 address(fameLauncher.v3Pool())
+            ),
+            0 ether
+        );
+    }
+
+    function test_LaunchV3Liquidity1Rest() public {
+        uint160 price = sqrtPriceX96(8 ether, 888_000_000 ether);
+        fameLauncher1.initializeV3Pool(price);
+        fame1.transfer(address(fameLauncher1), 100_000_000 ether);
+
+        // Calculate the current tick based on sqrtPriceX96
+        int24 tick = fameLauncher1.getTickFromSqrtPriceX96(price);
+
+        // Set tickLower and tickUpper to be around the current tick
+        int24 tickSpacing = fameLauncher1.getV3TickSpacing();
+        int24 tickUpper = tick - 2 * tickSpacing;
+
+        (
+            uint256 tokenId,
+            uint128 liquidity,
+            uint256 amount0,
+            uint256 amount1
+        ) = fameLauncher1.createV3Liquidity(
+                0 ether,
+                100_000_000 ether,
+                -887220,
+                tickUpper
+            );
+
+        assertEq(tokenId, 15896);
+        assertEq(liquidity, 9567655433000195384683);
+        assertEq(amount0, 0);
+        assertEq(amount1, 99999999999999999999992912);
+
+        assertEq(
+            fame1.balanceOf(address(fameLauncher1.v3Pool())),
+            99999999999999999999992912
+        );
+        assertEq(
+            IERC20(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9).balanceOf(
+                address(fameLauncher1.v3Pool())
             ),
             0 ether
         );
