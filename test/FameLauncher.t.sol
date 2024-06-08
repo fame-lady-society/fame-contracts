@@ -29,6 +29,8 @@ contract FameLauncherTest is Test {
     FameLauncher public fameLauncher;
     FameLauncher public fameLauncher1;
     IWETH weth = IWETH(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9);
+    ISwapRouter02 public swapRouter =
+        ISwapRouter02(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E);
     using LibString for uint256;
 
     // function toBytes(uint256 x) internal returns (bytes32 b) {
@@ -41,13 +43,13 @@ contract FameLauncherTest is Test {
     function setUp() public {
         // salt is a bytes32
         uint256 salt = 0x1;
-        fame = new Fame{salt: bytes32(abi.encodePacked(salt))}(
+        fame1 = new Fame{salt: bytes32(abi.encodePacked(salt))}(
             "Fame",
             "FAME",
             address(this)
         );
         salt = 0x2;
-        fame1 = new Fame{salt: bytes32(abi.encodePacked(salt))}(
+        fame = new Fame{salt: bytes32(abi.encodePacked(salt))}(
             "Fame",
             "FAME",
             address(this)
@@ -70,14 +72,13 @@ contract FameLauncherTest is Test {
     }
 
     function test_LaunchV2Liquidity() public {
-        // transfer 177_600_000 ether of fame to the launcher
-        fame.transfer(address(fameLauncher), 177_600_000 ether);
-
         // Wrap 8 ETH to WETH
         weth.deposit{value: 8 ether}();
-        weth.transfer(address(fameLauncher), 8 ether);
 
         // create liquidity
+        address v2Pair = fameLauncher.createV2Pair();
+        IWETH(weth).transfer(v2Pair, 8 ether);
+        Fame(fame).transfer(v2Pair, 177_600_000 ether);
         uint liquidity = fameLauncher.createV2Liquidity();
         assertEq(liquidity, 37693500766047188681023);
     }
@@ -467,6 +468,64 @@ contract FameLauncherTest is Test {
             toFixedPoint(uint256(uint256(-amount0)), 24, 2)
         );
         (amount0, , afterPrice) = swapFor(recipient, false, 1 ether);
+    }
+
+    function test_v3SSwapRouter() public {
+        uint160 price = sqrtPriceX96(177_600_000 ether, 8.88 ether);
+        fameLauncher.initializeV3Pool(price);
+        // fame.transfer(address(fameLauncher), 100_000_000 ether);
+
+        // Calculate the current tick based on sqrtPriceX96
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
+
+        // Set tickLower and tickUpper to be around the current tick
+        int24 tickSpacing = fameLauncher.getV3TickSpacing();
+        int24 tickLower = tick + tickSpacing;
+        int24 tickUpper = tick + 2 * tickSpacing;
+
+        fame.transfer(address(fameLauncher), 100_000_000 ether);
+        fameLauncher.createV3Liquidity(
+            100_000_000 ether,
+            0 ether,
+            tickLower,
+            tickUpper
+        );
+
+        fame.transfer(address(fameLauncher), 66_000_000 ether);
+        fameLauncher.createV3Liquidity(
+            66_000_000 ether,
+            0 ether,
+            tick + tickSpacing,
+            887220
+        );
+
+        weth.deposit{value: 100 ether}();
+        console.log(
+            "Market Cap before swap: %s",
+            toFixedPoint((sqrtPriceX96ToUint(price, 18) * 888_000_000), 18, 2)
+        );
+        // Create recipient
+        address recipient = address(111);
+        weth.transfer(recipient, 1 ether);
+        vm.prank(recipient);
+        IERC20(address(weth)).approve(address(swapRouter), 1 ether);
+
+        ISwapRouter02.ExactInputSingleParams memory params = ISwapRouter02
+            .ExactInputSingleParams({
+                tokenIn: address(weth),
+                tokenOut: address(fame),
+                fee: 3000,
+                recipient: recipient,
+                amountIn: 1 ether,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+
+        vm.prank(recipient);
+        swapRouter.exactInputSingle(params);
+
+        assertEq(IERC20(address(weth)).balanceOf(address(111)), 0);
+        assertEq(fame.balanceOf(address(111)), 19807336199992096179662213);
     }
 
     function sqrtPriceX96(

@@ -3,6 +3,9 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
+import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IERC20} from "@openzeppelin5/contracts/token/ERC20/IERC20.sol";
+import {TickMath} from "../src/v3-core/TickMath.sol";
 import {Fame} from "../src/Fame.sol";
 import {FameLaunch} from "../src/FameLaunch.sol";
 
@@ -41,33 +44,34 @@ contract DeployLaunch is Script {
         vm.stopBroadcast();
     }
 
-    function swapFor(
-        uint256 privateKey,
-        address recipient,
-        bool zeroForOne,
-        int256 amount
-    ) public returns (int256 amount0, int256 amount1, uint160 afterPrice) {
-        IUniswapV3Pool pool = fameLauncher.v3Pool();
-        bytes memory emptyBytes;
+    //     function swapFor(
+    //         uint256 privateKey,
+    //         FameLaunch fameLauncher,
+    //         address recipient,
+    //         bool zeroForOne,
+    //         int256 amount
+    //     ) public returns (int256 amount0, int256 amount1, uint160 afterPrice) {
+    //         IUniswapV3Pool pool = fameLauncher.v3Pool();
+    //         bytes memory emptyBytes;
 
-        if (!zeroForOne) {
-            weth.deposit{value: uint256(amount)}();
-            IERC20(address(weth)).transfer(recipient, uint256(amount));
-            // approve as recipient
-            vm.startBroadcast(deployerPrivateKey);
-            IERC20(address(weth)).approve(address(this), uint256(amount));
-        }
+    //         if (!zeroForOne) {
+    //             weth.deposit{value: uint256(amount)}();
+    //             IERC20(address(weth)).transfer(recipient, uint256(amount));
+    //             // approve as recipient
+    //             vm.startBroadcast(privateKey);
+    //             IERC20(address(weth)).approve(address(this), uint256(amount));
+    //         }
 
-        (amount0, amount1) = pool.swap(
-            recipient,
-            zeroForOne,
-            amount,
-            zeroForOne
-                ? TickMath.MIN_SQRT_RATIO + 1
-                : TickMath.MAX_SQRT_RATIO - 1,
-            emptyBytes
-        );
+    //         (amount0, amount1) = pool.swap(
+    //             recipient,
+    //             zeroForOne,
+    //             amount,
+    //             zeroForOne
+    //                 ? TickMath.MIN_SQRT_RATIO + 1
+    //                 : TickMath.MAX_SQRT_RATIO - 1,
+    //             emptyBytes
+    //         );
 
-        (afterPrice, , , , , , ) = pool.slot0();
-    }
+    //         (afterPrice, , , , , , ) = pool.slot0();
+    //     }
 }
