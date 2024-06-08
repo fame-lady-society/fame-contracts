@@ -22,3 +22,6 @@
 [submodule "lib/openzeppelin-contracts-5"]
 	path = lib/openzeppelin-contracts-5
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "lib/swap-router-contracts"]
+	path = lib/swap-router-contracts
+	url = https://github.com/uniswap/swap-router-contracts
