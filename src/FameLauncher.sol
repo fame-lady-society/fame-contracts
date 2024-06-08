@@ -4,7 +4,6 @@ pragma solidity ^0.8.24;
 // v2 factory on sepolia
 // 0xB7f907f7A9eBC822a80BD25E224be42Ce0A698A0
 
-import {Ownable} from "@openzeppelin5/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin5/contracts/token/ERC20/IERC20.sol";
 import {IUniswapV2Factory} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import {IUniswapV2Pair} from "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
@@ -12,10 +11,9 @@ import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {INonfungiblePositionManager} from "./v3-periphery/INonfungiblePositionManager.sol";
 import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
-import {TickMath} from "./v3-core/TickMath.sol";
 
-contract FameLauncher is Ownable {
-    using FixedPointMathLib for uint256;
+contract FameLauncher {
+    // using FixedPointMathLib for uint256;
 
     IUniswapV2Factory public uniswapV2Factory;
     IUniswapV2Pair public v2Pair;
@@ -33,7 +31,7 @@ contract FameLauncher is Ownable {
         address _uniswapV2Factory,
         address _uniswapV3Factory,
         address _nonfungiblePositionManager
-    ) Ownable(msg.sender) {
+    ) {
         tokenA = IERC20(_tokenA);
         tokenB = IERC20(_tokenB);
         uniswapV2Factory = IUniswapV2Factory(_uniswapV2Factory);
@@ -43,8 +41,11 @@ contract FameLauncher is Ownable {
         );
     }
 
-    function createV2Pair() internal returns (address pair) {
-        return uniswapV2Factory.createPair(address(tokenA), address(tokenB));
+    function createV2Pair() external returns (address pair) {
+        v2Pair = IUniswapV2Pair(
+            uniswapV2Factory.createPair(address(tokenA), address(tokenB))
+        );
+        return address(v2Pair);
     }
 
     function createV3Pool() internal returns (address pool) {
@@ -56,29 +57,13 @@ contract FameLauncher is Ownable {
         return uniswapV3Factory.feeAmountTickSpacing(3000);
     }
 
-    function createV2Liquidity()
-        external
-        payable
-        onlyOwner
-        returns (uint liquidity)
-    {
-        v2Pair = IUniswapV2Pair(createV2Pair());
-
-        // add liquidity using all tokens in the contract
-        uint256 amountA = tokenA.balanceOf(address(this));
-        uint256 amountB = tokenB.balanceOf(address(this));
-
-        // transfer the tokens to the pair
-        tokenA.transfer(address(v2Pair), amountA);
-        tokenB.transfer(address(v2Pair), amountB);
-
+    function createV2Liquidity() external payable returns (uint liquidity) {
         // add liquidity
         liquidity = IUniswapV2Pair(v2Pair).mint(address(this));
+        v2Pair.transfer(msg.sender, liquidity);
     }
 
-    function initializeV3Pool(uint160 sqrtPriceX96) external onlyOwner {
-        // v3Pool = IUniswapV3Pool(createV3Pool());
-        // v3Pool.initialize(sqrtPriceX96);
+    function initializeV3Pool(uint160 sqrtPriceX96) external {
         v3Pool = IUniswapV3Pool(
             nonfungiblePositionManager.createAndInitializePoolIfNecessary(
                 address(tokenA),
@@ -97,7 +82,6 @@ contract FameLauncher is Ownable {
     )
         external
         payable
-        onlyOwner
         returns (
             uint256 tokenId,
             uint128 liquidity,
@@ -118,8 +102,8 @@ contract FameLauncher is Ownable {
             );
         }
 
-        return
-            nonfungiblePositionManager.mint(
+        (tokenId, liquidity, amount0, amount1) = nonfungiblePositionManager
+            .mint(
                 INonfungiblePositionManager.MintParams({
                     token0: address(tokenA),
                     token1: address(tokenB),
@@ -134,11 +118,18 @@ contract FameLauncher is Ownable {
                     deadline: block.timestamp
                 })
             );
+
+        // transfer the liquidity to the owner
+        nonfungiblePositionManager.safeTransferFrom(
+            address(this),
+            msg.sender,
+            tokenId
+        );
     }
 
-    function getTickFromSqrtPriceX96(
-        uint160 sqrtPriceX96
-    ) external pure returns (int24 tick) {
-        return TickMath.getTickAtSqrtRatio(sqrtPriceX96);
+    function refund() external {
+        // refund fame to the sender
+        tokenA.transfer(msg.sender, tokenA.balanceOf(address(this)));
+        tokenB.transfer(msg.sender, tokenB.balanceOf(address(this)));
     }
 }

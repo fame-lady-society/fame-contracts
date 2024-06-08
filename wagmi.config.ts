@@ -7,7 +7,7 @@ export default defineConfig({
   contracts: [],
   plugins: [
     foundry({
-      include: ["FameSale.sol/**", "FameSaleToken.sol/**"],
+      include: ["FameSale.sol/**", "FameSaleToken.sol/**", "FameLaunch.sol/**"],
     }),
   ],
 });

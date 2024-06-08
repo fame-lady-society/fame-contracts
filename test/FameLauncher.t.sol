@@ -52,8 +52,6 @@ contract FameLauncherTest is Test {
             "FAME",
             address(this)
         );
-        bool fameIsLower = address(fame) < address(this);
-        console.log("Fame is lower: %s", fameIsLower);
         fameLauncher = new FameLauncher(
             address(fame),
             address(weth),
@@ -99,7 +97,7 @@ contract FameLauncherTest is Test {
         fame.transfer(address(fameLauncher), 100_000_000 ether);
 
         // Calculate the current tick based on sqrtPriceX96
-        int24 tick = fameLauncher.getTickFromSqrtPriceX96(price);
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
 
         // Set tickLower and tickUpper to be around the current tick
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
@@ -134,7 +132,7 @@ contract FameLauncherTest is Test {
         fame1.transfer(address(fameLauncher1), 100_000_000 ether);
 
         // Calculate the current tick based on sqrtPriceX96
-        int24 tick = fameLauncher1.getTickFromSqrtPriceX96(price);
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
 
         // Set tickLower and tickUpper to be around the current tick
         int24 tickSpacing = fameLauncher1.getV3TickSpacing();
@@ -166,7 +164,7 @@ contract FameLauncherTest is Test {
     function test_v3LiquidityAmount() public view {
         uint160 price = sqrtPriceX96(888_000_000 ether, 8 ether);
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
-        int24 tick = fameLauncher.getTickFromSqrtPriceX96(price);
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
         int24 tickUpper = tick + 2 * tickSpacing;
         uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickUpper);
         uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK);
@@ -188,7 +186,7 @@ contract FameLauncherTest is Test {
         fame.transfer(address(fameLauncher), 100_000_000 ether);
 
         // Calculate the current tick based on sqrtPriceX96
-        int24 tick = fameLauncher.getTickFromSqrtPriceX96(price);
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
 
         // Set tickLower and tickUpper to be around the current tick
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
@@ -229,7 +227,7 @@ contract FameLauncherTest is Test {
         fame1.transfer(address(fameLauncher1), 100_000_000 ether);
 
         // Calculate the current tick based on sqrtPriceX96
-        int24 tick = fameLauncher1.getTickFromSqrtPriceX96(price);
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
 
         // Set tickLower and tickUpper to be around the current tick
         int24 tickSpacing = fameLauncher1.getV3TickSpacing();
@@ -270,7 +268,7 @@ contract FameLauncherTest is Test {
         // fame.transfer(address(fameLauncher), 100_000_000 ether);
 
         // Calculate the current tick based on sqrtPriceX96
-        int24 tick = fameLauncher.getTickFromSqrtPriceX96(price);
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
 
         // Set tickLower and tickUpper to be around the current tick
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
@@ -378,7 +376,7 @@ contract FameLauncherTest is Test {
         // fame.transfer(address(fameLauncher), 100_000_000 ether);
 
         // Calculate the current tick based on sqrtPriceX96
-        int24 tick = fameLauncher.getTickFromSqrtPriceX96(price);
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
 
         // Set tickLower and tickUpper to be around the current tick
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
@@ -626,5 +624,15 @@ contract FameLauncherTest is Test {
         );
 
         (afterPrice, , , , , , ) = pool.slot0();
+    }
+
+    // ERC721Receiver
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
     }
 }
