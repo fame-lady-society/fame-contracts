@@ -5,9 +5,11 @@ import {Script} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {IERC20} from "@openzeppelin5/contracts/token/ERC20/IERC20.sol";
+import {ISwapRouter02} from "../src/swap-router-contracts/ISwapRouter02.sol";
 import {TickMath} from "../src/v3-core/TickMath.sol";
 import {Fame} from "../src/Fame.sol";
 import {FameLaunch} from "../src/FameLaunch.sol";
+import {ClaimToFame} from "../src/ClaimToFame.sol";
 
 interface IWETH {
     function deposit() external payable;
@@ -17,14 +19,19 @@ interface IWETH {
 
 contract DeployLaunch is Script {
     address private weth = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
+    ISwapRouter02 private swapRouter =
+        ISwapRouter02(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E);
+
+    Fame private fame;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("SEPOLIA_DEPLOYER_PRIVATE_KEY");
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
 
-        Fame fame = new Fame("Example", "TEST", wallet.addr);
+        fame = new Fame("Example", "TEST", wallet.addr);
         FameLaunch fl = new FameLaunch();
+        fame.transfer(address(fl), 444_000_000 ether);
         fl.launch{value: 0.06 ether}(
             payable(address(fame)),
             weth, // WETH on sepolia
@@ -41,37 +48,34 @@ contract DeployLaunch is Script {
                 (1 << 255)
         );
 
+        uint256 signerPrivateKey = vm.envUint("SEPOLIA_SIGNER_PRIVATE_KEY");
+        VmSafe.Wallet memory signerWallet = vm.createWallet(signerPrivateKey);
+        ClaimToFame ctf = new ClaimToFame(address(fame), signerWallet.addr);
+        ctf.grantRoles(wallet.addr, ctf.roleSigner() | ctf.roleClaimPrimer());
+        fame.transfer(address(ctf), 222_000_000 ether);
+
         vm.stopBroadcast();
+        // swapFor(vm.envUint("SEPOLIA_SNIPE1_PRIVATE_KEY"), 0.001 ether);
+        // swapFor(vm.envUint("SEPOLIA_SNIPE2_PRIVATE_KEY"), 0.001 ether);
+        // swapFor(vm.envUint("SEPOLIA_SNIPE3_PRIVATE_KEY"), 0.001 ether);
     }
 
-    //     function swapFor(
-    //         uint256 privateKey,
-    //         FameLaunch fameLauncher,
-    //         address recipient,
-    //         bool zeroForOne,
-    //         int256 amount
-    //     ) public returns (int256 amount0, int256 amount1, uint160 afterPrice) {
-    //         IUniswapV3Pool pool = fameLauncher.v3Pool();
-    //         bytes memory emptyBytes;
-
-    //         if (!zeroForOne) {
-    //             weth.deposit{value: uint256(amount)}();
-    //             IERC20(address(weth)).transfer(recipient, uint256(amount));
-    //             // approve as recipient
-    //             vm.startBroadcast(privateKey);
-    //             IERC20(address(weth)).approve(address(this), uint256(amount));
-    //         }
-
-    //         (amount0, amount1) = pool.swap(
-    //             recipient,
-    //             zeroForOne,
-    //             amount,
-    //             zeroForOne
-    //                 ? TickMath.MIN_SQRT_RATIO + 1
-    //                 : TickMath.MAX_SQRT_RATIO - 1,
-    //             emptyBytes
-    //         );
-
-    //         (afterPrice, , , , , , ) = pool.slot0();
-    //     }
+    function swapFor(uint256 privateKey, uint256 amount) public {
+        VmSafe.Wallet memory wallet = vm.createWallet(privateKey);
+        vm.startBroadcast(wallet.privateKey);
+        IWETH(weth).deposit{value: amount}();
+        IERC20(weth).approve(address(swapRouter), amount);
+        ISwapRouter02.ExactInputSingleParams memory params = ISwapRouter02
+            .ExactInputSingleParams({
+                tokenIn: weth,
+                tokenOut: address(fame),
+                fee: 3000,
+                recipient: wallet.addr,
+                amountIn: amount,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+            });
+        swapRouter.exactInputSingle(params);
+        vm.stopBroadcast();
+    }
 }

@@ -7,6 +7,7 @@ export const fameLaunchAbi = [
   {
     type: 'function',
     inputs: [
+      { name: 'fame', internalType: 'address payable', type: 'address' },
       { name: 'weth', internalType: 'address', type: 'address' },
       { name: '_uniswapV2Factory', internalType: 'address', type: 'address' },
       { name: '_uniswapV3Factory', internalType: 'address', type: 'address' },
@@ -17,9 +18,7 @@ export const fameLaunchAbi = [
       },
     ],
     name: 'launch',
-    outputs: [
-      { name: 'fame', internalType: 'address payable', type: 'address' },
-    ],
+    outputs: [],
     stateMutability: 'payable',
   },
   {
@@ -756,6 +755,69 @@ export const fameSaleTokenAbi = [
   { type: 'error', inputs: [], name: 'PermitExpired' },
   { type: 'error', inputs: [], name: 'TotalSupplyOverflow' },
   { type: 'error', inputs: [], name: 'Unauthorized' },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ISwapRouter02
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const iSwapRouter02Abi = [
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'params',
+        internalType: 'struct ISwapRouter02.ExactInputSingleParams',
+        type: 'tuple',
+        components: [
+          { name: 'tokenIn', internalType: 'address', type: 'address' },
+          { name: 'tokenOut', internalType: 'address', type: 'address' },
+          { name: 'fee', internalType: 'uint24', type: 'uint24' },
+          { name: 'recipient', internalType: 'address', type: 'address' },
+          { name: 'amountIn', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'amountOutMinimum',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+          {
+            name: 'sqrtPriceLimitX96',
+            internalType: 'uint160',
+            type: 'uint160',
+          },
+        ],
+      },
+    ],
+    name: 'exactInputSingle',
+    outputs: [{ name: 'amountOut', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      {
+        name: 'params',
+        internalType: 'struct ISwapRouter02.ExactOutputSingleParams',
+        type: 'tuple',
+        components: [
+          { name: 'tokenIn', internalType: 'address', type: 'address' },
+          { name: 'tokenOut', internalType: 'address', type: 'address' },
+          { name: 'fee', internalType: 'uint24', type: 'uint24' },
+          { name: 'recipient', internalType: 'address', type: 'address' },
+          { name: 'amountOut', internalType: 'uint256', type: 'uint256' },
+          { name: 'amountInMaximum', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'sqrtPriceLimitX96',
+            internalType: 'uint160',
+            type: 'uint160',
+          },
+        ],
+      },
+    ],
+    name: 'exactOutputSingle',
+    outputs: [{ name: 'amountIn', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

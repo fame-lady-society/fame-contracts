@@ -13,6 +13,7 @@ import {SqrtPriceMath} from "../src/v3-core/SqrtPriceMath.sol";
 import {TickMath} from "../src/v3-core/TickMath.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {Math} from "@openzeppelin5/contracts/utils/math/Math.sol";
+import {ISwapRouter02} from "../src/swap-router-contracts/ISwapRouter02.sol";
 import "../src/v3-core/FullMath.sol";
 import "@uniswap/v3-core/contracts/libraries/FixedPoint96.sol";
 import "forge-std/console.sol";
@@ -43,13 +44,13 @@ contract FameLauncherTest is Test {
     function setUp() public {
         // salt is a bytes32
         uint256 salt = 0x1;
-        fame1 = new Fame{salt: bytes32(abi.encodePacked(salt))}(
+        fame = new Fame{salt: bytes32(abi.encodePacked(salt))}(
             "Fame",
             "FAME",
             address(this)
         );
         salt = 0x2;
-        fame = new Fame{salt: bytes32(abi.encodePacked(salt))}(
+        fame1 = new Fame{salt: bytes32(abi.encodePacked(salt))}(
             "Fame",
             "FAME",
             address(this)

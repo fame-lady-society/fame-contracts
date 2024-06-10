@@ -12,7 +12,7 @@ contract ClaimToFame is OwnableRoles {
     using SignatureCheckerLib for address;
     using LibBitmap for LibBitmap.Bitmap;
     IERC20 public fameToken;
-    mapping(address => uint256) private signatureNonces;
+    mapping(address => uint256) public signatureNonces;
     LibBitmap.Bitmap private claimedBitmap;
     address private signer;
 
@@ -25,13 +25,29 @@ contract ClaimToFame is OwnableRoles {
     uint256 internal constant SIGNER = _ROLE_0;
 
     /**
-     * @dev Returns the role that controls the trust and safety of the contract. This role can clear the metadata of a token in cases of vulgar or illegal content.
+     * @dev Returns the role that controls the signer address.
      */
     function roleSigner() public pure returns (uint256) {
         return SIGNER;
     }
 
-    function claim(uint256 _amount) public {}
+    uint256 internal constant CLAIM_PRIMER = _ROLE_1;
+
+    /**
+     * @dev Returns the role that primes which tokens are already claimed when the contract is deployed.
+     */
+    function roleClaimPrimer() public pure returns (uint256) {
+        return CLAIM_PRIMER;
+    }
+
+    uint internal constant TREASURER = _ROLE_2;
+
+    /**
+     * @dev Returns the role that can withdraw funds from the contract.
+     */
+    function roleTreasurer() public pure returns (uint256) {
+        return TREASURER;
+    }
 
     /**
      * @dev Sets the signer address.
@@ -41,18 +57,27 @@ contract ClaimToFame is OwnableRoles {
         signer = _signer;
     }
 
-    /**
-     * @dev Returns the hash of an update request.
-     * @param tokenId uint256 ID of the token to set its URI.
-     * @param uri string URI to assign.
-     * @param nonce uint256 Nonce of the update request.
-     */
-    function hashUpdateRequest(
-        uint256 tokenId,
-        string calldata uri,
-        uint256 nonce
-    ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(tokenId, uri, nonce));
+    function primeClaim(
+        uint16[] calldata tokenIds
+    ) external onlyRolesOrOwner(CLAIM_PRIMER) {
+        setClaimedTokens(tokenIds);
+    }
+
+    function primeClaimWithData(
+        bytes calldata packedTokenIds
+    ) external onlyRolesOrOwner(CLAIM_PRIMER) {
+        setClaimedData(packedTokenIds);
+    }
+
+    function withdrawErc20(
+        address token,
+        uint256 amount
+    ) external onlyRolesOrOwner(TREASURER) {
+        IERC20(token).transfer(msg.sender, amount);
+    }
+
+    function withdrawEth(uint256 amount) external onlyRolesOrOwner(TREASURER) {
+        payable(msg.sender).transfer(amount);
     }
 
     uint256 internal constant MAX_TOKENS = 8888;
@@ -127,7 +152,7 @@ contract ClaimToFame is OwnableRoles {
         }
     }
 
-    function setClaimedTokens(uint16[] calldata tokenIds) public {
+    function setClaimedTokens(uint16[] calldata tokenIds) internal {
         uint16 length = uint16(tokenIds.length);
         for (uint16 i = 0; i < length; i++) {
             uint16 tokenId = tokenIds[i];
@@ -268,5 +293,20 @@ contract ClaimToFame is OwnableRoles {
         );
         setClaimedTokens(tokenIds);
         fameToken.transfer(account, amount);
+    }
+
+    function isClaimed(uint256 tokenId) public view returns (bool) {
+        return claimedBitmap.get(tokenId);
+    }
+
+    function isClaimedBatch(
+        uint256[] calldata tokenIds
+    ) public view returns (bool[] memory) {
+        uint256 length = tokenIds.length;
+        bool[] memory result = new bool[](length);
+        for (uint256 i = 0; i < length; i++) {
+            result[i] = claimedBitmap.get(tokenIds[i]);
+        }
+        return result;
     }
 }

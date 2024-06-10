@@ -4,14 +4,16 @@
 
 Foundry consists of:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
+- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
+- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
+- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
 
 ## Documentation
 
 https://book.getfoundry.sh/
+
+(FAME Release Plan)[./docs/fame-release-plan.md]
 
 ## Usage
 
@@ -23,8 +25,10 @@ $ forge build
 
 ### Test
 
+Tests assume some basic uniswap infra, at a specific block, and on sepolia
+
 ```shell
-$ forge test
+$ forge test --fork-url $SEPOLIA_RPC --fork-block-number 5937091
 ```
 
 ### Format
