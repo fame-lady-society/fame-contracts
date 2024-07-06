@@ -13,7 +13,7 @@ contract ClaimToFame is OwnableRoles {
     using LibBitmap for LibBitmap.Bitmap;
     IERC20 public fameToken;
     mapping(address => uint256) public signatureNonces;
-    LibBitmap.Bitmap private claimedBitmap;
+    mapping(address => LibBitmap.Bitmap) private claimedBitmaps;
     address private signer;
 
     constructor(address _fameToken, address _signer) {
@@ -58,15 +58,17 @@ contract ClaimToFame is OwnableRoles {
     }
 
     function primeClaim(
+        address contractAddress,
         uint16[] calldata tokenIds
     ) external onlyRolesOrOwner(CLAIM_PRIMER) {
-        setClaimedTokens(tokenIds);
+        setClaimedTokens(contractAddress, tokenIds);
     }
 
     function primeClaimWithData(
+        address contractAddress,
         bytes calldata packedTokenIds
     ) external onlyRolesOrOwner(CLAIM_PRIMER) {
-        setClaimedData(packedTokenIds);
+        setClaimedData(contractAddress, packedTokenIds);
     }
 
     function withdrawErc20(
@@ -136,7 +138,13 @@ contract ClaimToFame is OwnableRoles {
      * @dev Sets the claimed tokens for a user by walking through the bits in the packed token ids and setting the corresponding token ids in claimedBitmap.
      * @param packedTokenIds bytes Packed byte data that represents all token ids in a packed format.
      */
-    function setClaimedData(bytes calldata packedTokenIds) internal {
+    function setClaimedData(
+        address contractAddress,
+        bytes calldata packedTokenIds
+    ) internal {
+        LibBitmap.Bitmap storage claimedBitmap = claimedBitmaps[
+            contractAddress
+        ];
         // Walk through the packedTokenIds to check each bit
         for (uint256 i = 0; i < packedTokenIds.length; i++) {
             uint8 byteValue = uint8(packedTokenIds[i]);
@@ -152,7 +160,13 @@ contract ClaimToFame is OwnableRoles {
         }
     }
 
-    function setClaimedTokens(uint16[] calldata tokenIds) internal {
+    function setClaimedTokens(
+        address contractAddress,
+        uint16[] calldata tokenIds
+    ) internal {
+        LibBitmap.Bitmap storage claimedBitmap = claimedBitmaps[
+            contractAddress
+        ];
         uint16 length = uint16(tokenIds.length);
         for (uint16 i = 0; i < length; i++) {
             uint16 tokenId = tokenIds[i];
@@ -186,6 +200,7 @@ contract ClaimToFame is OwnableRoles {
 
     function hashClaimTokensRequest(
         address account,
+        address contractAddress,
         uint256 amount,
         uint256 deadline,
         uint16[] calldata tokenIds,
@@ -193,7 +208,14 @@ contract ClaimToFame is OwnableRoles {
     ) public pure returns (bytes32) {
         return
             keccak256(
-                abi.encodePacked(account, amount, deadline, tokenIds, nonce)
+                abi.encodePacked(
+                    account,
+                    contractAddress,
+                    amount,
+                    deadline,
+                    tokenIds,
+                    nonce
+                )
             );
     }
 
@@ -231,6 +253,7 @@ contract ClaimToFame is OwnableRoles {
 
     function verifyClaimTokensRequest(
         address account,
+        address contractAddress,
         uint256 amount,
         uint256 deadline,
         uint16[] calldata tokenIds,
@@ -241,6 +264,7 @@ contract ClaimToFame is OwnableRoles {
         }
         bytes32 hash = hashClaimTokensRequest(
             account,
+            contractAddress,
             amount,
             deadline,
             tokenIds,
@@ -273,12 +297,13 @@ contract ClaimToFame is OwnableRoles {
             packedTokenIds,
             signature
         );
-        setClaimedData(packedTokenIds);
+        setClaimedData(contractAddress, packedTokenIds);
         fameToken.transfer(account, amount);
     }
 
     function claimWithTokens(
         address account,
+        address contractAddress,
         uint256 amount,
         uint256 deadline,
         uint16[] calldata tokenIds,
@@ -286,22 +311,30 @@ contract ClaimToFame is OwnableRoles {
     ) public {
         verifyClaimTokensRequest(
             account,
+            contractAddress,
             amount,
             deadline,
             tokenIds,
             signature
         );
-        setClaimedTokens(tokenIds);
+        setClaimedTokens(contractAddress, tokenIds);
         fameToken.transfer(account, amount);
     }
 
-    function isClaimed(uint256 tokenId) public view returns (bool) {
-        return claimedBitmap.get(tokenId);
+    function isClaimed(
+        address contractAddress,
+        uint256 tokenId
+    ) public view returns (bool) {
+        return claimedBitmaps[contractAddress].get(tokenId);
     }
 
     function isClaimedBatch(
+        address contractAddress,
         uint256[] calldata tokenIds
     ) public view returns (bool[] memory) {
+        LibBitmap.Bitmap storage claimedBitmap = claimedBitmaps[
+            contractAddress
+        ];
         uint256 length = tokenIds.length;
         bool[] memory result = new bool[](length);
         for (uint256 i = 0; i < length; i++) {

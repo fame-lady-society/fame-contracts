@@ -5,13 +5,16 @@ import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
 import {ClaimToFame} from "../src/ClaimToFame.sol";
 import {Fame} from "../src/Fame.sol";
+import {MockBalanceOf} from "./mocks/MockBalanceOf.sol";
 
 contract ClaimToFameTest is Test {
     Fame public fame;
     ClaimToFame public claimToFame;
+    MockBalanceOf public mockBalanceOf;
 
     function setUp() public {
-        fame = new Fame("Fame", "FAME", address(this));
+        mockBalanceOf = new MockBalanceOf();
+        fame = new Fame("Fame", "FAME", address(mockBalanceOf));
         claimToFame = new ClaimToFame(address(fame), address(this));
     }
 

@@ -7,6 +7,9 @@
   "license": "MIT",
   "private": true,
   "type": "module",
+  "scripts": {
+    "build:fountain": "esbuild src/fountain/index.js --bundle --outfile=out/fountain/index.js --format=iife --global-name=ThreeParticleFountain --minify"
+  },
   "dependencies": {
     "@safe-global/api-kit": "^2.4.0",
     "@safe-global/protocol-kit": "^4.0.0",
@@ -15,9 +18,11 @@
     "dotenv": "^16.4.5",
     "ethers": "^6.12.1",
     "merkletreejs": "^0.3.11",
+    "three": "^0.165.0",
     "viem": "^2.12.1"
   },
   "devDependencies": {
+    "esbuild": "^0.21.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5"
   }

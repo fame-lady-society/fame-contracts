@@ -20,18 +20,33 @@ contract DN404Mirror {
     /*-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»*/
 
     /// @dev Emitted when token `id` is transferred from `from` to `to`.
-    event Transfer(address indexed from, address indexed to, uint256 indexed id);
+    event Transfer(
+        address indexed from,
+        address indexed to,
+        uint256 indexed id
+    );
 
     /// @dev Emitted when `owner` enables `account` to manage the `id` token.
-    event Approval(address indexed owner, address indexed account, uint256 indexed id);
+    event Approval(
+        address indexed owner,
+        address indexed account,
+        uint256 indexed id
+    );
 
     /// @dev Emitted when `owner` enables or disables `operator` to manage all of their tokens.
-    event ApprovalForAll(address indexed owner, address indexed operator, bool isApproved);
+    event ApprovalForAll(
+        address indexed owner,
+        address indexed operator,
+        bool isApproved
+    );
 
     /// @dev The ownership is transferred from `oldOwner` to `newOwner`.
     /// This is for marketplace signaling purposes. This contract has a `pullOwner()`
     /// function that will sync the owner from the base contract.
-    event OwnershipTransferred(address indexed oldOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed oldOwner,
+        address indexed newOwner
+    );
 
     /// @dev `keccak256(bytes("Transfer(address,address,uint256)"))`.
     uint256 private constant _TRANSFER_EVENT_SIGNATURE =
@@ -60,10 +75,6 @@ contract DN404Mirror {
     /// does not implement ERC721Receiver.
     error TransferToNonERC721ReceiverImplementer();
 
-    /// @dev Thrown when linking to the DN404 base contract and the
-    /// DN404 supportsInterface check fails or the call reverts.
-    error CannotLink();
-
     /// @dev Thrown when a linkMirrorContract call is received and the
     /// NFT mirror contract has already been linked to a DN404 base contract.
     error AlreadyLinked();
@@ -84,14 +95,19 @@ contract DN404Mirror {
         // Address of the ERC20 base contract.
         address baseERC20;
         // The deployer, if provided. If non-zero, the initialization of the
-        // ERC20 <-> ERC721 link can only be done be the deployer via the ERC20 base contract.
+        // ERC20 <-> ERC721 link can only be done by the deployer via the ERC20 base contract.
         address deployer;
         // The owner of the ERC20 base contract. For marketplace signaling.
         address owner;
     }
 
     /// @dev Returns a storage pointer for DN404NFTStorage.
-    function _getDN404NFTStorage() internal pure virtual returns (DN404NFTStorage storage $) {
+    function _getDN404NFTStorage()
+        internal
+        pure
+        virtual
+        returns (DN404NFTStorage storage $)
+    {
         /// @solidity memory-safe-assembly
         assembly {
             // `uint72(bytes9(keccak256("DN404_MIRROR_STORAGE")))`.
@@ -126,7 +142,10 @@ contract DN404Mirror {
     /// @dev Returns the Uniform Resource Identifier (URI) for token `id` from
     /// the base DN404 contract.
     function tokenURI(uint256 id) public view virtual returns (string memory) {
-        return _readString(0xc87b56dd, id); // `tokenURI(uint256)`.
+        ownerOf(id); // `ownerOf` reverts if the token does not exist.
+        // We'll leave if optional for `_tokenURI` to revert for non-existent token
+        // on the ERC20 side, since this is only recommended by the ERC721 standard.
+        return _readString(0xcb30b460, id); // `tokenURINFT(uint256)`.
     }
 
     /// @dev Returns the total NFT supply from the base DN404 contract.
@@ -147,13 +166,13 @@ contract DN404Mirror {
     /// Requirements:
     /// - Token `id` must exist.
     function ownerOf(uint256 id) public view virtual returns (address) {
-        return address(uint160(_readWord(0x6352211e, id, 0))); // `ownerOf(uint256)`.
+        return address(uint160(_readWord(0x2d8a746e, id, 0))); // `ownerOfNFT(uint256)`.
     }
 
     /// @dev Returns the owner of token `id` from the base DN404 contract.
     /// Returns `address(0)` instead of reverting if the token does not exist.
     function ownerAt(uint256 id) public view virtual returns (address) {
-        return address(uint160(_readWord(0x24359879, id, 0))); // `ownerAt(uint256)`.
+        return address(uint160(_readWord(0xc016aa52, id, 0))); // `ownerAtNFT(uint256)`.
     }
 
     /// @dev Sets `spender` as the approved account to manage token `id` in
@@ -176,7 +195,8 @@ contract DN404Mirror {
             mstore(0x40, id)
             mstore(0x60, caller())
             if iszero(
-                and( // Arguments of `and` are evaluated last to first.
+                and(
+                    // Arguments of `and` are evaluated last to first.
                     gt(returndatasize(), 0x1f), // The call must return at least 32 bytes.
                     call(gas(), base, callvalue(), 0x1c, 0x64, 0x00, 0x20)
                 )
@@ -187,7 +207,14 @@ contract DN404Mirror {
             mstore(0x40, m) // Restore the free memory pointer.
             mstore(0x60, 0) // Restore the zero pointer.
             // Emit the {Approval} event.
-            log4(codesize(), 0x00, _APPROVAL_EVENT_SIGNATURE, shr(96, mload(0x0c)), spender, id)
+            log4(
+                codesize(),
+                0x00,
+                _APPROVAL_EVENT_SIGNATURE,
+                shr(96, mload(0x0c)),
+                spender,
+                id
+            )
         }
     }
 
@@ -197,7 +224,7 @@ contract DN404Mirror {
     /// Requirements:
     /// - Token `id` must exist.
     function getApproved(uint256 id) public view virtual returns (address) {
-        return address(uint160(_readWord(0x081812fc, id, 0))); // `getApproved(uint256)`.
+        return address(uint160(_readWord(0x27ef5495, id, 0))); // `getApprovedNFT(uint256)`.
     }
 
     /// @dev Sets whether `operator` is approved to manage the tokens of the caller in
@@ -210,12 +237,13 @@ contract DN404Mirror {
         assembly {
             operator := shr(96, shl(96, operator))
             let m := mload(0x40)
-            mstore(0x00, 0x813500fc) // `setApprovalForAll(address,bool,address)`.
+            mstore(0x00, 0xf6916ddd) // `setApprovalForAllNFT(address,bool,address)`.
             mstore(0x20, operator)
             mstore(0x40, iszero(iszero(approved)))
             mstore(0x60, caller())
             if iszero(
-                and( // Arguments of `and` are evaluated last to first.
+                and(
+                    // Arguments of `and` are evaluated last to first.
                     eq(mload(0x00), 1), // The call must return 1.
                     call(gas(), base, callvalue(), 0x1c, 0x64, 0x00, 0x20)
                 )
@@ -225,7 +253,13 @@ contract DN404Mirror {
             }
             // Emit the {ApprovalForAll} event.
             // The `approved` value is already at 0x40.
-            log3(0x40, 0x20, _APPROVAL_FOR_ALL_EVENT_SIGNATURE, caller(), operator)
+            log3(
+                0x40,
+                0x20,
+                _APPROVAL_FOR_ALL_EVENT_SIGNATURE,
+                caller(),
+                operator
+            )
             mstore(0x40, m) // Restore the free memory pointer.
             mstore(0x60, 0) // Restore the zero pointer.
         }
@@ -233,14 +267,12 @@ contract DN404Mirror {
 
     /// @dev Returns whether `operator` is approved to manage the tokens of `nftOwner` from
     /// the base DN404 contract.
-    function isApprovedForAll(address nftOwner, address operator)
-        public
-        view
-        virtual
-        returns (bool)
-    {
-        // `isApprovedForAll(address,address)`.
-        return _readWord(0xe985e9c5, uint160(nftOwner), uint160(operator)) != 0;
+    function isApprovedForAll(
+        address nftOwner,
+        address operator
+    ) public view virtual returns (bool) {
+        // `isApprovedForAllNFT(address,address)`.
+        return _readWord(0x62fb246d, uint160(nftOwner), uint160(operator)) != 0;
     }
 
     /// @dev Transfers token `id` from `from` to `to`.
@@ -253,7 +285,11 @@ contract DN404Mirror {
     /// - The caller must be the owner of the token, or be approved to manage the token.
     ///
     /// Emits a {Transfer} event.
-    function transferFrom(address from, address to, uint256 id) public payable virtual {
+    function transferFrom(
+        address from,
+        address to,
+        uint256 id
+    ) public payable virtual {
         address base = baseERC20();
         /// @solidity memory-safe-assembly
         assembly {
@@ -266,7 +302,8 @@ contract DN404Mirror {
             mstore(add(m, 0x60), id)
             mstore(add(m, 0x80), caller())
             if iszero(
-                and( // Arguments of `and` are evaluated last to first.
+                and(
+                    // Arguments of `and` are evaluated last to first.
                     eq(mload(m), 1), // The call must return 1.
                     call(gas(), base, callvalue(), add(m, 0x1c), 0x84, m, 0x20)
                 )
@@ -280,7 +317,11 @@ contract DN404Mirror {
     }
 
     /// @dev Equivalent to `safeTransferFrom(from, to, id, "")`.
-    function safeTransferFrom(address from, address to, uint256 id) public payable virtual {
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id
+    ) public payable virtual {
         transferFrom(from, to, id);
         if (_hasCode(to)) _checkOnERC721Received(from, to, id, "");
     }
@@ -297,11 +338,12 @@ contract DN404Mirror {
     ///   {IERC721Receiver-onERC721Received}, which is called upon a safe transfer.
     ///
     /// Emits a {Transfer} event.
-    function safeTransferFrom(address from, address to, uint256 id, bytes calldata data)
-        public
-        payable
-        virtual
-    {
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id,
+        bytes calldata data
+    ) public payable virtual {
         transferFrom(from, to, id);
         if (_hasCode(to)) _checkOnERC721Received(from, to, id, data);
     }
@@ -309,12 +351,17 @@ contract DN404Mirror {
     /// @dev Returns true if this contract implements the interface defined by `interfaceId`.
     /// See: https://eips.ethereum.org/EIPS/eip-165
     /// This function call must use less than 30000 gas.
-    function supportsInterface(bytes4 interfaceId) public view virtual returns (bool result) {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual returns (bool result) {
         /// @solidity memory-safe-assembly
         assembly {
             let s := shr(224, interfaceId)
             // ERC165: 0x01ffc9a7, ERC721: 0x80ac58cd, ERC721Metadata: 0x5b5e139f.
-            result := or(or(eq(s, 0x01ffc9a7), eq(s, 0x80ac58cd)), eq(s, 0x5b5e139f))
+            result := or(
+                or(eq(s, 0x01ffc9a7), eq(s, 0x80ac58cd)),
+                eq(s, 0x5b5e139f)
+            )
         }
     }
 
@@ -336,7 +383,10 @@ contract DN404Mirror {
         assembly {
             mstore(0x00, 0x8da5cb5b) // `owner()`.
             let success := staticcall(gas(), base, 0x1c, 0x04, 0x00, 0x20)
-            newOwner := mul(shr(96, mload(0x0c)), and(gt(returndatasize(), 0x1f), success))
+            newOwner := mul(
+                shr(96, mload(0x0c)),
+                and(gt(returndatasize(), 0x1f), success)
+            )
         }
         DN404NFTStorage storage $ = _getDN404NFTStorage();
         address oldOwner = $.owner;
@@ -370,7 +420,11 @@ contract DN404Mirror {
             assembly {
                 let o := add(0x24, calldataload(0x04)) // Packed logs offset.
                 let end := add(o, shl(5, calldataload(sub(o, 0x20))))
-                for {} iszero(eq(o, end)) { o := add(0x20, o) } {
+                for {
+
+                } iszero(eq(o, end)) {
+                    o := add(0x20, o)
+                } {
                     let d := calldataload(o) // Entry in the packed logs.
                     let a := shr(96, d) // The address.
                     let b := and(1, d) // Whether it is a burn.
@@ -396,8 +450,19 @@ contract DN404Mirror {
                 let to := calldataload(0x24)
                 let o := add(0x24, calldataload(0x44)) // Direct logs offset.
                 let end := add(o, shl(5, calldataload(sub(o, 0x20))))
-                for {} iszero(eq(o, end)) { o := add(0x20, o) } {
-                    log4(codesize(), 0x00, _TRANSFER_EVENT_SIGNATURE, from, to, calldataload(o))
+                for {
+
+                } iszero(eq(o, end)) {
+                    o := add(0x20, o)
+                } {
+                    log4(
+                        codesize(),
+                        0x00,
+                        _TRANSFER_EVENT_SIGNATURE,
+                        from,
+                        to,
+                        calldataload(o)
+                    )
                 }
                 mstore(0x00, 0x01)
                 return(0x00, 0x20)
@@ -440,11 +505,10 @@ contract DN404Mirror {
     /*-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»-»*/
 
     /// @dev Helper to read a string from the base DN404 contract.
-    function _readString(uint256 fnSelector, uint256 arg0)
-        private
-        view
-        returns (string memory result)
-    {
+    function _readString(
+        uint256 fnSelector,
+        uint256 arg0
+    ) private view returns (string memory result) {
         address base = baseERC20();
         /// @solidity memory-safe-assembly
         assembly {
@@ -457,7 +521,11 @@ contract DN404Mirror {
             }
             returndatacopy(0x00, 0x00, 0x20) // Copy the offset of the string in returndata.
             returndatacopy(result, mload(0x00), 0x20) // Copy the length of the string.
-            returndatacopy(add(result, 0x20), add(mload(0x00), 0x20), mload(result)) // Copy the string.
+            returndatacopy(
+                add(result, 0x20),
+                add(mload(0x00), 0x20),
+                mload(result)
+            ) // Copy the string.
             let end := add(add(result, 0x20), mload(result))
             mstore(end, 0) // Zeroize the word after the string.
             mstore(0x40, add(end, 0x20)) // Allocate memory.
@@ -465,11 +533,11 @@ contract DN404Mirror {
     }
 
     /// @dev Helper to read a word from the base DN404 contract.
-    function _readWord(uint256 fnSelector, uint256 arg0, uint256 arg1)
-        private
-        view
-        returns (uint256 result)
-    {
+    function _readWord(
+        uint256 fnSelector,
+        uint256 arg0,
+        uint256 arg1
+    ) private view returns (uint256 result) {
         address base = baseERC20();
         /// @solidity memory-safe-assembly
         assembly {
@@ -478,7 +546,8 @@ contract DN404Mirror {
             mstore(0x20, arg0)
             mstore(0x40, arg1)
             if iszero(
-                and( // Arguments of `and` are evaluated last to first.
+                and(
+                    // Arguments of `and` are evaluated last to first.
                     gt(returndatasize(), 0x1f), // The call must return at least 32 bytes.
                     staticcall(gas(), base, 0x1c, 0x44, 0x00, 0x20)
                 )
@@ -492,7 +561,9 @@ contract DN404Mirror {
     }
 
     /// @dev Returns the calldata value at `offset`.
-    function _calldataload(uint256 offset) private pure returns (uint256 value) {
+    function _calldataload(
+        uint256 offset
+    ) private pure returns (uint256 value) {
         /// @solidity memory-safe-assembly
         assembly {
             value := calldataload(offset)
@@ -509,9 +580,12 @@ contract DN404Mirror {
 
     /// @dev Perform a call to invoke {IERC721Receiver-onERC721Received} on `to`.
     /// Reverts if the target does not support the function correctly.
-    function _checkOnERC721Received(address from, address to, uint256 id, bytes memory data)
-        private
-    {
+    function _checkOnERC721Received(
+        address from,
+        address to,
+        uint256 id,
+        bytes memory data
+    ) private {
         /// @solidity memory-safe-assembly
         assembly {
             // Prepare the calldata.
@@ -524,7 +598,9 @@ contract DN404Mirror {
             mstore(add(m, 0x80), 0x80)
             let n := mload(data)
             mstore(add(m, 0xa0), n)
-            if n { pop(staticcall(gas(), 4, add(data, 0x20), n, add(m, 0xc0), n)) }
+            if n {
+                pop(staticcall(gas(), 4, add(data, 0x20), n, add(m, 0xc0), n))
+            }
             // Revert if the call reverts.
             if iszero(call(gas(), to, 0, add(m, 0x1c), add(n, 0xa4), m, 0x20)) {
                 if returndatasize() {

@@ -3,8 +3,9 @@ pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
 import {VmSafe} from "forge-std/Vm.sol";
-import {Fame} from "../src/Fame.sol";
+import {Fame, IBalanceOf} from "../src/Fame.sol";
 import {FameLaunch} from "../src/FameLaunch.sol";
+import {FameLadySocietyOwners} from "./holders/FameLadySocietyOwners.sol";
 
 contract DeployLaunch is Script {
     function run() external {
@@ -12,7 +13,8 @@ contract DeployLaunch is Script {
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
         vm.startBroadcast(deployerPrivateKey);
 
-        Fame fame = new Fame("Example", "TEST", wallet.addr);
+        FameLadySocietyOwners societyOwners = new FameLadySocietyOwners();
+        Fame fame = new Fame("Example", "TEST", address(societyOwners));
         FameLaunch fl = new FameLaunch();
         fame.transfer(address(fl), 444_000_000 ether);
         fl.launch{value: 0.001 ether}(
@@ -25,10 +27,7 @@ contract DeployLaunch is Script {
 
         fame.grantRoles(
             wallet.addr,
-            fame.roleMetadata() |
-                fame.roleBurnPoolManager() |
-                fame.roleRenderer() |
-                (1 << 255)
+            (1 << 0) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 255)
         );
 
         // Don't renounce ownership riught away, need to setup opensea

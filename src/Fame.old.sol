@@ -69,26 +69,26 @@ contract Fame is DN404, OwnableRoles {
 
     error NoTransferWhenStaked();
 
-    /// @dev Hook that is called after any NFT token transfers, including minting and burning.
-    function _afterNFTTransfer(
-        address from,
-        address to,
-        uint256 id
-    ) internal override {
-        FameMirror fameMirror = FameMirror(
-            payable(_getDN404Storage().mirrorERC721)
-        );
-        fameMirror.updateVotingUnits(from, to, id);
+    // /// @dev Hook that is called after any NFT token transfers, including minting and burning.
+    // function _afterNFTTransfer(
+    //     address from,
+    //     address to,
+    //     uint256 id
+    // ) internal override {
+    //     FameMirror fameMirror = FameMirror(
+    //         payable(_getDN404Storage().mirrorERC721)
+    //     );
+    //     fameMirror.updateVotingUnits(from, to, id);
 
-        // if stake bit is set then deny transfer
-        // if (_getAux(id) & _STAKE_BIT != 0) {
-        //     revert NoTransferWhenStaked();
-        // }
-    }
+    //     // if stake bit is set then deny transfer
+    //     // if (_getAux(id) & _STAKE_BIT != 0) {
+    //     //     revert NoTransferWhenStaked();
+    //     // }
+    // }
 
-    function _canBurnNFT(uint256 id) internal view override returns (bool) {
-        return _getTokenAux(id) & _STAKE_BIT == 0;
-    }
+    // function _canBurnNFT(uint256 id) internal view override returns (bool) {
+    //     return _getTokenAux(id) & _STAKE_BIT == 0;
+    // }
 
     /**
      *

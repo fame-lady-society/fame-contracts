@@ -8,6 +8,11 @@ import {LibString} from "solady/utils/LibString.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {IBurnedPoolManager} from "./IBurnedPoolManager.sol";
+import {ClaimToFame} from "./ClaimToFame.sol";
+
+interface IBalanceOf {
+    function balanceOf(address account) external view returns (uint256);
+}
 
 /**
  * @title SimpleDN404
@@ -22,33 +27,23 @@ contract Fame is DN404, OwnableRoles {
     string private _baseURI;
 
     uint256 internal constant RENDERER = _ROLE_0;
-
-    function roleRenderer() public pure returns (uint256) {
-        return RENDERER;
-    }
-
     uint256 internal constant METADATA = _ROLE_1;
-
-    function roleMetadata() public pure returns (uint256) {
-        return METADATA;
-    }
-
     uint256 internal constant BURN_POOL_MANAGER = _ROLE_2;
-
-    function roleBurnPoolManager() public pure returns (uint256) {
-        return BURN_POOL_MANAGER;
-    }
+    uint256 internal constant SKIP_MANAGER = _ROLE_3;
+    uint256 internal constant LAUNCHER = _ROLE_4;
 
     // The proxy owner role for managing roles
     uint256 internal constant ADMIN = _ROLE_255;
 
+    IBalanceOf private claimToFame;
+    bool private hasLaunched = false;
     IBurnedPoolManager public burnedPoolManager;
     ITokenURIGenerator public renderer;
 
     constructor(
         string memory name_,
         string memory symbol_,
-        address initialSupplyOwner
+        address claimToFameAddress
     ) {
         _initializeOwner(msg.sender);
 
@@ -56,8 +51,9 @@ contract Fame is DN404, OwnableRoles {
         _symbol = symbol_;
 
         address mirror = address(new FameMirror(msg.sender));
-        _initializeDN404(888 * _unit(), initialSupplyOwner, mirror);
+        _initializeDN404(888 * _unit(), msg.sender, mirror);
         _grantRoles(msg.sender, ADMIN);
+        claimToFame = IBalanceOf(claimToFameAddress);
     }
 
     function name() public view override returns (string memory) {
@@ -82,17 +78,14 @@ contract Fame is DN404, OwnableRoles {
         SafeTransferLib.safeTransferAllETH(msg.sender);
     }
 
-    error NoTransferWhenStaked();
-
-    /// @dev Hook that is called after any NFT token transfers, including minting and burning.
-    function _afterNFTTransfer(
-        address from,
+    function transfer(
         address to,
-        uint256 id
-    ) internal override {
-        // nothing rn
+        uint256 value
+    ) public override onlyLaunched returns (bool) {
+        return super.transfer(to, value);
     }
 
+    error NoTransferWhenStaked();
     /**
      *
      */
@@ -114,6 +107,32 @@ contract Fame is DN404, OwnableRoles {
         address newBurnedPoolManager
     ) public onlyRoles(BURN_POOL_MANAGER) {
         burnedPoolManager = IBurnedPoolManager(newBurnedPoolManager);
+    }
+
+    function setSkipNftForAccount(
+        address account,
+        bool skip
+    ) public onlyRoles(SKIP_MANAGER) {
+        _setSkipNFT(account, skip);
+    }
+
+    error AlreadyLaunched();
+    function launchPublic() public payable onlyOwner {
+        if (hasLaunched) {
+            revert AlreadyLaunched();
+        }
+        hasLaunched = true;
+    }
+    error NotLaunched();
+    modifier onlyLaunched() {
+        if (
+            !hasLaunched &&
+            !hasAnyRole(tx.origin, LAUNCHER) &&
+            claimToFame.balanceOf(tx.origin) == 0
+        ) {
+            revert NotLaunched();
+        }
+        _;
     }
 
     /**

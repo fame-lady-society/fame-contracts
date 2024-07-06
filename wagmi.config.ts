@@ -13,6 +13,7 @@ export default defineConfig({
         "FameLaunch.sol/**",
         "ISwapRouter02.sol/**",
         "IWETH.sol/**",
+        "IGasliteDrop.sol/**",
       ],
     }),
   ],

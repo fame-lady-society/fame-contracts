@@ -15,6 +15,7 @@ import {LibString} from "solady/utils/LibString.sol";
 import {Math} from "@openzeppelin5/contracts/utils/math/Math.sol";
 import {ISwapRouter02} from "../src/swap-router-contracts/ISwapRouter02.sol";
 import "../src/v3-core/FullMath.sol";
+import {MockBalanceOf} from "./mocks/MockBalanceOf.sol";
 import "@uniswap/v3-core/contracts/libraries/FixedPoint96.sol";
 import "forge-std/console.sol";
 
@@ -25,6 +26,7 @@ interface IWETH {
 }
 
 contract FameLauncherTest is Test {
+    MockBalanceOf public mockBalanceOf;
     Fame public fame;
     Fame public fame1;
     FameLauncher public fameLauncher;
@@ -42,18 +44,19 @@ contract FameLauncherTest is Test {
     // }
 
     function setUp() public {
+        mockBalanceOf = new MockBalanceOf();
         // salt is a bytes32
         uint256 salt = 0x1;
         fame = new Fame{salt: bytes32(abi.encodePacked(salt))}(
             "Fame",
             "FAME",
-            address(this)
+            address(mockBalanceOf)
         );
         salt = 0x2;
         fame1 = new Fame{salt: bytes32(abi.encodePacked(salt))}(
             "Fame",
             "FAME",
-            address(this)
+            address(mockBalanceOf)
         );
         fameLauncher = new FameLauncher(
             address(fame),

@@ -6,13 +6,16 @@ import {FameMirror} from "../src/FameMirror.sol";
 import {DN404} from "../src/DN404.sol";
 import {DN404Mirror} from "../src/DN404Mirror.sol";
 import {Fame} from "../src/Fame.sol";
+import {MockBalanceOf} from "./mocks/MockBalanceOf.sol";
 
 contract FameTest is Test {
     Fame public fame;
     FameMirror public dn404;
+    MockBalanceOf public mockBalanceOf;
 
     function setUp() public {
-        fame = new Fame("Fame", "FAME", address(this));
+        mockBalanceOf = new MockBalanceOf();
+        fame = new Fame("Fame", "FAME", address(mockBalanceOf));
         dn404 = FameMirror(payable(fame.mirrorERC721()));
     }
 
