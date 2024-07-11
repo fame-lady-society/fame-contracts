@@ -84,3 +84,24 @@ Now do a public launch
 ```
 DEPLOYER_PRIVATE_KEY=$SEPOLIA_DEPLOYER_PRIVATE_KEY SIGNER_PRIVATE_KEY=$SEPOLIA_SIGNER_PRIVATE_KEY forge script script/SepoliaPostLaunchAirdrop.sol:DeployLaunch --broadcast --verify --rpc-url $RPC
 ```
+
+## Base
+
+```
+source .env
+export CHAIN=base
+export RPC=$BASE_RPC
+export SWAP_ROUTER=$BASE_SWAP_ROUTER
+export WETH_ADDRESS=$BASE_WETH_ADDRESS
+export MULTISIG_ADDRESS=$AP_MULTISIG_ADDRESS
+export SIGNER_PRIVATE_KEY=$AP_SIGNER_PRIVATE_KEY
+export DEPLOYER_PRIVATE_KEY=$AP_DEPLOYER_PRIVATE_KEY
+```
+
+```
+anvil --fork-url $RPC --block-time 2
+```
+
+```
+SNIPE_AMOUNT=0.01 SNIPE_PRIVATE_KEY=$AP_SNIPE_PRIVATE_KEY node --loader ts-node/esm src/launch/deposit.ts
+```

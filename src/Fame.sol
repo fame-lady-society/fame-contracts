@@ -24,7 +24,6 @@ contract Fame is DN404, OwnableRoles {
     using LibString for uint256;
     string private _name;
     string private _symbol;
-    string private _baseURI;
 
     uint256 internal constant RENDERER = _ROLE_0;
     uint256 internal constant METADATA = _ROLE_1;
@@ -143,15 +142,7 @@ contract Fame is DN404, OwnableRoles {
     function _tokenURI(
         uint256 tokenId
     ) internal view override returns (string memory result) {
-        if (address(renderer) == address(0) && bytes(_baseURI).length != 0) {
-            result = string(abi.encodePacked(_baseURI, tokenId.toString()));
-        } else {
-            result = renderer.tokenURI(tokenId);
-        }
-    }
-
-    function setBaseURI(string calldata baseURI_) public onlyRoles(METADATA) {
-        _baseURI = baseURI_;
+        result = renderer.tokenURI(tokenId);
     }
 
     /**

@@ -23,7 +23,6 @@ interface IWETH {
 }
 
 contract DeployLaunch is Script {
-    address private weth = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
     address private gasliteAddress = 0x09350F89e2D7B6e96bA730783c2d76137B045FEF;
 
     Fame private fame;
@@ -42,7 +41,6 @@ contract DeployLaunch is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
         address fameAddress = vm.envAddress("FAME_ADDRESS");
-        address multisigAddress = vm.envAddress("MULTISIG_ADDRESS");
         fame = Fame(payable(fameAddress));
         gaslite = IGasliteDrop(gasliteAddress);
 
@@ -115,17 +113,13 @@ contract DeployLaunch is Script {
         onChainCheckGasAmount =
             (airdropHelper.totalFromContract(
                 IAirdropSource(address(onChainCheckGasOwners))
-            ) *
-                fame.totalSupply() *
-                50) /
-            1000;
+            ) * airdropHelper.sisterTokenAmount(fame.totalSupply())) /
+            1870;
         console.log("Total OnChainCheckGas: %d", onChainCheckGasAmount);
         onChainGasAmount =
             (airdropHelper.totalFromContract(
                 IAirdropSource(address(onChainGasOwners))
-            ) *
-                fame.totalSupply() *
-                50) /
+            ) * airdropHelper.sisterTokenAmount(fame.totalSupply())) /
             1000;
         console.log("Total OnChainGas: %d", onChainGasAmount);
 
@@ -262,14 +256,16 @@ contract DeployLaunch is Script {
                 societyAmount
         );
         console.log("Transferred %d to CTF", fame.balanceOf(address(ctf)));
-        ctf.primeClaimWithData(
+        ctf.primeClaim(
             0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574,
-            ctf.generatePackedData(societyOwners.allTokenIds())
+            convertToUint16Array(societyOwners.allTokenIds())
         );
-        ctf.primeClaimWithData(
+        ctf.primeClaim(
             0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574,
-            ctf.generatePackedData(societyOwners.allBannedTokenIds())
+            convertToUint16Array(societyOwners.allBannedTokenIds())
         );
+
+        address multisigAddress = vm.envAddress("MULTISIG_ADDRESS");
         fame.transfer(
             multisigAddress,
             fame.balanceOf(
@@ -325,5 +321,19 @@ contract DeployLaunch is Script {
             );
             processed += batchOwners.length;
         } while (processed < totalOwners);
+    }
+
+    function convertToUint16Array(
+        uint256[] memory inputArray
+    ) public pure returns (uint16[] memory) {
+        uint16[] memory outputArray = new uint16[](inputArray.length);
+
+        for (uint256 i = 0; i < inputArray.length; i++) {
+            // Ensure the uint256 value is within the uint16 range
+            require(inputArray[i] <= 0xFFFF, "Value exceeds uint16 range");
+            outputArray[i] = uint16(inputArray[i]);
+        }
+
+        return outputArray;
     }
 }

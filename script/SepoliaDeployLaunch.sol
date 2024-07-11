@@ -12,13 +12,6 @@ import {Fame, IBalanceOf} from "../src/Fame.sol";
 import {FameLaunch} from "../src/FameLaunch.sol";
 import {ClaimToFame} from "../src/ClaimToFame.sol";
 import {AirdropHelper, IAirdropSource} from "./utils/AirdropHelper.sol";
-import {FameLadySocietyBalanceOf} from "./holders/FameLadySocietyBalanceOf.sol";
-import {FameLadySocietyOwners} from "./holders/FameLadySocietyOwners.sol";
-import {HunnysOwners} from "./holders/HunnysOwners.sol";
-import {MermaidPowerOwners} from "./holders/MermaidPowerOwners.sol";
-import {MetavixenOwners} from "./holders/MetavixenOwners.sol";
-import {OnChainCheckGasOwners} from "./holders/OnChainCheckGasOwners.sol";
-import {OnChainGasOwners} from "./holders/OnChainGasOwners.sol";
 
 interface IWETH {
     function deposit() external payable;
@@ -28,9 +21,6 @@ interface IWETH {
 
 contract DeployLaunch is Script {
     address private weth = 0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9;
-    ISwapRouter02 private swapRouter =
-        ISwapRouter02(0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E);
-    address private gasliteAddress = 0x09350F89e2D7B6e96bA730783c2d76137B045FEF;
 
     function run() external {
         // Setup the deployer wallet

@@ -10,21 +10,21 @@ import {
   parseEther,
 } from "viem";
 import { iSwapRouter02Abi, iwethAbi } from "../wagmi/generated.js";
-import { sepolia } from "viem/chains";
+import { sepolia, base } from "viem/chains";
 
 const weth = process.env.WETH_ADDRESS! as `0x${string}`;
 const amount = parseEther(process.env.SNIPE_AMOUNT! ?? "0.001");
 const swapRouter = process.env.SWAP_ROUTER! as `0x${string}`;
-
+const chain = process.env.CHAIN === "base" ? base : sepolia;
 const snipeWallet = createWalletClient({
   transport: http(process.env.RPC),
   account: privateKeyToAccount(process.env.SNIPE_PRIVATE_KEY! as `0x${string}`),
-  chain: sepolia,
+  chain,
 });
 
 const publicClient = createPublicClient({
   transport: http(process.env.RPC),
-  chain: sepolia,
+  chain,
 });
 
 if (

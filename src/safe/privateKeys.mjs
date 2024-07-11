@@ -7,7 +7,7 @@ const accounts = [];
 for (let i = 0; i < 4; i++) {
   accounts.push(
     HDNodeWallet.fromMnemonic(
-      Mnemonic.fromPhrase(process.env.SEPOLIA_MNEMONIC),
+      Mnemonic.fromPhrase(process.env.MNEMONIC),
       `m/44'/60'/0'/0/${i}`
     )
   );
