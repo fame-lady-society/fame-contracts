@@ -72,12 +72,6 @@ contract FameLaunch {
                 tickBoundary,
                 tick - tickSpacing
             );
-        // (uint256 tokenId, , , ) = fameLauncher.createV3Liquidity(
-        //     isTokenALower ? 100_000_000 ether : 0 ether,
-        //     isTokenALower ? 0 ether : 100_000_000 ether,
-        //     isTokenALower ? tick + tickSpacing : tickBoundary,
-        //     isTokenALower ? tickBoundary : tick - tickSpacing
-        // );
 
         // transfer fame to the sender
         INonfungiblePositionManager(_nonfungiblePositionManager)
@@ -97,12 +91,6 @@ contract FameLaunch {
                 -887220,
                 tickBoundary
             );
-        // (tokenId, , , ) = fameLauncher.createV3Liquidity(
-        //     isTokenALower ? 166_400_000 ether : 0 ether,
-        //     isTokenALower ? 0 ether : 166_400_000 ether,
-        //     isTokenALower ? tickBoundary : -887220,
-        //     isTokenALower ? -887220 : tickBoundary
-        // );
 
         INonfungiblePositionManager(_nonfungiblePositionManager)
             .safeTransferFrom(address(this), msg.sender, tokenId);
