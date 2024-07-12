@@ -49,8 +49,8 @@ contract FameLaunch {
 
         // launch v3 post sale
         uint160 price = isTokenALower
-            ? sqrtPriceX96(888_000_000 ether, msg.value)
-            : sqrtPriceX96(msg.value, 888_000_000 ether);
+            ? sqrtPriceX96(177_600_000 ether, msg.value)
+            : sqrtPriceX96(msg.value, 177_600_000 ether);
         fameLauncher.initializeV3Pool(price);
 
         Fame(fame).transfer(address(fameLauncher), 100_000_000 ether);
