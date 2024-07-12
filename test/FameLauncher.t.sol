@@ -46,7 +46,7 @@ contract FameLauncherTest is Test {
     function setUp() public {
         mockBalanceOf = new MockBalanceOf();
         // salt is a bytes32
-        uint256 salt = 0x1;
+        uint256 salt = 0x5;
         fame = new Fame{salt: bytes32(abi.encodePacked(salt))}(
             "Fame",
             "FAME",
@@ -73,6 +73,8 @@ contract FameLauncherTest is Test {
             0x0227628f3F023bb0B980b67D528571c95c6DaC1c, // v3 factory on sepolia
             0x1238536071E1c677A632429e3655c799b22cDA52 //  v3 nonfungiblePositionManager on sepolia
         );
+        Fame(fame).launchPublic();
+        Fame(fame1).launchPublic();
     }
 
     function test_LaunchV2Liquidity() public {
@@ -268,7 +270,7 @@ contract FameLauncherTest is Test {
     }
 
     function test_v3SwapTallSale() public {
-        uint160 price = sqrtPriceX96(177_600_000 ether, 8.88 ether);
+        uint160 price = sqrtPriceX96(177_600_000 ether, 5.5 ether);
         fameLauncher.initializeV3Pool(price);
         // fame.transfer(address(fameLauncher), 100_000_000 ether);
 
@@ -307,7 +309,7 @@ contract FameLauncherTest is Test {
         (int256 amount0, int256 amount1, uint160 afterPrice) = swapFor(
             recipient,
             false,
-            1 ether
+            2 ether
         );
         console.log(
             "Market Cap after: %sE. Received %sM fame",
