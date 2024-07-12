@@ -7,7 +7,7 @@ import {Fame, IBalanceOf} from "../src/Fame.sol";
 import {FameLaunch} from "../src/FameLaunch.sol";
 import {ClaimToFame} from "../src/ClaimToFame.sol";
 import {FameLadySocietyOwners} from "./holders/FameLadySocietyOwners.sol";
-import {SchwingRenderer} from "../src/SchwingRenderer.sol";
+import {FameRenderer} from "../src/FameRenderer.sol";
 
 contract DeployLaunch is Script {
     function run() external {
@@ -42,7 +42,7 @@ contract DeployLaunch is Script {
         // ClaimToFame ctf = new ClaimToFame(address(fame), signerWallet.addr);
         // ctf.grantRoles(wallet.addr, ctf.roleSigner() | ctf.roleClaimPrimer());
 
-        fame.setRenderer(address(new SchwingRenderer()));
+        fame.setRenderer(address(new FameRenderer()));
 
         vm.stopBroadcast();
     }

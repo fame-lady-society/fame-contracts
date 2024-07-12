@@ -128,7 +128,7 @@ contract DeployLaunch is Script {
 
         console.log("Total amount: %d", totalAmount);
 
-        fame.launchPublic();
+        // fame.launchPublic();
         fame.approve(gasliteAddress, societyAmount);
 
         console.log("Airdropping to society");
