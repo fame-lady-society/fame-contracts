@@ -39,9 +39,15 @@ contract Fame is DN404, OwnableRoles {
     IBurnedPoolManager public burnedPoolManager;
     ITokenURIGenerator public renderer;
 
+    /**
+     * @dev Constructor that declares the name and symbol of the token and the real stewards of fame
+     */
     constructor(
+        // Oh Society? What a name!
         string memory name_,
+        // $FAME is the ticker
         string memory symbol_,
+        // The ones who will gently guide the society
         address claimToFameAddress
     ) {
         _initializeOwner(msg.sender);
@@ -55,10 +61,12 @@ contract Fame is DN404, OwnableRoles {
         claimToFame = IBalanceOf(claimToFameAddress);
     }
 
+    /// @dev Returns the name of the token.
     function name() public view override returns (string memory) {
         return _name;
     }
 
+    /// @dev Returns the symbol of the token.
     function symbol() public view override returns (string memory) {
         return _symbol;
     }
@@ -73,10 +81,17 @@ contract Fame is DN404, OwnableRoles {
         return _unit();
     }
 
+    /// @dev Safely transfers all ETH to the owner.
     function withdraw() public onlyOwner {
         SafeTransferLib.safeTransferAllETH(msg.sender);
     }
 
+    /**
+     * @dev Transfer tokens from one address to another
+     * @param to address to transfer to
+     * @param value amount to be transferred
+     * @return bool true if the transfer was successful
+     */
     function transfer(
         address to,
         uint256 value
@@ -84,10 +99,7 @@ contract Fame is DN404, OwnableRoles {
         return super.transfer(to, value);
     }
 
-    error NoTransferWhenStaked();
-    /**
-     *
-     */
+    /// @dev Allows for future customization of burn pool behavior
     function _addToBurnedPool(
         uint256 totalNFTSupplyAfterBurn,
         uint256 totalSupplyAfterBurn
@@ -102,12 +114,20 @@ contract Fame is DN404, OwnableRoles {
         return true;
     }
 
+    /**
+     * @dev Sets the address of the burned pool manager contract. Can only be called by an address with the BURN_POOL_MANAGER role.
+     *
+     * @param newBurnedPoolManager the new burned pool manager contract address
+     */
     function setBurnedPoolManager(
         address newBurnedPoolManager
     ) public onlyRoles(BURN_POOL_MANAGER) {
         burnedPoolManager = IBurnedPoolManager(newBurnedPoolManager);
     }
 
+    /**
+     * @dev Forces an address to not mint nfts.  For patching liquidity contracts. Can only be called by an address with the SKIP_MANAGER role.
+     */
     function setSkipNftForAccount(
         address account,
         bool skip
@@ -116,6 +136,7 @@ contract Fame is DN404, OwnableRoles {
     }
 
     error AlreadyLaunched();
+    /// @dev Launches the contract, allowing transfers to occur.
     function launchPublic() public payable onlyOwner {
         if (hasLaunched) {
             revert AlreadyLaunched();
@@ -153,14 +174,24 @@ contract Fame is DN404, OwnableRoles {
     function setRenderer(address newRenderer) public onlyRoles(METADATA) {
         _removeRoles(address(renderer), RENDERER);
         renderer = ITokenURIGenerator(newRenderer);
-        if (address(renderer) != address(0))
-            _grantRoles(address(renderer), RENDERER);
+        if (newRenderer != address(0)) _grantRoles(newRenderer, RENDERER);
     }
 
+    /**
+     * @dev Allows metadata events to be emitted
+     *
+     * @param tokenId the token ID to emit metadata for
+     */
     function emitMetadataUpdate(uint256 tokenId) external onlyRoles(RENDERER) {
         fameMirror().emitMetadataUpdate(tokenId);
     }
 
+    /**
+     * @dev Allows metadata events to be emitted
+     *
+     * @param fromTokenId the token ID to emit metadata for
+     * @param toTokenId the token ID to emit metadata for
+     */
     function emitBatchMetadataUpdate(
         uint256 fromTokenId,
         uint256 toTokenId
@@ -168,6 +199,7 @@ contract Fame is DN404, OwnableRoles {
         fameMirror().emitBatchMetadataUpdate(fromTokenId, toTokenId);
     }
 
+    /// @dev Returns the Society NFT contract.
     function fameMirror() public view returns (FameMirror) {
         return FameMirror(payable(_getDN404Storage().mirrorERC721));
     }

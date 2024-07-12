@@ -16,8 +16,8 @@ contract DeployLaunch is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         Fame fame = new Fame(
-            "Austin Powers",
-            "SCHWING",
+            "Society",
+            "FAME",
             0x3018671f3495419636519f37FfeA85BfBe3dce0f
         );
         FameLaunch fl = new FameLaunch();
@@ -26,7 +26,7 @@ contract DeployLaunch is Script {
             (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 255)
         );
         fame.transfer(address(fl), 444_000_000 ether);
-        fl.launch{value: 0.069420 ether}(
+        fl.launch{value: 5.2 ether}(
             payable(address(fame)),
             0x4200000000000000000000000000000000000006, // WETH on base
             0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6, // v2 factory on base
