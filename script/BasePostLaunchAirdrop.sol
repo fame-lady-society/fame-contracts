@@ -79,6 +79,23 @@ contract DeployLaunch is Script {
         totalAmount += societyAmount;
         console.log("Society amount: %d", societyAmount);
 
+        // fame.launchPublic();
+        fame.approve(gasliteAddress, societyAmount);
+
+        console.log("Airdropping to society");
+        airdrop(
+            IERC20(address(fame)),
+            IAirdropSource(address(societyOwners)),
+            1
+        );
+        console.log(
+            "Leftover allowance for society: %d",
+            fame.allowance(
+                vm.createWallet(vm.envUint("DEPLOYER_PRIVATE_KEY")).addr,
+                gasliteAddress
+            )
+        );
+
         hunnysAmount =
             airdropHelper.totalFromContract(
                 IAirdropSource(address(hunnysOwners))
@@ -109,48 +126,6 @@ contract DeployLaunch is Script {
             metavixenAmount + mermaidPowerAmount + hunnysAmount
         );
         console.log("Total amount: %d", totalAmount);
-
-        onChainCheckGasAmount =
-            (airdropHelper.totalFromContract(
-                IAirdropSource(address(onChainCheckGasOwners))
-            ) * airdropHelper.sisterTokenAmount(fame.totalSupply())) /
-            1870;
-        console.log("Total OnChainCheckGas: %d", onChainCheckGasAmount);
-        onChainGasAmount =
-            (airdropHelper.totalFromContract(
-                IAirdropSource(address(onChainGasOwners))
-            ) * airdropHelper.sisterTokenAmount(fame.totalSupply())) /
-            1000;
-        console.log("Total OnChainGas: %d", onChainGasAmount);
-
-        totalAmount += onChainCheckGasAmount;
-        totalAmount += onChainGasAmount;
-
-        console.log("Total amount: %d", totalAmount);
-
-        // fame.launchPublic();
-        fame.approve(gasliteAddress, societyAmount);
-
-        console.log("Airdropping to society");
-        airdrop(
-            IERC20(address(fame)),
-            IAirdropSource(address(societyOwners)),
-            1
-        );
-        console.log(
-            "Leftover allowance for society: %d",
-            fame.allowance(
-                vm.createWallet(vm.envUint("DEPLOYER_PRIVATE_KEY")).addr,
-                gasliteAddress
-            )
-        );
-        require(
-            fame.allowance(
-                vm.createWallet(vm.envUint("DEPLOYER_PRIVATE_KEY")).addr,
-                gasliteAddress
-            ) == 0,
-            "Allowance not reset for society"
-        );
 
         fame.approve(gasliteAddress, hunnysAmount);
         console.log("Airdropping to hunnys");
@@ -250,10 +225,7 @@ contract DeployLaunch is Script {
 
         fame.transfer(
             address(ctf),
-            airdropHelper.baseTokenAmount(fame.totalSupply()) +
-                airdropHelper.sisterTokenAmount(fame.totalSupply()) *
-                2 -
-                societyAmount
+            airdropHelper.baseTokenAmount(fame.totalSupply()) + societyAmount
         );
         console.log("Transferred %d to CTF", fame.balanceOf(address(ctf)));
         ctf.primeClaim(
