@@ -11,7 +11,8 @@ contract FundFork is Script {
         VmSafe.Wallet memory wallet = vm.createWallet(deployerPrivateKey);
         vm.startBroadcast(forkPrivateKey);
         // send 10E to wallet.addr using a boradcastable transaction
-        payable(wallet.addr).call{value: 10 ether}("");
+        (bool success, ) = payable(wallet.addr).call{value: 10 ether}("");
+        require(success, "Transfer failed.");
         vm.stopBroadcast();
     }
 }
