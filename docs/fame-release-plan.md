@@ -49,8 +49,6 @@ export FAME_ADDRESS=0...
 
 Stop the anvil server and get ready to do it for real.
 
-For interested parties that want to buy early.... First obtain the token address. It will be the first CA that shows up in anvil or script logs
-
 Some useful variables for up ahead:
 ```
 
@@ -60,18 +58,6 @@ export WETH_ADDRESS=$SEPOLIA_WETH_ADDRESS
 export SWAP_ROUTER=$SEPOLIA_SWAP_ROUTER
 export RPC=$SEPOLIA_RPC
 export MULTISIG_ADDRESS=$SEPOLIA_MULTISIG_ADDRESS
-
-First deposit and approve WETH on the swap router:
-
-```
-SNIPE_AMOUNT=0.001 SNIPE_PRIVATE_KEY=$SEPOLIA_SNIPE1_PRIVATE_KEY node --loader ts-node/esm src/launch/deposit.ts
-```
-
-This will continually attempt to execute a swap until it succeeds
-
-```
-SNIPE_PRIVATE_KEY=$SEPOLIA_SNIPE1_PRIVATE_KEY node --loader ts-node/esm src/launch/snipe.ts
-```
 
 Now launch the token for the society
 
@@ -100,8 +86,4 @@ export DEPLOYER_PRIVATE_KEY=$BASE_DEPLOYER_PRIVATE_KEY
 
 ```
 anvil --fork-url $RPC --block-time 2
-```
-
-```
-SNIPE_AMOUNT=0.01 SNIPE_PRIVATE_KEY=$BASE_SNIPE_PRIVATE_KEY node --loader ts-node/esm src/launch/deposit.ts
 ```
