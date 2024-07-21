@@ -11,12 +11,14 @@
     "build:fountain": "esbuild src/fountain/index.js --bundle --outfile=out/fountain/index.js --format=iife --global-name=ThreeParticleFountain --minify"
   },
   "dependencies": {
+    "@irys/sdk": "^0.2.6",
     "@safe-global/api-kit": "^2.4.0",
     "@safe-global/protocol-kit": "^4.0.0",
     "@safe-global/safe-core-sdk-types": "^5.0.0",
     "@wagmi/cli": "^2.1.8",
     "dotenv": "^16.4.5",
     "ethers": "^6.12.1",
+    "ipfs-only-hash": "^4.0.0",
     "merkletreejs": "^0.3.11",
     "three": "^0.165.0",
     "viem": "^2.12.1"
