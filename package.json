@@ -8,6 +8,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "nodets": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));'",
     "build:fountain": "esbuild src/fountain/index.js --bundle --outfile=out/fountain/index.js --format=iife --global-name=ThreeParticleFountain --minify"
   },
   "dependencies": {
