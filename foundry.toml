@@ -10,7 +10,8 @@ remappings = [
   "@uniswap/v3-core/contracts/=lib/v3-core/contracts/",
   "@uniswap/v2-core/contracts/=lib/v2-core/contracts/",
   "@uniswap/v3-periphery/contracts/=lib/v3-periphery/contracts/",
-  "@uniswap/swap-router-contracts/contracts/=lib/swap-router-contracts/contracts/"
+  "@uniswap/swap-router-contracts/contracts/=lib/swap-router-contracts/contracts/",
+  "@AbdelStark/token-vesting-contracts/=lib/token-vesting-contracts/src/"
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 

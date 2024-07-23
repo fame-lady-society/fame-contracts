@@ -35,17 +35,18 @@ contract FameLaunch {
             _nonfungiblePositionManager
         );
 
-        IUniswapV2Pair v2Pair = IUniswapV2Pair(fameLauncher.createV2Pair());
         IWETH(weth).deposit{value: msg.value}();
 
-        IWETH(weth).transfer(address(v2Pair), msg.value);
-        Fame(fame).transfer(address(v2Pair), 177_600_000 ether);
-
         // launch v2
-        fameLauncher.v2Pair().transfer(
-            address(0),
-            fameLauncher.createV2Liquidity()
-        );
+        if (_uniswapV2Factory != address(0)) {
+            IUniswapV2Pair v2Pair = IUniswapV2Pair(fameLauncher.createV2Pair());
+            IWETH(weth).transfer(address(v2Pair), msg.value);
+            Fame(fame).transfer(address(v2Pair), 177_600_000 ether);
+            fameLauncher.v2Pair().transfer(
+                address(0),
+                fameLauncher.createV2Liquidity()
+            );
+        }
 
         // launch v3 post sale
         uint160 price = isTokenALower
@@ -53,9 +54,32 @@ contract FameLaunch {
             : sqrtPriceX96(msg.value, 177_600_000 ether);
         fameLauncher.initializeV3Pool(price);
 
-        Fame(fame).transfer(address(fameLauncher), 100_000_000 ether);
-        int24 tick = TickMath.getTickAtSqrtRatio(price);
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
+        // First, if no v2 factory, create a v3 pool full range with the v2 liquidity
+        if (_uniswapV2Factory == address(0)) {
+            Fame(fame).transfer(address(fameLauncher), 177_600_000 ether);
+            // transfer weth too
+            IWETH(weth).transfer(address(fameLauncher), msg.value);
+            (uint256 tokenId, , , ) = isTokenALower
+                ? fameLauncher.createV3Liquidity(
+                    177_600_000 ether,
+                    msg.value,
+                    (TickMath.MIN_TICK / tickSpacing) * tickSpacing,
+                    (TickMath.MAX_TICK / tickSpacing) * tickSpacing
+                )
+                : fameLauncher.createV3Liquidity(
+                    msg.value,
+                    177_600_000 ether,
+                    (TickMath.MAX_TICK / tickSpacing) * tickSpacing,
+                    (TickMath.MIN_TICK / tickSpacing) * tickSpacing
+                );
+
+            INonfungiblePositionManager(_nonfungiblePositionManager)
+                .safeTransferFrom(address(this), msg.sender, tokenId);
+        }
+
+        int24 tick = TickMath.getTickAtSqrtRatio(price);
+        Fame(fame).transfer(address(fameLauncher), 100_000_000 ether);
         int24 tickBoundary = isTokenALower
             ? tick + 2 * tickSpacing
             : tick - 2 * tickSpacing;
