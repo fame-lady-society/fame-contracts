@@ -758,10 +758,264 @@ export const fameSaleTokenAbi = [
 ] as const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// FameVesting
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export const fameVestingAbi = [
+  {
+    type: 'constructor',
+    inputs: [{ name: 'token', internalType: 'address', type: 'address' }],
+    stateMutability: 'nonpayable',
+  },
+  { type: 'fallback', stateMutability: 'payable' },
+  { type: 'receive', stateMutability: 'payable' },
+  {
+    type: 'function',
+    inputs: [{ name: 'holder', internalType: 'address', type: 'address' }],
+    name: 'computeNextVestingScheduleIdForHolder',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'vestingScheduleId', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'computeReleasableAmount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'holder', internalType: 'address', type: 'address' },
+      { name: 'index', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'computeVestingScheduleIdForAddressAndIndex',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'pure',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_beneficiary', internalType: 'address', type: 'address' },
+      { name: '_start', internalType: 'uint256', type: 'uint256' },
+      { name: '_cliff', internalType: 'uint256', type: 'uint256' },
+      { name: '_duration', internalType: 'uint256', type: 'uint256' },
+      { name: '_slicePeriodSeconds', internalType: 'uint256', type: 'uint256' },
+      { name: '_revocable', internalType: 'bool', type: 'bool' },
+      { name: '_amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'createVestingSchedule',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'holder', internalType: 'address', type: 'address' }],
+    name: 'getLastVestingScheduleForHolder',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct TokenVesting.VestingSchedule',
+        type: 'tuple',
+        components: [
+          { name: 'beneficiary', internalType: 'address', type: 'address' },
+          { name: 'cliff', internalType: 'uint256', type: 'uint256' },
+          { name: 'start', internalType: 'uint256', type: 'uint256' },
+          { name: 'duration', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'slicePeriodSeconds',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+          { name: 'revocable', internalType: 'bool', type: 'bool' },
+          { name: 'amountTotal', internalType: 'uint256', type: 'uint256' },
+          { name: 'released', internalType: 'uint256', type: 'uint256' },
+          { name: 'revoked', internalType: 'bool', type: 'bool' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getToken',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'index', internalType: 'uint256', type: 'uint256' }],
+    name: 'getVestingIdAtIndex',
+    outputs: [{ name: '', internalType: 'bytes32', type: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'vestingScheduleId', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'getVestingSchedule',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct TokenVesting.VestingSchedule',
+        type: 'tuple',
+        components: [
+          { name: 'beneficiary', internalType: 'address', type: 'address' },
+          { name: 'cliff', internalType: 'uint256', type: 'uint256' },
+          { name: 'start', internalType: 'uint256', type: 'uint256' },
+          { name: 'duration', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'slicePeriodSeconds',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+          { name: 'revocable', internalType: 'bool', type: 'bool' },
+          { name: 'amountTotal', internalType: 'uint256', type: 'uint256' },
+          { name: 'released', internalType: 'uint256', type: 'uint256' },
+          { name: 'revoked', internalType: 'bool', type: 'bool' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'holder', internalType: 'address', type: 'address' },
+      { name: 'index', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'getVestingScheduleByAddressAndIndex',
+    outputs: [
+      {
+        name: '',
+        internalType: 'struct TokenVesting.VestingSchedule',
+        type: 'tuple',
+        components: [
+          { name: 'beneficiary', internalType: 'address', type: 'address' },
+          { name: 'cliff', internalType: 'uint256', type: 'uint256' },
+          { name: 'start', internalType: 'uint256', type: 'uint256' },
+          { name: 'duration', internalType: 'uint256', type: 'uint256' },
+          {
+            name: 'slicePeriodSeconds',
+            internalType: 'uint256',
+            type: 'uint256',
+          },
+          { name: 'revocable', internalType: 'bool', type: 'bool' },
+          { name: 'amountTotal', internalType: 'uint256', type: 'uint256' },
+          { name: 'released', internalType: 'uint256', type: 'uint256' },
+          { name: 'revoked', internalType: 'bool', type: 'bool' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getVestingSchedulesCount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: '_beneficiary', internalType: 'address', type: 'address' },
+    ],
+    name: 'getVestingSchedulesCountByBeneficiary',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getVestingSchedulesTotalAmount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'getWithdrawableAmount',
+    outputs: [{ name: '', internalType: 'uint256', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [],
+    name: 'owner',
+    outputs: [{ name: '', internalType: 'address', type: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'vestingScheduleId', internalType: 'bytes32', type: 'bytes32' },
+      { name: 'amount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'release',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [
+      { name: 'vestingScheduleId', internalType: 'bytes32', type: 'bytes32' },
+    ],
+    name: 'revoke',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'newOwner', internalType: 'address', type: 'address' }],
+    name: 'transferOwnership',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    inputs: [{ name: 'amount', internalType: 'uint256', type: 'uint256' }],
+    name: 'withdraw',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'event',
+    anonymous: false,
+    inputs: [
+      { name: 'user', internalType: 'address', type: 'address', indexed: true },
+      {
+        name: 'newOwner',
+        internalType: 'address',
+        type: 'address',
+        indexed: true,
+      },
+    ],
+    name: 'OwnershipTransferred',
+  },
+] as const
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // IGasliteDrop
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const iGasliteDropAbi = [
+  {
+    type: 'function',
+    inputs: [
+      { name: '_token', internalType: 'address', type: 'address' },
+      { name: '_addresses', internalType: 'address[]', type: 'address[]' },
+      { name: '_amounts', internalType: 'uint256[]', type: 'uint256[]' },
+      { name: '_totalAmount', internalType: 'uint256', type: 'uint256' },
+    ],
+    name: 'airdropERC20',
+    outputs: [],
+    stateMutability: 'payable',
+  },
   {
     type: 'function',
     inputs: [

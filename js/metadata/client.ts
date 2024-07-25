@@ -1,6 +1,7 @@
 import "dotenv/config";
+import path from "path";
+import { promises as fs } from "fs";
 import Irys from "@irys/sdk";
-import { formatEther } from "viem";
 
 const NETWORK = process.env.ARWEAVE_NETWORK || "mainnet";
 const TOKEN = process.env.ARWEAVE_TOKEN || "base-eth";
@@ -15,4 +16,29 @@ export const getIrysArweave = async () => {
     config: { providerUrl: RPC },
   });
   return irys;
+};
+
+export const calculateTotalPrice = async (
+  irys: Irys,
+  folderPath: string
+): Promise<bigint> => {
+  let totalPrice = 0n;
+
+  const processFileOrFolder = async (itemPath: string): Promise<void> => {
+    const stat = await fs.stat(itemPath);
+
+    if (stat.isFile()) {
+      const size = stat.size;
+      const price = BigInt((await irys.getPrice(size)).toString());
+      totalPrice += price;
+    } else if (stat.isDirectory()) {
+      const files = await fs.readdir(itemPath);
+      for (const file of files) {
+        await processFileOrFolder(path.join(itemPath, file));
+      }
+    }
+  };
+
+  await processFileOrFolder(folderPath);
+  return totalPrice;
 };
