@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import "forge-std/console.sol";
+import {Bitmap} from "./utils/Bitmap.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {FairReveal} from "../src/FairReveal.sol";
 
@@ -29,67 +30,91 @@ contract FairRevealTest is Test {
         uint16 revealEventCount;
         uint16 revealCount;
     }
-    function generateRevealCheckpoint()
-        internal
-        returns (uint16[] memory reveals, uint16[] memory availables)
-    {
-        RevealData memory data = RevealData({
-            size: 8 +
-                (uint256(keccak256(abi.encodePacked(block.timestamp))) % 24),
-            totalSize: 0, // Initialize to 0, will be set properly below
-            reveals: new uint16[](0), // Temporary initialization
-            availables: new uint16[](0), // Temporary initialization
-            minTotalAvailableSize: 1,
-            maxTotalAvailableSize: 0, // Will be set properly below
-            revealEventCount: 0,
-            revealCount: 0
-        });
 
-        // Create a random integer i between 8 and 32.
-        data.totalSize =
-            data.size *
-            (8 + (uint256(keccak256(abi.encodePacked(block.timestamp))) % 24));
-        data.reveals = new uint16[](data.size);
-        data.availables = new uint16[](data.size);
-        data.maxTotalAvailableSize = uint16(data.totalSize);
+    // function fixturePrevrandao()
+    //     public
+    //     pure
+    //     returns (uint256[][] memory prevrandao)
+    // {
+    //     prevrandao = new uint256[][](8);
+    //     for (uint256 i = 0; i < 8; i++) {
+    //         prevrandao[i] = new uint256[](8);
+    //         for (uint256 j = 0; j < 8; j++) {
+    //             prevrandao[i][j] = uint256(keccak256(abi.encodePacked(i, j)));
+    //         }
+    //     }
+    // }
 
-        while (data.revealCount < data.size) {
-            uint16 revealSize = 1 +
-                (uint16(
-                    keccak256(
-                        abi.encodePacked(
-                            block.timestamp,
-                            data.revealCount,
-                            data.totalSize
-                        )
-                    )
-                ) % (data.maxTotalAvailableSize - data.availables));
-            uint16 availableSize = 1 +
-                (uint16(
-                    keccak256(
-                        abi.encodePacked(
-                            block.timestamp,
-                            data.revealCount,
-                            data.totalSize
-                        )
-                    )
-                ) % (data.maxTotalAvailableSize - data.minTotalAvailableSize));
-            data.reveals[data.revealCount] = revealSize;
-            data.availables[data.revealCount] = availableSize;
-            data.revealCount++;
-            data.minTotalAvailableSize += revealSize;
+    // function fixtureReveals() public pure returns (uint16[][] memory reveals) {
+    //     reveals = new uint16[][](8);
+    //     for (uint16 i = 0; i < 8; i++) {
+    //         reveals[i] = new uint16[](8);
+    //         for (uint16 j = 0; j < 8; j++) {
+    //             reveals[i][j] = uint16(8) * (i + 1);
+    //         }
+    //     }
+    // }
+
+    // function fixtureAvailables()
+    //     public
+    //     pure
+    //     returns (uint16[][] memory availables)
+    // {
+    //     availables = new uint16[][](8);
+    //     for (uint16 i = 0; i < 8; i++) {
+    //         availables[i] = new uint16[](8);
+    //         for (uint16 j = 0; j < 8; j++) {
+    //             availables[i][j] = uint16(64) * (j + 1);
+    //         }
+    //     }
+    // }
+
+    function test_Fuzz(bytes32 prevrandao, uint16 seed) public {
+        uint16 available = (seed % 1024) + 128;
+        uint16 iterations = (seed % 16) + 4;
+        uint16 targetIterationSize = available / iterations;
+
+        fairReveal = new FairReveal(
+            address(0),
+            "revealed://",
+            "unrevealed://",
+            available
+        );
+
+        Bitmap revealed = new Bitmap();
+        for (uint256 i = 0; i < iterations; i++) {
+            vm.prevrandao(
+                bytes32(uint256(keccak256(abi.encodePacked(prevrandao, i))))
+            );
+            fairReveal.reveal(i, targetIterationSize, available);
+
+            // Now walk through each newly revealed token and verify that we
+            // have not revealed any token more than once.
+            uint256 startIndex = i * targetIterationSize;
+            for (
+                uint256 j = startIndex;
+                j < startIndex + targetIterationSize - 1;
+                j++
+            ) {
+                (uint256 tokenId, uint256 salt) = fairReveal.resolveTokenId(j);
+                bool wasRevealed = revealed.get(tokenId);
+                if (!wasRevealed) {
+                    revealed.set(tokenId);
+                } else {
+                    console.log("Iteration: ", i);
+                    console.log("Index: ", j);
+                    console.log("Seed: ", seed);
+                    console.log("Available: ", available);
+                    console.log("Iterations: ", iterations);
+                    console.log("startIndex: ", startIndex);
+                    console.log("TargetIterationSize: ", targetIterationSize);
+                    console.log("Salt: ", salt);
+                    console.log("TokenId: ", tokenId);
+                    console.log("Revealed: ", revealed.get(tokenId));
+                    assert(false);
+                }
+            }
         }
-    }
-
-    function fixtureRevealCheckpoints()
-        public
-        returns (uint16[] memory reveals, uint16[] memory availables)
-    {
-        // Create a random integer i between 8 and 32. Multiple that integer by a random integer between 8 and 32.
-        // This will give us a random integer between 64 and 1024 and is the size of the collection to reveal.
-        // For the size of the collection take a random chunk between 1 and the size of the collection and save
-        // as revealCount and then take a second randomn chunk between 1 and the size of the collection to use as
-        // totalAvailableAmount. Continue generating reveal chunks until total
     }
 
     function test_Reveal1() public {

@@ -55,12 +55,13 @@ contract FameLaunch {
         fameLauncher.initializeV3Pool(price);
 
         int24 tickSpacing = fameLauncher.getV3TickSpacing();
+        uint256 tokenId;
         // First, if no v2 factory, create a v3 pool full range with the v2 liquidity
         if (_uniswapV2Factory == address(0)) {
             Fame(fame).transfer(address(fameLauncher), 177_600_000 ether);
             // transfer weth too
             IWETH(weth).transfer(address(fameLauncher), msg.value);
-            (uint256 tokenId, , , ) = isTokenALower
+            (tokenId, , , ) = isTokenALower
                 ? fameLauncher.createV3Liquidity(
                     177_600_000 ether,
                     msg.value,
@@ -83,7 +84,7 @@ contract FameLaunch {
         int24 tickBoundary = isTokenALower
             ? tick + 2 * tickSpacing
             : tick - 2 * tickSpacing;
-        (uint256 tokenId, , , ) = isTokenALower
+        (tokenId, , , ) = isTokenALower
             ? fameLauncher.createV3Liquidity(
                 100_000_000 ether,
                 0 ether,

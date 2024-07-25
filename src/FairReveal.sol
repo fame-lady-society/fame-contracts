@@ -22,16 +22,6 @@ interface ITokemEmitable {
 contract FairReveal is OwnableRoles, ITokenURIGenerator {
     using LibBitmap for LibBitmap.Bitmap;
     using LibString for uint256;
-
-    uint16 public startingSize;
-    uint16 public unrevealedTokensRemaining;
-    LibBitmap.Bitmap private _revealedTokens;
-
-    string private _tokenIdSalt;
-    string private _uri;
-    string private _unresolvedUri;
-    ITokemEmitable public emitable;
-
     struct RevealedChunk {
         uint16 startIndex;
         uint16 length;
@@ -43,10 +33,29 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         // Even length pairs of start index and length
         uint16[] chunks;
     }
+
+    uint16 public startingSize;
+    uint16 public unrevealedTokensRemaining;
+    LibBitmap.Bitmap private _revealedTokens;
+
+    string private _tokenIdSalt;
+    string private _uri;
+    string private _unresolvedUri;
+    ITokemEmitable public emitable;
+
     /**
      * @dev Used to read the order of the token ids
      */
     Revealed[] public _revealed;
+
+    function revealedSize() external view returns (uint256) {
+        return _revealed.length;
+    }
+    function revealedItem(
+        uint256 index
+    ) external view returns (Revealed memory) {
+        return _revealed[index];
+    }
 
     uint256 constant REVEALER = _ROLE_0;
 
@@ -134,7 +143,8 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     ) internal view returns (uint16) {
         uint16 index = startAtIndex;
         console.log(
-            "findFirstSetNoRollover:[length: %d, rollover: %d]",
+            "findFirstSetNoRollover: [startAtIndex: %d, length: %d, rollover: %d]",
+            startAtIndex,
             length,
             rollover
         );
@@ -188,32 +198,39 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         if (startAtIndex >= rollover) {
             revert OutOfRange();
         }
-        console.log(
-            "findFirstUnsetCounting [startAtIndex: %d, count: %d]",
-            startAtIndex,
-            count
-        );
+        // console.log(
+        //     "findFirstUnsetCounting [startAtIndex: %d, count: %d, rollover: %d]",
+        //     startAtIndex,
+        //     count,
+        //     rollover
+        // );
         uint16 index = startAtIndex;
         uint16 checked = 0; // Counter to track the number of checked indices
         uint16 foundUnset = 0; // Counter for the number of unset bits found
 
-        while (foundUnset < count && checked < rollover) {
+        while ((foundUnset == 0 || foundUnset < count) && checked < rollover) {
             if (!_revealedTokens.get(index)) {
                 foundUnset++;
-                console.log(
-                    "foundUnset [index: %d, index: %d]",
-                    foundUnset,
-                    index
-                );
+                // console.log(
+                //     "foundUnset [foundUnset: %d, index: %d]",
+                //     foundUnset,
+                //     index
+                // );
                 if (foundUnset == count) {
                     // Return the current index if the required number of unset bits is found
                     return index;
                 }
             }
+            // console.log(
+            //     "findFirstUnsetCounting [index: %d, checked: %d]",
+            //     index,
+            //     checked
+            // );
             index++;
             checked++;
             // Roll over the index back to zero if it reaches or exceeds startingSize
             if (index >= rollover) {
+                console.log("rolling over");
                 index = 0;
             }
         }
@@ -265,9 +282,26 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
             totalAvailableArt
         );
         _revealed.push(revealed);
+
         while (revealedCount < reveals) {
+            // Special case for when startAtIndex is the last index. We need to add a single
+            // entry to chunks and start the next iteration at 0
+            if (startAtIndex == totalAvailableArt - 1) {
+                if (!_revealedTokens.get(startAtIndex)) {
+                    console.log("adding to revealedTokens");
+                    _revealed[_revealed.length - 1].chunks.push(startAtIndex);
+                    _revealed[_revealed.length - 1].chunks.push(1);
+                    revealedCount++;
+                    startAtIndex = findFirstUnsetCounting(
+                        0,
+                        0,
+                        totalAvailableArt
+                    );
+                    continue;
+                }
+            }
             uint16 endAtIndex = findFirstSetNoRollover(
-                startAtIndex + 1,
+                startAtIndex,
                 reveals - revealedCount,
                 totalAvailableArt
             );
@@ -277,15 +311,33 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
                 length = reveals - revealedCount;
             }
             _revealedTokens.setBatch(startAtIndex, length);
-            console.log("[startAtIndex: %d, length: %d]", startAtIndex, length);
+            console.log(
+                "---[startAtIndex: %d, length: %d]---",
+                startAtIndex,
+                length
+            );
             _revealed[_revealed.length - 1].chunks.push(startAtIndex);
             _revealed[_revealed.length - 1].chunks.push(length);
+            console.log("[length: %d, reveals: %d]", length, reveals);
             revealedCount += length;
             if (revealedCount < reveals) {
                 startAtIndex = findFirstUnset(
-                    endAtIndex > totalAvailableArt ? 0 : endAtIndex,
+                    endAtIndex >= totalAvailableArt ? 0 : endAtIndex,
                     totalAvailableArt
                 );
+                // Special case for when startAtIndex is the last index. We need to add a single
+                // entry to chunks and start the next iteration at 0
+                if (startAtIndex >= totalAvailableArt - 1) {
+                    _revealed[_revealed.length - 1].chunks.push(startAtIndex);
+                    _revealed[_revealed.length - 1].chunks.push(1);
+                    _revealedTokens.set(startAtIndex);
+                    revealedCount++;
+                    startAtIndex = findFirstUnsetCounting(
+                        0,
+                        0,
+                        totalAvailableArt
+                    );
+                }
             }
             console.log("[revealedCount: %d]", revealedCount);
         }
@@ -298,6 +350,10 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         }
 
         unrevealedTokensRemaining -= reveals;
+    }
+
+    function hasBeenRevealed(uint16 tokenId) external view returns (bool) {
+        return _revealedTokens.get(tokenId);
     }
 
     // TODO: EMIT METADATA after update
