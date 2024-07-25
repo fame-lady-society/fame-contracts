@@ -273,7 +273,7 @@ contract FairRevealTest is Test {
 
         fairReveal.reveal(0, 2, 4);
         (tokenId, salt) = fairReveal.resolveTokenId(2);
-        assertEq(tokenId, 0);
+        assertEq(tokenId, 3);
         saltedTokenId = uint256(keccak256(abi.encodePacked(tokenId, salt)));
         assertEq(
             fairReveal.tokenURI(3),
@@ -281,7 +281,7 @@ contract FairRevealTest is Test {
         );
 
         (tokenId, salt) = fairReveal.resolveTokenId(3);
-        assertEq(tokenId, 3);
+        assertEq(tokenId, 0);
         saltedTokenId = uint256(keccak256(abi.encodePacked(tokenId, salt)));
         assertEq(
             fairReveal.tokenURI(4),

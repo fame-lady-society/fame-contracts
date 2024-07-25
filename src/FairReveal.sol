@@ -41,6 +41,7 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     string private _tokenIdSalt;
     string private _uri;
     string private _unresolvedUri;
+    ITokenURIGenerator public upgradeableUriGenerator;
     ITokemEmitable public emitable;
 
     /**
@@ -58,6 +59,8 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     }
 
     uint256 constant REVEALER = _ROLE_0;
+    uint256 constant SALT_UPDATER = _ROLE_1;
+    uint256 constant METADATA_UPDATER = _ROLE_2;
 
     constructor(
         address emitableAddress,
@@ -72,66 +75,64 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         unrevealedTokensRemaining = totalTokens;
         startingSize = totalTokens;
         _initializeOwner(msg.sender);
-        _grantRoles(msg.sender, REVEALER);
+        _grantRoles(msg.sender, REVEALER | SALT_UPDATER | METADATA_UPDATER);
     }
 
     error InvalidTokenId();
+    /**
+     * @dev Resolve the randomized tokenId from the input tokenId
+     */
     function resolveTokenId(
         uint256 index
     ) public view returns (uint256 tokenId, uint256 salt) {
-        // console.log("resolveTokenId [index: %d]", index);
-        // console.log("resolveTokenId [_revealed.length: %d]", _revealed.length);
+        // We're going to walk through the revealed chunks to find the tokenId, counting from 0
         uint256 currentIndexOfTokenId = 0;
         // Walk through the revealed chunks to find the tokenId by counting lengths
         for (uint256 i = 0; i < _revealed.length; i++) {
-            // console.log("resolveTokenId [i: %d]", i);
             Revealed memory revealed = _revealed[i];
             uint256 chunkLength = revealed.chunks.length;
-            // console.log("resolveTokenId [chunkLength: %d]", chunkLength);
+
             for (uint256 j = 0; j < chunkLength; j += 2) {
-                // console.log("resolveTokenId [j: %d]", j);
+                // where the chunk starts
                 uint16 startIndex = revealed.chunks[j];
+                // the length of the chunk
                 uint16 length = revealed.chunks[j + 1];
-                // console.log(
-                //     "resolveTokenId [startIndex: %d, length: %d]",
-                //     startIndex,
-                //     length
-                // );
+                // If the index is within the range of the chunk, we have found the tokenId
                 if (
                     index >= currentIndexOfTokenId &&
                     index < currentIndexOfTokenId + length
                 ) {
                     tokenId = startIndex + index - currentIndexOfTokenId;
                     salt = revealed.salt;
-                    // console.log(
-                    //     "resolveTokenId [tokenId: %d, salt: %d]",
-                    //     tokenId,
-                    //     salt
-                    // );
                     return (tokenId, salt);
                 }
+                // Move the current index by the length of the chunk
                 currentIndexOfTokenId += length;
-                // console.log(
-                //     "resolveTokenId [currentIndexOfTokenId: %d]",
-                //     currentIndexOfTokenId
-                // );
             }
         }
         revert InvalidTokenId();
     }
 
+    /**
+     * @dev Returns the URI for a given token ID
+     */
     function tokenURI(
         uint256 tokenId
     ) external view override returns (string memory) {
+        // if this reverts, it means the tokenId is invalid and is unrevealed
         try this.resolveTokenId(tokenId - 1) returns (
             uint256 index,
             uint256 salt
         ) {
+            // token is revealed
             uint256 saltedTokenId = uint256(
                 keccak256(abi.encodePacked(index, salt))
             );
             return LibString.concat(_uri, saltedTokenId.toString());
         } catch {
+            if (address(upgradeableUriGenerator) != address(0)) {
+                return upgradeableUriGenerator.tokenURI(tokenId);
+            }
             return LibString.concat(_unresolvedUri, tokenId.toString());
         }
     }
@@ -142,12 +143,6 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         uint16 rollover
     ) internal view returns (uint16) {
         uint16 index = startAtIndex;
-        console.log(
-            "findFirstSetNoRollover: [startAtIndex: %d, length: %d, rollover: %d]",
-            startAtIndex,
-            length,
-            rollover
-        );
         while (
             !_revealedTokens.get(index) &&
             index < rollover &&
@@ -155,11 +150,6 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         ) {
             index++;
         }
-        console.log(
-            "[findFirstSetNoRollover: %d, startAtIndex: %d]",
-            index,
-            startAtIndex
-        );
         return index;
     }
 
@@ -190,7 +180,13 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     }
 
     error NotEnoughUnsetBits();
-    function findFirstUnsetCounting(
+    /**
+     * @dev Finds the count unset bit in the bitmap after a given index, rolling over as needed
+     * @param startAtIndex the index to start searching from
+     * @param count the number of unset bits to find
+     * @param rollover the maximum index to search to before rolling over
+     */
+    function findUnsetIndexRolling(
         uint16 startAtIndex,
         uint16 count,
         uint16 rollover
@@ -198,53 +194,50 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         if (startAtIndex >= rollover) {
             revert OutOfRange();
         }
-        // console.log(
-        //     "findFirstUnsetCounting [startAtIndex: %d, count: %d, rollover: %d]",
-        //     startAtIndex,
-        //     count,
-        //     rollover
-        // );
+        // Start the search from the given index
         uint16 index = startAtIndex;
         uint16 checked = 0; // Counter to track the number of checked indices
         uint16 foundUnset = 0; // Counter for the number of unset bits found
 
+        // Loop through the bitmap until the required number of unset bits are found
         while ((foundUnset == 0 || foundUnset < count) && checked < rollover) {
+            // did we find an unset bit?
             if (!_revealedTokens.get(index)) {
+                // yes, increment the counter
                 foundUnset++;
-                // console.log(
-                //     "foundUnset [foundUnset: %d, index: %d]",
-                //     foundUnset,
-                //     index
-                // );
+                // Check if the required number of unset bits is found
                 if (foundUnset == count) {
                     // Return the current index if the required number of unset bits is found
                     return index;
                 }
             }
-            // console.log(
-            //     "findFirstUnsetCounting [index: %d, checked: %d]",
-            //     index,
-            //     checked
-            // );
-            index++;
+
+            // Increment the checked counter, to prevent an infinite loop
             checked++;
-            // Roll over the index back to zero if it reaches or exceeds startingSize
-            if (index >= rollover) {
-                console.log("rolling over");
-                index = 0;
-            }
+            // // Move to the next index
+            index = (index + 1) % rollover;
         }
         // If not enough unset bits are found, revert
         if (foundUnset < count) {
             revert NotEnoughUnsetBits();
         }
-        // This line is technically unreachable, but included for completeness
+        // This line should be unreachable, but included for completeness
         return index;
     }
 
     error BlockMustBeInFuture();
     error SizeCannotDecrease();
     uint16 private highestTotalAvailableArt;
+    /**
+     * @dev Reveals a set of tokens. Can only be called by an address with the REVEALER role.
+     * The reveal process takes a random number (blockhash to start) and a salt to generate a hash.
+     * The hash is used to determine the tokens to reveal.
+     * The number of tokens to reveal must be less than or equal to the total number of tokens available to reveal
+     * The total number of tokens available must be greater than or equal to the highest total number of tokens available in a prior reveal.
+     * @param salt the salt to use in the reveal
+     * @param reveals the number of tokens to reveal
+     * @param totalAvailableArt the total number of tokens available in the reveal. this number between prior calls must always be greater than or equal the prior call
+     */
     function reveal(
         uint256 salt,
         uint16 reveals,
@@ -259,68 +252,56 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         if (totalAvailableArt > highestTotalAvailableArt) {
             highestTotalAvailableArt = totalAvailableArt;
         }
+        // The number of token ids available for this reveal
         uint16 revealSetSize = totalAvailableArt -
             (startingSize - unrevealedTokensRemaining);
-        console.log(
-            "[revealSetSize: %d, reveals: %d, totalAvailableArt: %d]",
-            revealSetSize,
-            reveals,
-            totalAvailableArt
-        );
+
         Revealed memory revealed;
         revealed.salt = salt;
         revealed.revealedCount = reveals;
+        // Randao!
         revealed.seed = uint256(
             keccak256(abi.encodePacked(block.prevrandao, salt))
         );
 
+        // Let's do some revealing, and keep track of the revealed count
         uint16 revealedCount = 0;
         // use hash to pick a start index mod unrevealedTokensRemaining
-        uint16 startAtIndex = findFirstUnsetCounting(
+        // this is the part where we pick a starting location on the set of
+        // available tokens that can reveal, and then look for the next available
+        // slot
+        uint16 startAtIndex = findUnsetIndexRolling(
             0,
             uint16(revealed.seed % uint256(revealSetSize)),
             totalAvailableArt
         );
+        // updating state
         _revealed.push(revealed);
 
         while (revealedCount < reveals) {
-            // Special case for when startAtIndex is the last index. We need to add a single
-            // entry to chunks and start the next iteration at 0
-            if (startAtIndex == totalAvailableArt - 1) {
-                if (!_revealedTokens.get(startAtIndex)) {
-                    console.log("adding to revealedTokens");
-                    _revealed[_revealed.length - 1].chunks.push(startAtIndex);
-                    _revealed[_revealed.length - 1].chunks.push(1);
-                    revealedCount++;
-                    startAtIndex = findFirstUnsetCounting(
-                        0,
-                        0,
-                        totalAvailableArt
-                    );
-                    continue;
-                }
-            }
+            // find the length of the current set of unset bits that we are going to set
             uint16 endAtIndex = findFirstSetNoRollover(
                 startAtIndex,
                 reveals - revealedCount,
                 totalAvailableArt
             );
+            // length of the set of unset bits
             uint16 length = endAtIndex - startAtIndex;
             // length cannot be > reveals - revealed
             if (length > reveals - revealedCount) {
                 length = reveals - revealedCount;
             }
+            // set the bits
             _revealedTokens.setBatch(startAtIndex, length);
-            console.log(
-                "---[startAtIndex: %d, length: %d]---",
-                startAtIndex,
-                length
-            );
+            // add the chunk to the revealed struct
             _revealed[_revealed.length - 1].chunks.push(startAtIndex);
             _revealed[_revealed.length - 1].chunks.push(length);
-            console.log("[length: %d, reveals: %d]", length, reveals);
+            // update the revealed count
             revealedCount += length;
+            // Special cases tp continue the loop
             if (revealedCount < reveals) {
+                // Are we going to look next or roll over?
+                // Find the next unset bit
                 startAtIndex = findFirstUnset(
                     endAtIndex >= totalAvailableArt ? 0 : endAtIndex,
                     totalAvailableArt
@@ -332,17 +313,18 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
                     _revealed[_revealed.length - 1].chunks.push(1);
                     _revealedTokens.set(startAtIndex);
                     revealedCount++;
-                    startAtIndex = findFirstUnsetCounting(
+                    startAtIndex = findUnsetIndexRolling(
                         0,
                         0,
                         totalAvailableArt
                     );
                 }
             }
-            console.log("[revealedCount: %d]", revealedCount);
         }
 
+        // Check if we can emit metadata
         if (address(emitable) != address(0)) {
+            // Emit metadata update for the revealed tokens
             emitable.emitBatchMetadataUpdate(
                 startingSize - unrevealedTokensRemaining,
                 startingSize - unrevealedTokensRemaining + reveals
@@ -352,9 +334,35 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         unrevealedTokensRemaining -= reveals;
     }
 
+    /**
+     * @dev Returns if an underrlying token id (not the external facing token id, but the randomized one) has been used in a revealed token
+     * @param tokenId the underlying token id
+     * @return true if the token id has been revealed
+     */
     function hasBeenRevealed(uint16 tokenId) external view returns (bool) {
         return _revealedTokens.get(tokenId);
     }
 
-    // TODO: EMIT METADATA after update
+    /**
+     * @dev Updates the salt for a revealed chunk. Can only be called by an address with the SALT_UPDATER role.
+     * Intended to be used in cases where a reveal set needs to be fixed.
+     * @param index the index of the revealed chunk to update
+     * @param salt the new salt
+     */
+    function updateSalt(
+        uint256 index,
+        uint256 salt
+    ) external onlyRoles(SALT_UPDATER) {
+        _revealed[index].salt = salt;
+    }
+
+    /**
+     * @dev Updates the fallback uri generator, in cases where unrevealed tokens will be handled by a future contract
+     * @param newUriGenerator the new uri generator
+     */
+    function updateUriGenerator(
+        address newUriGenerator
+    ) external onlyRoles(METADATA_UPDATER) {
+        upgradeableUriGenerator = ITokenURIGenerator(newUriGenerator);
+    }
 }

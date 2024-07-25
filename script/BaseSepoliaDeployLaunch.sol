@@ -37,20 +37,20 @@ contract DeployLaunch is Script {
             "TEST",
             address(0x2d78B13a2E735Bc96ec797A37AaF4e17C4431C83)
         );
-        FameLaunch fl = new FameLaunch();
+        // FameLaunch fl = new FameLaunch();
         fame.grantRoles(
             wallet.addr,
             (1 << 0) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 255)
         );
-        fame.transfer(address(fl), 444_000_000 ether);
-        fl.launch{value: 1 ether}(
-            payable(address(fame)),
-            weth, // WETH on sepolia
-            address(0), // v2 factory on sepolia
-            0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24, // v3 factory on base sepolia
-            0xd7c6e867591608D32Fe476d0DbDc95d0cf584c8F //  v3 nonfungiblePositionManager on base sepolia
-        );
-
+        // fame.transfer(address(fl), 444_000_000 ether);
+        // fl.launch{value: 1 ether}(
+        //     payable(address(fame)),
+        //     weth, // WETH on sepolia
+        //     address(0), // v2 factory on sepolia
+        //     0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24, // v3 factory on base sepolia
+        //     0xd7c6e867591608D32Fe476d0DbDc95d0cf584c8F //  v3 nonfungiblePositionManager on base sepolia
+        // );
+        fame.launchPublic();
         vm.stopBroadcast();
     }
 }

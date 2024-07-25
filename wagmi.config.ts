@@ -3,7 +3,7 @@ import { foundry } from "@wagmi/cli/plugins";
 import { mainnet } from "viem/chains";
 
 export default defineConfig({
-  out: "src/wagmi/generated.ts",
+  out: "js/wagmi/generated.ts",
   contracts: [],
   plugins: [
     foundry({
@@ -14,6 +14,7 @@ export default defineConfig({
         "ISwapRouter02.sol/**",
         "IWETH.sol/**",
         "IGasliteDrop.sol/**",
+        "FameVesting.sol/**",
       ],
     }),
   ],
