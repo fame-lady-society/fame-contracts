@@ -9,6 +9,7 @@ const PRIVATE_KEY = process.env.ARWEAVE_PRIVATE_KEY || "";
 const RPC = process.env.ARWEAVE_RPC;
 
 export const getIrysArweave = async () => {
+  console.log(`Connecting to Arweave network: ${NETWORK} paid with ${TOKEN}`);
   const irys = new Irys({
     network: NETWORK,
     token: TOKEN,

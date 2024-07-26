@@ -23,6 +23,13 @@ console.log(`Funded wallet with ${formatEther(BigInt(fee))} ETH`);
 //   `Price for 1 gigabyte: ${formatEther(await client.getPrice(ONE_GIGABYTE))}`
 // );
 
-client.uploadFolder(INPUT_FOLDER, {}).then((tx) => {
-  console.log(`Uploaded folder to Arweave with transaction ID: ${tx?.id}`);
-});
+client
+  .uploadFolder(INPUT_FOLDER, {
+    keepDeleted: false,
+  })
+  .then((tx) => {
+    console.log(`Uploaded folder to Arweave with transaction ID: ${tx?.id}`);
+  })
+  .catch((err) => {
+    console.error("Error uploading folder:", err);
+  });

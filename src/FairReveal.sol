@@ -8,8 +8,8 @@ import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
 import "forge-std/console.sol";
 
 interface ITokemEmitable {
-    function emitBatchMetadataUpdate(uint16 start, uint16 end) external;
-    function emitMetadataUpdate(uint16 tokenId) external;
+    function emitBatchMetadataUpdate(uint256 start, uint256 end) external;
+    function emitMetadataUpdate(uint256 tokenId) external;
 }
 
 /**
@@ -22,11 +22,14 @@ interface ITokemEmitable {
 contract FairReveal is OwnableRoles, ITokenURIGenerator {
     using LibBitmap for LibBitmap.Bitmap;
     using LibString for uint256;
+    using LibString for string;
+
     struct RevealedChunk {
         uint16 startIndex;
         uint16 length;
     }
     struct Revealed {
+        string baseUri;
         uint256 salt;
         uint16 revealedCount;
         uint256 seed;
@@ -39,7 +42,6 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     LibBitmap.Bitmap private _revealedTokens;
 
     string private _tokenIdSalt;
-    string private _uri;
     string private _unresolvedUri;
     ITokenURIGenerator public upgradeableUriGenerator;
     ITokemEmitable public emitable;
@@ -59,23 +61,20 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     }
 
     uint256 constant REVEALER = _ROLE_0;
-    uint256 constant SALT_UPDATER = _ROLE_1;
-    uint256 constant METADATA_UPDATER = _ROLE_2;
+    uint256 constant METADATA_UPDATER = _ROLE_1;
 
     constructor(
         address emitableAddress,
-        string memory uri,
         string memory unresolvedUri,
         uint16 totalTokens
     ) {
         highestTotalAvailableArt = 0;
         emitable = ITokemEmitable(emitableAddress);
-        _uri = uri;
         _unresolvedUri = unresolvedUri;
         unrevealedTokensRemaining = totalTokens;
         startingSize = totalTokens;
         _initializeOwner(msg.sender);
-        _grantRoles(msg.sender, REVEALER | SALT_UPDATER | METADATA_UPDATER);
+        _grantRoles(msg.sender, REVEALER | METADATA_UPDATER);
     }
 
     error InvalidTokenId();
@@ -84,7 +83,11 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
      */
     function resolveTokenId(
         uint256 index
-    ) public view returns (uint256 tokenId, uint256 salt) {
+    )
+        public
+        view
+        returns (string memory baseUri, uint256 tokenId, uint256 salt)
+    {
         // We're going to walk through the revealed chunks to find the tokenId, counting from 0
         uint256 currentIndexOfTokenId = 0;
         // Walk through the revealed chunks to find the tokenId by counting lengths
@@ -102,9 +105,10 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
                     index >= currentIndexOfTokenId &&
                     index < currentIndexOfTokenId + length
                 ) {
+                    baseUri = revealed.baseUri;
                     tokenId = startIndex + index - currentIndexOfTokenId;
                     salt = revealed.salt;
-                    return (tokenId, salt);
+                    return (baseUri, tokenId, salt);
                 }
                 // Move the current index by the length of the chunk
                 currentIndexOfTokenId += length;
@@ -121,6 +125,7 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     ) external view override returns (string memory) {
         // if this reverts, it means the tokenId is invalid and is unrevealed
         try this.resolveTokenId(tokenId - 1) returns (
+            string memory baseUri,
             uint256 index,
             uint256 salt
         ) {
@@ -128,12 +133,18 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
             uint256 saltedTokenId = uint256(
                 keccak256(abi.encodePacked(index, salt))
             );
-            return LibString.concat(_uri, saltedTokenId.toString());
+            return
+                LibString.concat(baseUri, saltedTokenId.toString()).concat(
+                    ".json"
+                );
         } catch {
             if (address(upgradeableUriGenerator) != address(0)) {
                 return upgradeableUriGenerator.tokenURI(tokenId);
             }
-            return LibString.concat(_unresolvedUri, tokenId.toString());
+            return
+                LibString.concat(_unresolvedUri, tokenId.toString()).concat(
+                    ".json"
+                );
         }
     }
 
@@ -239,6 +250,7 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
      * @param totalAvailableArt the total number of tokens available in the reveal. this number between prior calls must always be greater than or equal the prior call
      */
     function reveal(
+        string calldata baseUri,
         uint256 salt,
         uint16 reveals,
         uint16 totalAvailableArt
@@ -257,6 +269,7 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
             (startingSize - unrevealedTokensRemaining);
 
         Revealed memory revealed;
+        revealed.baseUri = baseUri;
         revealed.salt = salt;
         revealed.revealedCount = reveals;
         // Randao!
@@ -326,8 +339,8 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         if (address(emitable) != address(0)) {
             // Emit metadata update for the revealed tokens
             emitable.emitBatchMetadataUpdate(
-                startingSize - unrevealedTokensRemaining,
-                startingSize - unrevealedTokensRemaining + reveals
+                uint256(startingSize - unrevealedTokensRemaining),
+                uint256(startingSize - unrevealedTokensRemaining + reveals)
             );
         }
 
@@ -352,8 +365,15 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
     function updateSalt(
         uint256 index,
         uint256 salt
-    ) external onlyRoles(SALT_UPDATER) {
+    ) external onlyRoles(METADATA_UPDATER) {
         _revealed[index].salt = salt;
+    }
+
+    function updateBaseUri(
+        uint256 index,
+        string memory baseUri
+    ) external onlyRoles(METADATA_UPDATER) {
+        _revealed[index].baseUri = baseUri;
     }
 
     /**
@@ -364,5 +384,10 @@ contract FairReveal is OwnableRoles, ITokenURIGenerator {
         address newUriGenerator
     ) external onlyRoles(METADATA_UPDATER) {
         upgradeableUriGenerator = ITokenURIGenerator(newUriGenerator);
+    }
+    function updateUnrevealedBaseUri(
+        string memory newUri
+    ) external onlyRoles(METADATA_UPDATER) {
+        _unresolvedUri = newUri;
     }
 }

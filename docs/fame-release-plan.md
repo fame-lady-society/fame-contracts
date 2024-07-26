@@ -87,3 +87,31 @@ export DEPLOYER_PRIVATE_KEY=$BASE_DEPLOYER_PRIVATE_KEY
 ```
 anvil --fork-url $RPC --block-time 2
 ```
+
+## Fair Reveal
+
+deploy:
+
+```
+forge create "src/FairReveal.sol:FairReveal" --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --verify --etherscan-api-key $ETHERSCAN_API_KEY --constructor-args $FAME_ADDRESS  https://www.fameladysociety.com/fame/metadata/ 888
+```
+
+## Vesting
+
+deploy:
+
+```
+forge create "src/FameVesting.sol:FameVesting" --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify --constructor-args $FAME_ADDRESS
+```
+
+get the fame vesting contract address and set
+
+```
+export FAME_VESTING_ADDRESS=0x....
+```
+
+allow the multisig to create vesting schedule
+
+```
+cast send --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY $FAME_VESTING_ADDRESS $(cast calldata "transferOwnership(address)" $MULTISIG_ADDRESS)
+```
