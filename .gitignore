@@ -13,6 +13,5 @@ out/
 .env
 
 # Node modules
-node_modules/
-
-broadcast
+node_modules
+.metadata

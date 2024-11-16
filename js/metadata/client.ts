@@ -23,15 +23,13 @@ export const calculateTotalPrice = async (
   irys: Irys,
   folderPath: string
 ): Promise<bigint> => {
-  let totalPrice = 0n;
+  let totalSize = 0n;
 
   const processFileOrFolder = async (itemPath: string): Promise<void> => {
     const stat = await fs.stat(itemPath);
 
     if (stat.isFile()) {
-      const size = stat.size;
-      const price = BigInt((await irys.getPrice(size)).toString());
-      totalPrice += price;
+      totalSize += BigInt(stat.size);
     } else if (stat.isDirectory()) {
       const files = await fs.readdir(itemPath);
       for (const file of files) {
@@ -41,5 +39,8 @@ export const calculateTotalPrice = async (
   };
 
   await processFileOrFolder(folderPath);
+  const totalPrice = BigInt(
+    (await irys.getPrice(Number(totalSize))).toString()
+  );
   return totalPrice;
 };

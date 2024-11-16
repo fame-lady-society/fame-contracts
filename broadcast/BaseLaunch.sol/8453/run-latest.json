@@ -1,0 +1,30 @@
+{
+  "transactions": [
+    {
+      "hash": "0xcf1b1f163480ccc56eca61cf63a3959d5f78dc3fcd1f96a83f97633f9b0fb1eb",
+      "transactionType": "CALL",
+      "contractName": null,
+      "contractAddress": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "function": "launchPublic()",
+      "arguments": [],
+      "transaction": {
+        "from": "0xd52e2a6bbceba9673440e4d7843db6713e9b6fd9",
+        "to": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+        "gas": "0xa364",
+        "value": "0x0",
+        "input": "0x721bb530",
+        "nonce": "0x14",
+        "chainId": "0x2105"
+      },
+      "additionalContracts": [],
+      "isFixedGasLimit": false
+    }
+  ],
+  "receipts": [],
+  "libraries": [],
+  "pending": [],
+  "returns": {},
+  "timestamp": 1720831871,
+  "chain": 8453,
+  "commit": "b43c0ef"
+}

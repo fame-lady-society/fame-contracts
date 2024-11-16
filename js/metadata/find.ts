@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import { createPublicClient, http, erc721Abi } from "viem";
-import { sepolia } from "viem/chains";
+import { base, sepolia } from "viem/chains";
 import { IMetadata } from "./metadata.js";
 
 const data: unknown[] = [];
@@ -8,10 +8,18 @@ const FAME_NFT_ADDRESS = process.env.FAME_NFT_ADDRESS! as `0x${string}`;
 const RPC = process.env.RPC!;
 const client = createPublicClient({
   transport: http(RPC),
-  chain: sepolia,
+  chain: base,
+  batch: {
+    multicall: {
+      batchSize: 10,
+      wait: 100,
+    },
+  },
 });
 
-for (let i = 1n; i <= 100n; i++) {
+const promises: Promise<void>[] = [];
+const usedTokenIds = new Set<bigint>();
+for (let i = 1n; i <= 332n; i++) {
   console.log(`Checking token ${i}`);
   const uri = await client.readContract({
     abi: erc721Abi,

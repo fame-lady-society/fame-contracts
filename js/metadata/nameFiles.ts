@@ -40,23 +40,56 @@ const copyWithHash = async (src: string, dest: string) => {
   const stat = await fs.lstat(src);
 
   if (stat.isFile()) {
+    // if file ends in [v#] where # is a number, then use the original file name
     const hash = await hashFile(src);
-    const destPath = path.join(dest, hash + path.extname(src));
-    await fsExtra.copy(src, destPath);
+    return path.join(dest, hash + path.extname(src));
   } else if (stat.isDirectory()) {
     const hash = await hashDirectory(src);
-    const destPath = path.join(dest, hash);
-    await fsExtra.copy(src, destPath);
+    return path.join(dest, hash);
   }
+  throw new Error("Unsupported file type.");
 };
 
 // Main function to iterate through a folder and process files/directories
 const processFolder = async (inputFolder: string, outputFolder: string) => {
-  const files = await fs.readdir(inputFolder);
+  let files = (await fs.readdir(inputFolder)).map((file) =>
+    path.join(inputFolder, file)
+  );
+
+  // pull out the files that end in [v#] where # is a number
+  const versionedFiles = files.filter((file) => file.match(/.*\[v\d+\]/));
+  // group by the original file name
+  const groupedFiles = versionedFiles.reduce(
+    (acc, file) => {
+      const originalFileName = file.replace(/\[v\d+\]/, "");
+      acc[originalFileName] = acc[originalFileName] || [];
+      acc[originalFileName].push(file);
+      return acc;
+    },
+    {} as Record<string, string[]>
+  );
+  // for each value, sort by the version number, descending
+  Object.entries(groupedFiles).forEach(([key, files]) => {
+    groupedFiles[key] = files.sort((a, b) => {
+      const aVersion = a.match(/\[v(\d+)\]/)![1];
+      const bVersion = b.match(/\[v(\d+)\]/)![1];
+      return parseInt(bVersion) - parseInt(aVersion);
+    });
+  });
+
+  // now remove the versioned files from the list of files
+  files = files.filter((file) => !file.match(/.*\[v\d+\]/));
 
   for (const file of files) {
-    const filePath = path.join(inputFolder, file);
-    await copyWithHash(filePath, outputFolder);
+    const destFile = await copyWithHash(file, outputFolder);
+    // check if the file exists in the groupedFiles
+    // if it does, then copy the latest version of the file
+    if (groupedFiles[file]) {
+      console.log(`Copying latest version of ${file} as ${destFile}`);
+      await fsExtra.copy(groupedFiles[file][0], destFile);
+    } else {
+      await fsExtra.copy(file, destFile);
+    }
   }
 };
 

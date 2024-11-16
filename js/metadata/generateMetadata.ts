@@ -104,5 +104,6 @@ The Fame Lady Society, born from the pioneering all-female generative PFP projec
     keccak256(encodePacked(["uint256", "uint256"], [i++, salt]))
   ).toString();
   const filePath = path.join(OUTPUT_DIR, `${saltedPath}.json`);
+  console.log(`Writing ${filePath}`);
   await fs.writeFile(filePath, JSON.stringify(entry, null, 2));
 }

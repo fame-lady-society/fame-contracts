@@ -142,11 +142,78 @@ cast send --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY $FAME_ADDRESS $(cas
 And now run the reveal:
 
 ```
-export BASE_URI=`https://gateway.irys.xyz/{id}/`
+export BASE_URI="https://gateway.irys.xyz/${ARWEAVE_ID}/"
 export TOTAL_AVAILABLE_ART=333
 export REVEAL_AMOUNT=264
 export SALT=0
-cast send --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY $FAIR_REVEAL_ADDRESS $(cast calldata "reveal(string,uint256,uint16,uint16)" $BASE_URI, $SALT, $REVEAL_AMOUNT, $TOTAL_AVAILABLE_ART)
+cast send --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY $FAIR_REVEAL_ADDRESS $(cast calldata "reveal(string,uint256,uint16,uint16)" $BASE_URI $SALT $REVEAL_AMOUNT $TOTAL_AVAILABLE_ART)
+```
+
+## Batch Reveal
+
+The batch reveal was built to replace the on-chain reveal after an issue with one token causing a revert on read due to out of gas.
+
+unzip the new files to a folder
+
+```
+export BATCH_RELEASE_DATE=YYYY-MM-DD
+unzip $BATCH_RELEASE_DATE.zip -d .metadata/$BATCH_RELEASE_DATE
+```
+
+prepare environment
+
+```
+source .env
+export ARWEAVE_NETWORK=mainnet
+export ARWEAVE_TOKEN=base-eth
+export ARWEAVE_PRIVATE_KEY=$BASE_DEPLOYER_PRIVATE_KEY
+export ARWEAVE_RPC=$BASE_RPC
+```
+
+Name the image files.
+
+```
+yarn nodets js/metadata/nameFiles.ts .metadata/$BATCH_RELEASE_DATE .metadata/$BATCH_RELEASE_DATE-images
+```
+
+Upload the files to arweave
+
+```
+yarn nodets js/metadata/upload.ts .metadata/$BATCH_RELEASE_DATE-images
+```
+
+Generate metadata for these assets
+
+Before generating metadata, pick a number (any positive integer). This is the salt.
+
+```
+export SALT=0
+```
+
+```
+yarn nodets js/metadata/generateMetadata.ts --salt $SALT .metadata/$BATCH_RELEASE_DATE-images-manifest.json .metadata/$BATCH_RELEASE_DATE-images-id.txt .metadata/$BATCH_RELEASE_DATE-metadata
+```
+
+Upload that
+
+```
+yarn nodets js/metadata/upload.ts .metadata/$BATCH_RELEASE_DATE-metadata
+```
+
+Now get the transaction id from the upload
+
+```
+export ARWEAVE_TRANSACTION_ID=$(cat .metadata/$BATCH_RELEASE_DATE-metadata-id.txt | jq -r .id)
+export METADATA_BASE_URI="https://gateway.irys.xyz/${ARWEAVE_TRANSACTION_ID}/"
+echo $METADATA_BASE_URI
+```
+
+Now Deploy the batch reveal
+
+```
+export RPC=$BASE_RPC
+export BATCH_SIZE=$(cat .metadata/$BATCH_RELEASE_DATE-metadata-manifest.json | jq -r '.paths | length')
+cast send --rpc-url $RPC --private-key $BASE_DEPLOYER_PRIVATE_KEY --etherscan-api-key $BASE_ETHERSCAN_API_KEY 0xda323d35fD976486d9105f33A7A811aE36320c60 "pushBatch(uint256,uint256,string)" $SALT $BATCH_SIZE $METADATA_BASE_URI
 ```
 
 ## Vesting
@@ -155,6 +222,7 @@ deploy:
 
 ```
 
+export ETHERSCAN_API_KEY=$BASE_ETHERSCAN_API_KEY
 forge create "src/FameVesting.sol:FameVesting" --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --etherscan-api-key $ETHERSCAN_API_KEY --verify --constructor-args $FAME_ADDRESS
 
 ```
@@ -163,7 +231,7 @@ get the fame vesting contract address and set
 
 ```
 
-export FAME_VESTING_ADDRESS=0x....
+export FAME_VESTING_CONTRACT_ADDRESS=0x....
 
 ```
 
@@ -171,7 +239,35 @@ allow the multisig to create vesting schedule
 
 ```
 
+export RPC=$BASE_RPC
+export MULTISIG_ADDRESS=$BASE_MULTISIG_ADDRESS
+export DEPLOYER_PRIVATE_KEY=$BASE_DEPLOYER_PRIVATE_KEY
 cast send --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY $FAME_VESTING_ADDRESS $(cast calldata "transferOwnership(address)" $MULTISIG_ADDRESS)
+
+```
+
+Now run this script to generate and submit the multisig transaction to run the presale cliff airdrop and the liner vesting:
+
+```
+
+export FAME_ADDRESS=$BASE_FAME_ADDRESS
+export MULTISIG_PRIVATE_KEY=$DEPLOYER_PRIVATE_KEY
+export MULTISIG_RPC=$BASE_RPC
+export CLAIM_TO_FAME_ADDRESS=$BASE_CLAIM_TO_FAME_ADDRESS
+export MULTISIG_CHAIN_ID=8453
+yarn nodets js/presale/generate-vesting-transactions.ts
+
+```
+
+```
+
+```
+
+```
+
+```
+
+```
 
 ```
 

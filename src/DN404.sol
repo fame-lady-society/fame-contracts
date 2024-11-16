@@ -174,6 +174,7 @@ abstract contract DN404 {
 
     /// @dev Struct containing the base token contract storage.
     struct DN404Storage {
+        // --SLOT 0
         // Current number of address aliases assigned.
         uint32 numAliases;
         // Next NFT ID to assign for a mint.
@@ -186,26 +187,37 @@ abstract contract DN404 {
         uint32 totalNFTSupply;
         // Total supply of tokens.
         uint96 totalSupply;
+        // --SLOT 1
         // Address of the NFT mirror contract.
         address mirrorERC721;
+        // --SLOT 2 
         // Mapping of a user alias number to their address.
         mapping(uint32 => address) aliasToAddress;
+        // --SLOT 3
         // Mapping of user operator approvals for NFTs.
-        AddressPairToUint256RefMap operatorApprovals;
+        AddressPqairToUint256RefMap operatorApprovals;
+        // --SLOT 4
         // Mapping of NFT approvals to approved operators.
         mapping(uint256 => address) nftApprovals;
+        // --SLOT 5
         // Bitmap of whether an non-zero NFT approval may exist.
         Bitmap mayHaveNFTApproval;
+        // --SLOT 6
         // Bitmap of whether a NFT ID exists. Ignored if `_useExistsLookup()` returns false.
         Bitmap exists;
+        // --SLOT 7
         // Mapping of user allowances for ERC20 spenders.
         AddressPairToUint256RefMap allowance;
+        // --SLOT 8
         // Mapping of NFT IDs owned by an address.
         mapping(address => Uint32Map) owned;
+        // --SLOT 9
         // The pool of burned NFT IDs.
         Uint32Map burnedPool;
+        // --SLOT 10
         // Even indices: owner aliases. Odd indices: owned indices.
         Uint32Map oo;
+        // --SLOT 11
         // Mapping of user account AddressData.
         mapping(address => AddressData) addressData;
     }
