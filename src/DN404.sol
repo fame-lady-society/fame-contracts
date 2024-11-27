@@ -190,12 +190,12 @@ abstract contract DN404 {
         // --SLOT 1
         // Address of the NFT mirror contract.
         address mirrorERC721;
-        // --SLOT 2 
+        // --SLOT 2
         // Mapping of a user alias number to their address.
         mapping(uint32 => address) aliasToAddress;
         // --SLOT 3
         // Mapping of user operator approvals for NFTs.
-        AddressPqairToUint256RefMap operatorApprovals;
+        AddressPairToUint256RefMap operatorApprovals;
         // --SLOT 4
         // Mapping of NFT approvals to approved operators.
         mapping(uint256 => address) nftApprovals;

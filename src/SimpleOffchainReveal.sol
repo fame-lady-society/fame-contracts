@@ -31,9 +31,6 @@ contract SimpleOffchainReveal is ITokenURIGenerator, Ownable {
     }
     Batch[] public batches;
 
-    string constant URI =
-        "https://gateway.irys.xyz/cdLU-LeBdJzpWnXeoaBAPaXn-2xeTbYFnktzoHtitmo/";
-
     constructor(address _childRenderer, address _tokenemEmitable) {
         childRenderer = ITokenURIGenerator(_childRenderer);
         tokenemEmitable = ITokemEmitable(_tokenemEmitable);
