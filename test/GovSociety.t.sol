@@ -6,6 +6,8 @@ import {GovSociety} from "../src/GovSociety.sol";
 import {Fame} from "../src/Fame.sol";
 import {FameMirror} from "../src/FameMirror.sol";
 import {StubBalanceOf} from "./mocks/StubBalanceOf.sol";
+import {ITokenURIGenerator} from "../src/ITokenURIGenerator.sol";
+import {EchoMetadata} from "./mocks/EchoMetadata.sol";
 
 contract GovSocietyTest is Test {
     GovSociety public govSociety;
@@ -18,7 +20,11 @@ contract GovSocietyTest is Test {
         stubBalanceOf = new StubBalanceOf();
         fame = new Fame("Fame", "FAME", address(stubBalanceOf));
         fameMirror = FameMirror(payable(fame.mirrorERC721()));
-        govSociety = new GovSociety(address(fameMirror), admin);
+        govSociety = new GovSociety(
+            address(fameMirror),
+            admin,
+            address(new EchoMetadata())
+        );
     }
 
     function test_Wrap() public {

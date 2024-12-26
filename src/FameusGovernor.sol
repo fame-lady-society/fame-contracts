@@ -10,6 +10,7 @@ import {GovernorTimelockControl} from "@openzeppelin5/contracts/governance/exten
 import {GovernorVotes} from "@openzeppelin5/contracts/governance/extensions/GovernorVotes.sol";
 import {IVotes} from "@openzeppelin5/contracts/governance/utils/IVotes.sol";
 import {TimelockController} from "@openzeppelin5/contracts/governance/TimelockController.sol";
+import {GovSociety} from "./GovSociety.sol";
 
 contract FAMEusGovernor is
     Governor,
@@ -19,20 +20,33 @@ contract FAMEusGovernor is
     GovernorVotes,
     GovernorTimelockControl
 {
+    GovSociety private _societyToken;
+
     constructor(
-        IVotes _token,
-        TimelockController _timelock
+        GovSociety _token,
+        TimelockController _timelock,
+        uint48 _votingDelay,
+        uint32 _votingPeriod,
+        uint256 _proposalThreshold
     )
         Governor("FAMEusGovernor")
-        GovernorSettings(1 days, 1 days, 8)
-        GovernorVotes(_token)
+        GovernorSettings(_votingDelay, _votingPeriod, _proposalThreshold)
+        GovernorVotes(IVotes(_token))
         GovernorTimelockControl(_timelock)
-    {}
+    {
+        _societyToken = _token;
+    }
 
     function quorum(
-        uint256 blockNumber
-    ) public pure override returns (uint256) {
-        return 16;
+        uint256 /* blockNumber */
+    ) public view override returns (uint256) {
+        uint256 supply = _societyToken.totalSupply();
+        // Less than 88 Society tokens? Then there is no quorum
+        if (supply < 88) {
+            return 0;
+        }
+        // Else return the nearest multiple of 8 then divide by 8
+        return (((supply * 88) / 88) / 8);
     }
 
     // The following functions are overrides required by Solidity.
