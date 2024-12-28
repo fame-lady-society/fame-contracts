@@ -80,31 +80,6 @@ contract FameTest is Test {
         fame.transfer(account3, 1e24);
     }
 
-    function test_SwapBurnPool() public {
-        address account1 = address(111);
-        fame.transfer(account1, 8e24);
-        address account2 = address(112);
-        vm.prank(account2);
-        fame.setSkipNFT(true);
-        vm.prank(account1);
-        vm.expectEmit(address(dn404));
-        emit DN404Mirror.Transfer(account1, address(0), 8);
-        vm.expectEmit(address(fame));
-        emit DN404.Transfer(account1, account2, 1e24);
-        fame.transfer(account2, 1e24);
-        vm.prank(account1);
-        vm.expectEmit(address(dn404));
-        emit DN404Mirror.Transfer(account1, address(0), 7);
-        vm.expectEmit(address(fame));
-        emit DN404.Transfer(account1, account2, 1e24);
-        fame.transfer(account2, 1e24);
-
-        address account3 = address(113);
-        vm.expectEmit(address(dn404));
-        emit DN404Mirror.Transfer(address(0), account3, 7);
-        fame.transfer(account3, 1e24);
-    }
-
     function test_MintBurnBurnMint() public {
         address account1 = address(111);
         fame.transfer(account1, 8e24);

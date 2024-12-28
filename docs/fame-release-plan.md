@@ -268,7 +268,7 @@ yarn nodets js/presale/generate-vesting-transactions.ts
 Set the Manager Address
 
 ```
-export DAO_MANAGER_ADDRESS=0x1318454B32ea883dB5a729eA59783d9fAfA74908
+export MULTISIG_ADDRESS=$SEPOLIA_MULTISIG_ADDRESS
 export RPC=$SEPOLIA_RPC
 export DEPLOYER_PRIVATE_KEY=$SEPOLIA_DEPLOYER_PRIVATE_KEY
 export FAME_NFT_ADDRESS=$SEPOLIA_FAME_ADDRESS
@@ -278,21 +278,32 @@ export ETHERSCAN_API_KEY=$MAINNET_ETHERSCAN_API_KEY
 Some versions of forge don't like the recent etherscan API changes. To verify off mainnet you may need to use the following:
 
 ```
---verifier-api-key $MAINNET_ETHERSCAN_API_KEY --verifier custom --verifier-url https://api-sepolia.etherscan.io/api
+export DEPLOYER_EXTRA_ARGS="--verifier-api-key $MAINNET_ETHERSCAN_API_KEY --verifier custom --verifier-url https://api-sepolia.etherscan.io/api"
 ```
 
 Deploy the GovSociety
 
 ```
-export GOV_SOCIETY_ADDRESS=$(forge create --broadcast --json --verify src/GovSociety.sol:GovSociety --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $FAME_NFT_ADDRESS $DAO_MANAGER_ADDRESS | jq -r .deployedTo)
+export GOV_SOCIETY_ADDRESS=$(forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/GovSociety.sol:GovSociety --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $FAME_NFT_ADDRESS $DAO_MANAGER_ADDRESS | jq -r .deployedTo)
 echo Deployed GovSociety to $GOV_SOCIETY_ADDRESS
 ```
 
 ### FAMEusTimelockController
 
 ```
-export FAMEUS_TIMELOCK_CONTROLLER_ADDRESS=`forge create --broadcast --json --verify src/FameusTimelockController.sol:FAMEusTimelockController --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args 0 "[$DAO_MANAGER_ADDRESS]" "[$DAO_MANAGER_ADDRESS]" $DAO_MANAGER_ADDRESS | jq -r .deployedTo`
+export TIMELOCK_DELAY="1 days"
+export CANCELLER=$MULTISIG_ADDRESS
+export VOTING_DELAY="1 days"
+export VOTING_PERIOD="3 days"
+export PROPOSAL_THRESHOLD=8
+export FAMEUS_TIMELOCK_CONTROLLER_ADDRESS=`forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/FameusTimelockController.sol:FAMEusTimelockController --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $GOV_SOCIETY_ADDRESS "$TIMELOCK_DELAY" $CANCELLER $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD | jq -r .deployedTo`
 echo Deployed FAMEusGovernor to $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS
+export FAMEUS_GOVERNOR=$(cast call $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS "governor()(address)")
+echo Deployed FAMEusGovernor to $FAMEUS_GOVERNOR
+```
+
+```
+forge verify-contract $FAMEUS_GOVERNOR src/FameusGovernor.sol:FAMEusGovernor $DEPLOYER_EXTRA_ARGS --constructor-args $(cast abi-encode "constructor(address,address,uint48,uint32,uint256)" $GOV_SOCIETY_ADDRESS $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD)
 ```
 
 ### FAMEusGovernor

@@ -33,13 +33,10 @@ contract GovSocietyTest is Test {
             address(new EchoMetadata())
         );
 
-        address[] memory executors = new address[](1);
-        executors[0] = admin;
 
         fameusTimelockController = new FAMEusTimelockController(
             govSociety,
             1 days,
-            executors,
             admin,
             1 weeks,
             5 days,

@@ -124,12 +124,24 @@ import "@openzeppelin5/contracts/access/AccessControl.sol";
 import "@openzeppelin5/contracts/token/ERC721/extensions/ERC721Wrapper.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
+import {IERC4906} from "./IERC4906.sol";
 
-contract GovSociety is ERC721Wrapper, EIP712, ERC721Votes, AccessControl {
+interface ITokemEmitable {
+    function emitBatchMetadataUpdate(uint256 start, uint256 end) external;
+    function emitMetadataUpdate(uint256 tokenId) external;
+}
+
+contract GovSociety is
+    ERC721Wrapper,
+    EIP712,
+    ERC721Votes,
+    AccessControl,
+    ITokemEmitable,
+    IERC4906
+{
     using LibBitmap for LibBitmap.Bitmap;
     LibBitmap.Bitmap private _lockedTokensIds;
     mapping(uint256 => address) private _guardianForTokenId;
-    bytes32 public constant RESCUE_ROLE = keccak256("RESCUE_ROLE");
     bytes32 public constant TOKEN_URI_GENERATOR_ROLE =
         keccak256("TOKEN_URI_GENERATOR_ROLE");
     bytes32 public constant RENDERER_ROLE = keccak256("RENDERER_ROLE");
@@ -147,7 +159,6 @@ contract GovSociety is ERC721Wrapper, EIP712, ERC721Votes, AccessControl {
         EIP712("govSociety", "1")
     {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(RESCUE_ROLE, defaultAdmin);
         _grantRole(TOKEN_URI_GENERATOR_ROLE, defaultAdmin);
         _grantRole(RENDERER_ROLE, _renderer);
         renderer = ITokenURIGenerator(_renderer);
@@ -183,12 +194,17 @@ contract GovSociety is ERC721Wrapper, EIP712, ERC721Votes, AccessControl {
         _lockedTokensIds.set(tokenId);
     }
 
+    error BurnAddressCannotBeGuardian();
+
     function lockWithGuardian(
         uint256 tokenId,
         address guardian
     ) public onlyTokenOwner(tokenId) {
         if (isLocked(tokenId)) {
             revert TokenIsAlreadyLocked(tokenId);
+        }
+        if (guardian == address(0)) {
+            revert BurnAddressCannotBeGuardian();
         }
         _lockedTokensIds.set(tokenId);
         _guardianForTokenId[tokenId] = guardian;
@@ -289,10 +305,14 @@ contract GovSociety is ERC721Wrapper, EIP712, ERC721Votes, AccessControl {
         return super.supportsInterface(interfaceId);
     }
 
-    function rescue(
-        address account,
-        uint256 tokenId
-    ) public onlyRole(RESCUE_ROLE) {
-        _recover(account, tokenId);
+    function emitBatchMetadataUpdate(
+        uint256 start,
+        uint256 end
+    ) public override {
+        emit BatchMetadataUpdate(start, end);
+    }
+
+    function emitMetadataUpdate(uint256 tokenId) public override {
+        emit MetadataUpdate(tokenId);
     }
 }

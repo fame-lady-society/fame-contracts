@@ -8,13 +8,19 @@ contract FAMEusTimelockController is TimelockController {
     FAMEusGovernor public governor;
     constructor(
         GovSociety _token,
-        uint256 minDelay,
-        address[] memory executors,
+        uint256 timelockDelay,
         address canceller,
         uint48 _votingDelay,
         uint32 _votingPeriod,
         uint256 _proposalThreshold
-    ) TimelockController(minDelay, new address[](0), executors, address(0)) {
+    )
+        TimelockController(
+            timelockDelay,
+            new address[](0),
+            new address[](0),
+            address(0)
+        )
+    {
         governor = new FAMEusGovernor(
             _token,
             TimelockController(payable(address(this))),
