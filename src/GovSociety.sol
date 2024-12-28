@@ -267,8 +267,9 @@ contract GovSociety is
         if (_renderer == address(0)) {
             revert InvalidRenderer(address(0));
         }
-
+        _revokeRole(RENDERER_ROLE, renderer);
         renderer = ITokenURIGenerator(_renderer);
+        _grantRole(RENDERER_ROLE, renderer);
     }
 
     function tokenURI(
@@ -308,11 +309,13 @@ contract GovSociety is
     function emitBatchMetadataUpdate(
         uint256 start,
         uint256 end
-    ) public override {
+    ) public override onlyRole(RENDERER_ROLE) {
         emit BatchMetadataUpdate(start, end);
     }
 
-    function emitMetadataUpdate(uint256 tokenId) public override {
+    function emitMetadataUpdate(
+        uint256 tokenId
+    ) public override onlyRole(RENDERER_ROLE) {
         emit MetadataUpdate(tokenId);
     }
 }
