@@ -272,7 +272,9 @@ export MULTISIG_ADDRESS=$SEPOLIA_MULTISIG_ADDRESS
 export RPC=$SEPOLIA_RPC
 export DEPLOYER_PRIVATE_KEY=$SEPOLIA_DEPLOYER_PRIVATE_KEY
 export FAME_NFT_ADDRESS=$SEPOLIA_FAME_ADDRESS
+export FAME_ADDRESS=$SEPOLIA_FAME_ADDRESS
 export ETHERSCAN_API_KEY=$MAINNET_ETHERSCAN_API_KEY
+export RENDERER_ADDRESS=$(cast call $FAME_ADDRESS "renderer()(address)" --rpc-url $RPC)
 ```
 
 Some versions of forge don't like the recent etherscan API changes. To verify off mainnet you may need to use the following:
@@ -284,7 +286,7 @@ export DEPLOYER_EXTRA_ARGS="--verifier-api-key $MAINNET_ETHERSCAN_API_KEY --veri
 Deploy the GovSociety
 
 ```
-export GOV_SOCIETY_ADDRESS=$(forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/GovSociety.sol:GovSociety --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $FAME_NFT_ADDRESS $DAO_MANAGER_ADDRESS | jq -r .deployedTo)
+export GOV_SOCIETY_ADDRESS=$(forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/GovSociety.sol:GovSociety --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $FAME_NFT_ADDRESS $MULTISIG_ADDRESS $RENDERER_ADDRESS | jq -r .deployedTo)
 echo Deployed GovSociety to $GOV_SOCIETY_ADDRESS
 ```
 
