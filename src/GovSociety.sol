@@ -155,8 +155,8 @@ contract GovSociety is
         address _renderer
     )
         ERC721Wrapper(IERC721(underlyingToken))
-        ERC721("govSociety", "gFAME")
-        EIP712("govSociety", "1")
+        ERC721("Society Governance", "gSOCIETY")
+        EIP712("GovSociety", "1")
     {
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(TOKEN_URI_GENERATOR_ROLE, defaultAdmin);
