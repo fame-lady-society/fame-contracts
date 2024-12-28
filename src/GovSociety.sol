@@ -267,9 +267,9 @@ contract GovSociety is
         if (_renderer == address(0)) {
             revert InvalidRenderer(address(0));
         }
-        _revokeRole(RENDERER_ROLE, renderer);
+        _revokeRole(RENDERER_ROLE, address(renderer));
         renderer = ITokenURIGenerator(_renderer);
-        _grantRole(RENDERER_ROLE, renderer);
+        _grantRole(RENDERER_ROLE, address(renderer));
     }
 
     function tokenURI(
