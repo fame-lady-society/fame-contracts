@@ -303,7 +303,9 @@ contract GovSociety is
     function supportsInterface(
         bytes4 interfaceId
     ) public view override(ERC721, AccessControl) returns (bool) {
-        return super.supportsInterface(interfaceId);
+        return
+            interfaceId == bytes4(0x49064906) || // IERC4906
+            super.supportsInterface(interfaceId);
     }
 
     function emitBatchMetadataUpdate(
