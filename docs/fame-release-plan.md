@@ -293,10 +293,10 @@ echo Deployed GovSociety to $GOV_SOCIETY_ADDRESS
 ### FAMEusTimelockController
 
 ```
-export TIMELOCK_DELAY="1 days"
+export TIMELOCK_DELAY=$((60 * 60 * 24))
 export CANCELLER=$MULTISIG_ADDRESS
-export VOTING_DELAY="1 days"
-export VOTING_PERIOD="3 days"
+export VOTING_DELAY=$((60 * 60 * 24))
+export VOTING_PERIOD=$((60 * 60 * 24 * 3))
 export PROPOSAL_THRESHOLD=8
 export FAMEUS_TIMELOCK_CONTROLLER_ADDRESS=`forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/FameusTimelockController.sol:FAMEusTimelockController --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $GOV_SOCIETY_ADDRESS "$TIMELOCK_DELAY" $CANCELLER $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD | jq -r .deployedTo`
 echo Deployed FAMEusGovernor to $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS
