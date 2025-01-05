@@ -13,6 +13,7 @@ import {EchoMetadata} from "./mocks/EchoMetadata.sol";
 import {ERC721} from "@openzeppelin5/contracts/token/ERC721/ERC721.sol";
 import {IGovernor} from "@openzeppelin5/contracts/governance/IGovernor.sol";
 import {TimelockController} from "@openzeppelin5/contracts/governance/TimelockController.sol";
+import {FameusGovernorQuorum} from "../src/FameusGovernorQuorum.sol";
 
 contract GovSocietyTest is Test {
     GovSociety public govSociety;
@@ -32,7 +33,6 @@ contract GovSocietyTest is Test {
             admin,
             address(new EchoMetadata())
         );
-
 
         fameusTimelockController = new FAMEusTimelockController(
             govSociety,
@@ -225,5 +225,70 @@ contract GovSocietyTest is Test {
         vm.warp(block.timestamp + 1 days + 1);
         vm.expectRevert();
         fameusGovernor.execute(targets, values, calldatas, descriptionHash);
+    }
+
+    function test_SetQuorum() public {
+        FameusGovernorQuorum newQuorum = new FameusGovernorQuorum(govSociety);
+        // Setup voting tokens
+        fame.transfer(admin, 8 * 10 ** 24);
+        vm.startPrank(admin);
+
+        // give token 1 to timelock
+
+        fameMirror.setApprovalForAll(address(govSociety), true);
+        uint256[] memory tokenIds = new uint256[](8);
+        for (uint256 i = 0; i < 8; i++) {
+            tokenIds[i] = i + 1;
+        }
+        govSociety.depositFor(admin, tokenIds);
+
+        // Delegate votes to self
+        govSociety.delegate(admin);
+
+        // Let one block pass so the delegate snapshot is recorded:
+        vm.warp(block.timestamp + 1);
+
+        // Create a simple proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(fameusGovernor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        // Call to set the quorum
+        calldatas[0] = abi.encodeWithSelector(
+            FAMEusGovernor.setQuorum.selector,
+            address(newQuorum)
+        );
+        string memory description = "Set quorum";
+
+        uint256 proposalId = fameusGovernor.propose(
+            targets,
+            values,
+            calldatas,
+            description
+        );
+
+        // Wait for voting delay
+        vm.warp(block.timestamp + fameusGovernor.votingDelay() + 1);
+
+        // Cast vote
+        fameusGovernor.castVote(proposalId, 1); // Vote in favor
+
+        // Wait for voting period to end
+        vm.warp(block.timestamp + fameusGovernor.votingPeriod() + 1);
+
+        // Queue the proposal
+        bytes32 descriptionHash = keccak256(bytes(description));
+        fameusGovernor.queue(targets, values, calldatas, descriptionHash);
+
+        // Wait for timelock
+        vm.warp(block.timestamp + 1 days + 1);
+
+        // Execute
+        fameusGovernor.execute(targets, values, calldatas, descriptionHash);
+
+        // Verify new quorum was set
+        assertEq(address(fameusGovernor.getQuorum()), address(newQuorum));
+        vm.stopPrank();
     }
 }

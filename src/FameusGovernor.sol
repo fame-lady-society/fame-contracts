@@ -11,6 +11,10 @@ import {GovernorVotes} from "@openzeppelin5/contracts/governance/extensions/Gove
 import {IVotes} from "@openzeppelin5/contracts/governance/utils/IVotes.sol";
 import {TimelockController} from "@openzeppelin5/contracts/governance/TimelockController.sol";
 import {GovSociety} from "./GovSociety.sol";
+import {FameusGovernorQuorum} from "./FameusGovernorQuorum.sol";
+interface IFameusGovernorQuorum {
+    function quorum(uint256 blockNumber) external view returns (uint256);
+}
 
 contract FAMEusGovernor is
     Governor,
@@ -21,6 +25,7 @@ contract FAMEusGovernor is
     GovernorTimelockControl
 {
     GovSociety private _societyToken;
+    IFameusGovernorQuorum private _quorum;
 
     constructor(
         GovSociety _token,
@@ -35,22 +40,34 @@ contract FAMEusGovernor is
         GovernorTimelockControl(_timelock)
     {
         _societyToken = _token;
+        _quorum = IFameusGovernorQuorum(
+            address(new FameusGovernorQuorum(_token))
+        );
     }
 
     function quorum(
-        uint256 /* blockNumber */
+        uint256 blockNumber
     ) public view override returns (uint256) {
-        uint256 supply = _societyToken.totalSupply();
-        // Less than 88 Society tokens? Then there is no quorum
-        if (supply < 88) {
-            return 0;
-        }
-        // Else return the nearest multiple of 8 then divide by 8
-        return (((supply * 88) / 88) / 8);
+        return _quorum.quorum(blockNumber);
+    }
+
+    modifier onlyTimelock() {
+        require(
+            msg.sender == address(timelock()),
+            "Only timelock can call this"
+        );
+        _;
+    }
+
+    function setQuorum(IFameusGovernorQuorum newQuorum) public onlyTimelock {
+        _quorum = newQuorum;
+    }
+
+    function getQuorum() public view returns (IFameusGovernorQuorum) {
+        return _quorum;
     }
 
     // The following functions are overrides required by Solidity.
-
     function votingDelay()
         public
         view
