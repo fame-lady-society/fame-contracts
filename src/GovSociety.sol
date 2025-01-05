@@ -194,6 +194,12 @@ contract GovSociety is
         _lockedTokensIds.set(tokenId);
     }
 
+    function lockMany(uint256[] memory tokenIds) public {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            lock(tokenIds[i]);
+        }
+    }
+
     error BurnAddressCannotBeGuardian();
 
     function lockWithGuardian(
@@ -208,6 +214,15 @@ contract GovSociety is
         }
         _lockedTokensIds.set(tokenId);
         _guardianForTokenId[tokenId] = guardian;
+    }
+
+    function lockWithGuardianMany(
+        uint256[] memory tokenIds,
+        address guardian
+    ) public {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            lockWithGuardian(tokenIds[i], guardian);
+        }
     }
 
     // @dev if guardian exists, caller must be the guardian. otherwise they must be the owner
@@ -229,6 +244,12 @@ contract GovSociety is
         }
         _lockedTokensIds.unset(tokenId);
         _guardianForTokenId[tokenId] = address(0);
+    }
+
+    function unlockMany(uint256[] memory tokenIds) public {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            unlock(tokenIds[i]);
+        }
     }
 
     function isLocked(uint256 tokenId) public view returns (bool) {

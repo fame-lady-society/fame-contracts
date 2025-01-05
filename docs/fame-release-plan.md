@@ -6,7 +6,7 @@
 
 ```
 source.env
-forge script --chain sepolia script/DeployPresale.sol:DeployPresale --verify --broadcast --rpc-url $SEPOLIA_RPC
+forge script --chain sepolia script/DeployPresale.sol:DeployPresale --verify --broadcast --rpc-url $BASE_RPC
 ```
 
 ## FAME
@@ -261,7 +261,7 @@ yarn nodets js/presale/generate-vesting-transactions.ts
 
 # Governance
 
-## Localnet
+## Sepolia
 
 ### GovSociety
 
@@ -308,58 +308,101 @@ echo Deployed FAMEusGovernor to $FAMEUS_GOVERNOR
 forge verify-contract $FAMEUS_GOVERNOR src/FameusGovernor.sol:FAMEusGovernor $DEPLOYER_EXTRA_ARGS --constructor-args $(cast abi-encode "constructor(address,address,uint48,uint32,uint256)" $GOV_SOCIETY_ADDRESS $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD)
 ```
 
-### FAMEusGovernor
-
-```
-export FAMEUS_GOVERNOR=`forge create --broadcast --json --verify --verifier-api-key $MAINNET_ETHERSCAN_API_KEY --verifier custom --verifier-url https://api-sepolia.etherscan.io/api src/FameusGoverner.sol:FAMEusGovernor --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $GOV_SOCIETY_ADDRESS $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS | jq -r .deployedTo`
-echo Deployed FAMEusGovernor to $FAMEUS_GOVERNOR
-```
-
-## Sepolia
-
-Setup the deployer address
-
-```
-export SEPOLIA_DEPLOYER_ADDRESS=0x1318454B32ea883dB5a729eA59783d9fAfA74908
-```
-
-should match the private key of SEPOLIA_DEPLOYER_PRIVATE_KEY
-
-We will need the renderer address from the Fame contract
-
-```
-export SEPOLIA_RENDERER_ADDRESS=$(cast abi-decode "renderer()(address)" $(cast call $SEPOLIA_FAME_ADDRESS "renderer()" --rpc-url $SEPOLIA_RPC))
-```
+## Base
 
 ### GovSociety
 
-```bash
-# Deploy
-export GOV_SOCIETY_ADDRESS=$(forge create src/GovSociety.sol:GovSociety --broadcast --json --rpc-url $SEPOLIA_RPC --private-key $SEPOLIA_DEPLOYER_PRIVATE_KEY --constructor-args $SEPOLIA_FAME_NFT_ADDRESS $SEPOLIA_DEPLOYER_ADDRESS $SEPOLIA_RENDERER_ADDRESS | jq -r .deployedTo)
-echo Deployed GovSociety to $GOV_SOCIETY_ADDRESS
+Set the Manager Address
 
-# Verify
-forge verify-contract $GOV_SOCIETY_ADDRESS src/GovSociety.sol:GovSociety --chain-id 11155111 --constructor-args $(cast abi-encode "constructor(address,address,address)" $SEPOLIA_FAME_NFT_ADDRESS $SEPOLIA_DEPLOYER_ADDRESS $SEPOLIA_RENDERER_ADDRESS) --etherscan-api-key $MAINNET_ETHERSCAN_API_KEY
+```
+export MULTISIG_ADDRESS=$BASE_MULTISIG_ADDRESS
+export RPC=$BASE_RPC
+export DEPLOYER_PRIVATE_KEY=$BASE_DEPLOYER_PRIVATE_KEY
+export FAME_NFT_ADDRESS=$BASE_FAME_ADDRESS
+export FAME_ADDRESS=$BASE_FAME_ADDRESS
+export ETHERSCAN_API_KEY=$BASE_ETHERSCAN_API_KEY
+export RENDERER_ADDRESS=$(cast call $FAME_ADDRESS "renderer()(address)" --rpc-url $RPC)
+```
+
+Verify that all of these variable have been set:
+
+```
+#!/bin/bash
+
+# Array of required environment variables
+required_vars=(
+    "MULTISIG_ADDRESS"
+    "RPC"
+    "DEPLOYER_PRIVATE_KEY"
+    "FAME_NFT_ADDRESS"
+    "FAME_ADDRESS"
+    "ETHERSCAN_API_KEY"
+    "RENDERER_ADDRESS"
+)
+
+# Flag to track if any variables are missing
+missing_vars=0
+
+# Check each variable
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        echo "❌ Error: $var is not set or empty"
+        missing_vars=1
+    else
+        echo "✅ $var is set"
+    fi
+done
+
+# Exit with error if any variables are missing
+if [ $missing_vars -eq 1 ]; then
+    echo -e "\n❌ Some required environment variables are missing!"
+    exit 1
+else
+    echo -e "\n✅ All required environment variables are set!"
+fi
+```
+
+Some versions of forge don't like the recent etherscan API changes. To verify off mainnet you may need to use the following:
+
+```
+export DEPLOYER_EXTRA_ARGS="--verifier-api-key $BASE_ETHERSCAN_API_KEY --verifier custom --verifier-url https://api.basescan.org/api"
+```
+
+Deploy the GovSociety
+
+```
+export GOV_SOCIETY_ADDRESS=$(forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/GovSociety.sol:GovSociety --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $FAME_NFT_ADDRESS $MULTISIG_ADDRESS $RENDERER_ADDRESS | jq -r .deployedTo)
+echo Deployed GovSociety to $GOV_SOCIETY_ADDRESS
+```
+
+In case GovSociety verification fails, run this:
+
+```
+forge verify-contract $GOV_SOCIETY_ADDRESS src/GovSociety.sol:GovSociety $DEPLOYER_EXTRA_ARGS --constructor-args $(cast abi-encode "constructor(address,address,address)" $FAME_NFT_ADDRESS $MULTISIG_ADDRESS $RENDERER_ADDRESS)
 ```
 
 ### FAMEusTimelockController
 
-```bash
-# Deploy
-export FAMEUS_TIMELOCK_CONTROLLER_ADDRESS=`forge create src/FameusTimelockController.sol:FAMEusTimelockController --rpc-url $SEPOLIA_RPC --private-key $SEPOLIA_DEPLOYER_PRIVATE_KEY --constructor-args 0 '[$SEPOLIA_DEPLOYER_ADDRESS]' '[$SEPOLIA_DEPLOYER_ADDRESS]' $SEPOLIA_DEPLOYER_ADDRESS --legacy --json | jq -r .deployedTo`
-echo Deployed FAMEusTimelockController to $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS
-
-# Verify
-forge verify-contract $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS src/FameusTimelockController.sol:FAMEusTimelockController --chain-id 11155111 --constructor-args $(cast abi-encode "constructor(uint256,address[],address[],address)" 0 '[$SEPOLIA_DEPLOYER_ADDRESS]' '[$SEPOLIA_DEPLOYER_ADDRESS]' $SEPOLIA_DEPLOYER_ADDRESS) --etherscan-api-key $MAINNET_ETHERSCAN_API_KEY
+```
+export TIMELOCK_DELAY=$((1 * 60 * 60 * 24))
+export CANCELLER=$MULTISIG_ADDRESS
+export VOTING_DELAY=$((1 * 60 * 60 * 24))
+export VOTING_PERIOD=$((3 * 60 * 60 * 24 * 3))
+export PROPOSAL_THRESHOLD=8
+export FAMEUS_TIMELOCK_CONTROLLER_ADDRESS=`forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/FameusTimelockController.sol:FAMEusTimelockController --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $GOV_SOCIETY_ADDRESS "$TIMELOCK_DELAY" $CANCELLER $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD | jq -r .deployedTo`
+echo Deployed FAMEusGovernor to $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS
+export FAMEUS_GOVERNOR=$(cast call --rpc-url $RPC $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS "governor()(address)")
+echo Deployed FAMEusGovernor to $FAMEUS_GOVERNOR
 ```
 
-### FAMEusGovernor
+If the verification fails, run this:
 
-```bash
-# Deploy
-export FAMEUS_GOVERNOR=$(forge create src/FameusGoverner.sol:FAMEusGovernor --rpc-url $SEPOLIA_RPC --private-key $SEPOLIA_DEPLOYER_PRIVATE_KEY --constructor-args $GOV_SOCIETY_ADDRESS $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS --legacy --json | jq -r .deployedTo)
-echo Deployed FAMEusGovernor to $FAMEUS_GOVERNOR
+```
+forge verify-contract $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS src/FameusTimelockController.sol:FAMEusTimelockController $DEPLOYER_EXTRA_ARGS --constructor-args $(cast abi-encode "constructor(address,uint256,address,int48,uint32,uint256)" $GOV_SOCIETY_ADDRESS "$TIMELOCK_DELAY" $CANCELLER $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD)
+```
 
-# Verify
-forge verify-contract $FAMEUS_GOVERNOR src/FameusGoverner.sol:FAMEusGovernor --chain-id 11155111 --constructor-args $(cast abi-encode "constructor(address,address)" $GOV_SOCIETY_ADDRESS $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS) --etherscan-api-key $MAINNET_ETHERSCAN_API_KEY
+And you will always need to verify the governor, since it was created within the timelock controller:
+
+```
+forge verify-contract $FAMEUS_GOVERNOR src/FameusGovernor.sol:FAMEusGovernor $DEPLOYER_EXTRA_ARGS --constructor-args $(cast abi-encode "constructor(address,address,uint48,uint32,uint256)" $GOV_SOCIETY_ADDRESS $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD)
 ```

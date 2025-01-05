@@ -68,6 +68,20 @@ contract GovSocietyTest is Test {
         assertEq(govSociety.ownerOf(1), address(222));
     }
 
+    function test_LockMany() public {
+        address owner = address(111);
+        fame.transfer(owner, 2 * 10 ** 24);
+        vm.startPrank(owner);
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
+        fameMirror.setApprovalForAll(address(govSociety), true);
+        govSociety.depositFor(owner, tokenIds);
+        govSociety.lockMany(tokenIds);
+        assertTrue(govSociety.isLocked(1));
+        assertTrue(govSociety.isLocked(2));
+    }
+
     function test_LockWithGuardian() public {
         // Setup token ownership
         address owner = address(111);
