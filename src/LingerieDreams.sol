@@ -11,39 +11,11 @@ contract LingerieDreams is ERC721, Ownable {
     using LibString for uint256;
     using LibString for string;
     using LibMap for LibMap.Uint8Map;
-    using MerkleProofLib for bytes32[];
 
-    // STAGE
-    struct Stage {
-        uint8 order;
-        uint8 mintLimit;
-        uint224 mintPrice;
-    }
-    uint8 constant STAGE_PRE_MINT_ORDER = 0;
-    uint8 constant STAGE_HOLDERS_MINT_ORDER = 1;
-    uint8 constant STAGE_ALLOWLIST_MINT_ORDER = 2;
-    uint8 constant STAGE_PUBLIC_MINT_ORDER = 3;
-    uint8 private STAGE_ORDER = STAGE_PRE_MINT_ORDER;
-    Stage private STAGE_PRE_MINT =
-        Stage({order: STAGE_PRE_MINT_ORDER, mintLimit: 0, mintPrice: 0});
-    Stage private STAGE_HOLDERS_MINT =
-        Stage({
-            order: STAGE_HOLDERS_MINT_ORDER,
-            mintLimit: 3,
-            mintPrice: 30 ether
-        });
-    Stage private STAGE_ALLOWLIST_MINT =
-        Stage({
-            order: STAGE_ALLOWLIST_MINT_ORDER,
-            mintLimit: 3,
-            mintPrice: 40 ether
-        });
-    Stage private STAGE_PUBLIC_MINT =
-        Stage({
-            order: STAGE_PUBLIC_MINT_ORDER,
-            mintLimit: 10,
-            mintPrice: 69 ether
-        });
+    uint64 private START_TIME;
+
+    uint256 private MINT_PRICE = 30 ether;
+    uint8 private MINT_LIMIT = 3;
 
     // ERC721 identifiers
     string constant NAME = "Lingerie Dreams";
@@ -53,24 +25,18 @@ contract LingerieDreams is ERC721, Ownable {
     uint8 private SUPPLY;
     uint8 constant SUPPLY_MAX = 69;
 
-    // NFT contract allowlist minting
-    address private ALLOWLIST_MINT_CONTRACT;
-    LibMap.Uint8Map private HOLDERS_MINT_MAP;
-
-    // Merkle root for allowlist minting
-    bytes32 private MERKLE_ROOT;
-    mapping(address => uint8) private ALLOWLIST_MINT_MAP;
-
     // Tracking public mint count
     mapping(address => uint8) private PUBLIC_MINT_MAP;
 
     // Base URI for token metadata
     string private BASE_URI;
 
-    constructor(address allowlistMintContract, bytes32 merkleRoot) {
+    constructor(uint64 startTime, uint256 mintPrice, uint8 mintLimit, string memory baseURI) {
+        START_TIME = startTime;
+        MINT_PRICE = mintPrice;
+        MINT_LIMIT = mintLimit;
+        BASE_URI = baseURI;
         _initializeOwner(msg.sender);
-        ALLOWLIST_MINT_CONTRACT = allowlistMintContract;
-        MERKLE_ROOT = merkleRoot;
     }
 
     function name() public pure override returns (string memory) {
@@ -85,9 +51,15 @@ contract LingerieDreams is ERC721, Ownable {
         return SUPPLY;
     }
 
-    function tokenURI(
-        uint256 tokenId
-    ) public view override returns (string memory) {
+    function mintPrice() public view returns (uint256) {
+        return MINT_PRICE;
+    }
+
+    function mintLimit() public view returns (uint8) {
+        return MINT_LIMIT;
+    }
+
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
         return BASE_URI.concat(tokenId.toString());
     }
 
@@ -95,116 +67,48 @@ contract LingerieDreams is ERC721, Ownable {
         BASE_URI = newBaseURI;
     }
 
-    function setMerkleRoot(bytes32 newMerkleRoot) external onlyOwner {
-        MERKLE_ROOT = newMerkleRoot;
+    function setStartTime(uint64 newStartTime) external onlyOwner {
+        START_TIME = newStartTime;
     }
 
-    error AllStagesCompleted();
-    event StageAdvanced(uint8 newStage);
-
-    function advanceStage() external onlyOwner {
-        if (STAGE_ORDER >= STAGE_PUBLIC_MINT_ORDER) revert AllStagesCompleted();
-        if (STAGE_ORDER == STAGE_PRE_MINT_ORDER) {
-            STAGE_ORDER = STAGE_HOLDERS_MINT_ORDER;
-        } else if (STAGE_ORDER == STAGE_HOLDERS_MINT_ORDER) {
-            STAGE_ORDER = STAGE_ALLOWLIST_MINT_ORDER;
-        } else if (STAGE_ORDER == STAGE_ALLOWLIST_MINT_ORDER) {
-            STAGE_ORDER = STAGE_PUBLIC_MINT_ORDER;
-        }
-        emit StageAdvanced(STAGE_ORDER);
-    }
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 tokenId
-    ) internal override {
-        if (from == address(0)) {
-            SUPPLY++;
-        } else if (to == address(0)) {
-            SUPPLY--;
-        }
+    function getStartTime() external view returns (uint64) {
+        return START_TIME;
     }
 
     error MintAmountExceedsLimit();
     error MintAmountExceedsSupply();
+    error MintMustBeGreaterThanZero();
+
     modifier mintAvailable(uint8 mintAmount) {
+        if (mintAmount <= 0) revert MintMustBeGreaterThanZero();
         if (SUPPLY + mintAmount > SUPPLY_MAX) revert MintAmountExceedsSupply();
+        if (mintAmount + PUBLIC_MINT_MAP[msg.sender] > MINT_LIMIT) revert MintAmountExceedsLimit();
         _;
     }
 
     error NotEnoughPayment();
+
     modifier enoughPayment(uint8 mintAmount) {
-        if (msg.value < STAGE_HOLDERS_MINT.mintPrice * mintAmount)
+        if (msg.value < MINT_PRICE * mintAmount) {
             revert NotEnoughPayment();
+        }
         _;
     }
 
-    error NotInHoldersMintStage();
-    error NotTheOwnerOfTheToken();
-    function holderMint(
-        uint256 tokenId,
-        uint8 mintAmount
-    ) external payable mintAvailable(mintAmount) enoughPayment(mintAmount) {
-        uint8 currentHoldersMintAmount = HOLDERS_MINT_MAP.get(tokenId);
-        if (STAGE_ORDER != STAGE_HOLDERS_MINT_ORDER)
-            revert NotInHoldersMintStage();
-        if (
-            currentHoldersMintAmount + mintAmount > STAGE_HOLDERS_MINT.mintLimit
-        ) revert MintAmountExceedsLimit();
-        if (ERC721(ALLOWLIST_MINT_CONTRACT).ownerOf(tokenId) != msg.sender)
-            revert NotTheOwnerOfTheToken();
-        HOLDERS_MINT_MAP.set(tokenId, currentHoldersMintAmount + mintAmount);
-        for (uint8 i = 0; i < mintAmount; i++) {
-            _mint(msg.sender, ++SUPPLY);
-        }
-    }
+    error PublicMintNotStarted();
 
-    error NotInAllowlistMintStage();
-    error InvalidProof();
-    function allowlistMint(
-        uint8 mintAmount,
-        bytes32[] calldata proof
-    ) external payable mintAvailable(mintAmount) enoughPayment(mintAmount) {
-        uint8 currentAllowlistMintAmount = ALLOWLIST_MINT_MAP[msg.sender];
-        if (STAGE_ORDER != STAGE_ALLOWLIST_MINT_ORDER)
-            revert NotInAllowlistMintStage();
-        if (
-            currentAllowlistMintAmount + mintAmount >
-            STAGE_ALLOWLIST_MINT.mintLimit
-        ) revert MintAmountExceedsLimit();
-        if (
-            proof.verifyCalldata(
-                MERKLE_ROOT,
-                keccak256(abi.encodePacked(msg.sender))
-            )
-        ) revert InvalidProof();
-        ALLOWLIST_MINT_MAP[msg.sender] =
-            currentAllowlistMintAmount +
-            mintAmount;
-        for (uint8 i = 0; i < mintAmount; i++) {
-            _mint(msg.sender, ++SUPPLY);
-        }
-    }
-
-    error NotInPublicMintStage();
-    function publicMint(
-        uint8 mintAmount
-    ) external payable mintAvailable(mintAmount) enoughPayment(mintAmount) {
-        uint8 currentPublicMintAmount = PUBLIC_MINT_MAP[msg.sender];
-        if (STAGE_ORDER != STAGE_PUBLIC_MINT_ORDER)
-            revert NotInPublicMintStage();
-        if (currentPublicMintAmount + mintAmount > STAGE_PUBLIC_MINT.mintLimit)
-            revert MintAmountExceedsLimit();
-        PUBLIC_MINT_MAP[msg.sender] = currentPublicMintAmount + mintAmount;
+    function publicMint(uint8 mintAmount) external payable mintAvailable(mintAmount) enoughPayment(mintAmount) {
+        if (uint64(block.timestamp) < START_TIME) revert PublicMintNotStarted();
+        PUBLIC_MINT_MAP[msg.sender] += mintAmount;
         for (uint8 i = 0; i < mintAmount; i++) {
             _mint(msg.sender, ++SUPPLY);
         }
     }
 
     error FailedToSendEther();
+
     function withdraw() external onlyOwner {
-        (bool success, ) = owner().call{value: address(this).balance}("");
+        (bool success,) = owner().call{value: address(this).balance}("");
         if (!success) revert FailedToSendEther();
     }
 }
