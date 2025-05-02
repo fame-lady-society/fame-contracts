@@ -25,10 +25,7 @@ console.log(
 client
   .uploadFolder(INPUT_FOLDER, {
     keepDeleted: false,
-    manifestTags: [
-      { name: "Collection", value: "Fame Society" },
-      { name: "Type", value: "Metadata" },
-    ],
+    manifestTags: [],
   })
   .then((tx) => {
     console.log(`Uploaded folder to Arweave with transaction ID: ${tx?.id}`);

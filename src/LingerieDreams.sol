@@ -23,7 +23,7 @@ contract LingerieDreams is ERC721, Ownable {
 
     // Supply
     uint8 private SUPPLY;
-    uint8 constant SUPPLY_MAX = 69;
+    uint8 private SUPPLY_MAX = 69;
 
     // Tracking public mint count
     mapping(address => uint8) private PUBLIC_MINT_MAP;
@@ -31,11 +31,16 @@ contract LingerieDreams is ERC721, Ownable {
     // Base URI for token metadata
     string private BASE_URI;
 
-    constructor(uint64 startTime, uint256 mintPrice, uint8 mintLimit, string memory baseURI) {
-        START_TIME = startTime;
-        MINT_PRICE = mintPrice;
-        MINT_LIMIT = mintLimit;
-        BASE_URI = baseURI;
+    constructor(
+        uint64 _startTime,
+        uint256 _mintPrice,
+        uint8 _mintLimit,
+        string memory _baseURI
+    ) {
+        START_TIME = _startTime;
+        MINT_PRICE = _mintPrice;
+        MINT_LIMIT = _mintLimit;
+        BASE_URI = _baseURI;
         _initializeOwner(msg.sender);
     }
 
@@ -59,7 +64,9 @@ contract LingerieDreams is ERC721, Ownable {
         return MINT_LIMIT;
     }
 
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+    function tokenURI(
+        uint256 tokenId
+    ) public view override returns (string memory) {
         return BASE_URI.concat(tokenId.toString());
     }
 
@@ -67,7 +74,17 @@ contract LingerieDreams is ERC721, Ownable {
         BASE_URI = newBaseURI;
     }
 
+    error MintLimitCantBeZero();
+
+    function setMintLimit(uint8 newMintLimit) external onlyOwner {
+        if (newMintLimit == 0) revert MintLimitCantBeZero();
+        MINT_LIMIT = newMintLimit;
+    }
+
+    error MintMustNotBeStarted();
+
     function setStartTime(uint64 newStartTime) external onlyOwner {
+        if (START_TIME < uint64(block.timestamp)) revert MintMustNotBeStarted();
         START_TIME = newStartTime;
     }
 
@@ -82,7 +99,8 @@ contract LingerieDreams is ERC721, Ownable {
     modifier mintAvailable(uint8 mintAmount) {
         if (mintAmount <= 0) revert MintMustBeGreaterThanZero();
         if (SUPPLY + mintAmount > SUPPLY_MAX) revert MintAmountExceedsSupply();
-        if (mintAmount + PUBLIC_MINT_MAP[msg.sender] > MINT_LIMIT) revert MintAmountExceedsLimit();
+        if (mintAmount + PUBLIC_MINT_MAP[msg.sender] > MINT_LIMIT)
+            revert MintAmountExceedsLimit();
         _;
     }
 
@@ -97,7 +115,9 @@ contract LingerieDreams is ERC721, Ownable {
 
     error PublicMintNotStarted();
 
-    function publicMint(uint8 mintAmount) external payable mintAvailable(mintAmount) enoughPayment(mintAmount) {
+    function publicMint(
+        uint8 mintAmount
+    ) external payable mintAvailable(mintAmount) enoughPayment(mintAmount) {
         if (uint64(block.timestamp) < START_TIME) revert PublicMintNotStarted();
         PUBLIC_MINT_MAP[msg.sender] += mintAmount;
         for (uint8 i = 0; i < mintAmount; i++) {
@@ -108,7 +128,7 @@ contract LingerieDreams is ERC721, Ownable {
     error FailedToSendEther();
 
     function withdraw() external onlyOwner {
-        (bool success,) = owner().call{value: address(this).balance}("");
+        (bool success, ) = owner().call{value: address(this).balance}("");
         if (!success) revert FailedToSendEther();
     }
 }

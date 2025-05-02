@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { promises as fs } from "fs";
+import path from "path";
 import { resolve as pathResolve } from "path";
 import { formatEther } from "viem";
 // import IPFS from "ipfs-only-hash";
@@ -31,8 +32,44 @@ if (stat.isFile()) {
   //   `Price for 1 gigabyte: ${formatEther(await client.getPrice(ONE_GIGABYTE))}`
   // );
 
+  const commonFileMappings: Record<string, string> = {
+    png: "image/png",
+    gif: "image/gif",
+    mp4: "video/mp4",
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    webm: "video/webm",
+    json: "application/json",
+    jpeg: "image/jpeg",
+    jpg: "image/jpeg",
+    svg: "image/svg+xml",
+    html: "text/html",
+    js: "text/javascript",
+    css: "text/css",
+    txt: "text/plain",
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  };
+
   client
-    .uploadFile(INPUT_FILE)
+    .uploadFile(INPUT_FILE, {
+      ...(commonFileMappings[path.extname(INPUT_FILE).slice(1)] && {
+        tags: [
+          {
+            name: "Content-Type",
+            value: commonFileMappings[path.extname(INPUT_FILE).slice(1)],
+          },
+          {
+            name: "Content-Disposition",
+            value: `attachment; filename="${path.basename(INPUT_FILE)}"`,
+          },
+        ],
+      }),
+    })
     .then((tx) => {
       console.log(`Uploaded file to Arweave with transaction ID: ${tx?.id}`);
     })

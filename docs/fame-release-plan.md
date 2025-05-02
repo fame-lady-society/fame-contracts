@@ -125,7 +125,7 @@ yarn nodets js/metadata/generateMetadata.ts --salt 0
 
 Upload that
 
-```
+```1
 yarn nodets js/metadata/upload.ts .metadata/staging-metadata/
 ```
 
@@ -213,7 +213,7 @@ Now Deploy the batch reveal
 ```
 export RPC=$BASE_RPC
 export BATCH_SIZE=$(cat .metadata/$BATCH_RELEASE_DATE-metadata-manifest.json | jq -r '.paths | length')
-cast send --rpc-url $RPC --private-key $BASE_DEPLOYER_PRIVATE_KEY --etherscan-api-key $BASE_ETHERSCAN_API_KEY 0xA50C9a918C110CA159fb187F4a55896A4d063878 "pushBatch(uint256,uint256,string)" $SALT $BATCH_SIZE $METADATA_BASE_URI
+cast send --rpc-url $RPC --private-key $BASE_DEPLOYER_PRIVATE_KEY --etherscan-api-key $BASE_ETHERSCAN_API_KEY 0xa50c9a918c110ca159fb187f4a55896a4d063878 "pushBatch(uint256,uint256,string)" $SALT $BATCH_SIZE $METADATA_BASE_URI
 ```
 
 ## Vesting
@@ -387,7 +387,7 @@ forge verify-contract $GOV_SOCIETY_ADDRESS src/GovSociety.sol:GovSociety $DEPLOY
 export TIMELOCK_DELAY=$((1 * 60 * 60 * 24))
 export CANCELLER=$MULTISIG_ADDRESS
 export VOTING_DELAY=$((1 * 60 * 60 * 24))
-export VOTING_PERIOD=$((3 * 60 * 60 * 24))
+export VOTING_PERIOD=$((3 * 60 * 60 * 24 * 3))
 export PROPOSAL_THRESHOLD=8
 export FAMEUS_TIMELOCK_CONTROLLER_ADDRESS=`forge create --broadcast --json --verify $DEPLOYER_EXTRA_ARGS src/FameusTimelockController.sol:FAMEusTimelockController --rpc-url $RPC --private-key $DEPLOYER_PRIVATE_KEY --constructor-args $GOV_SOCIETY_ADDRESS "$TIMELOCK_DELAY" $CANCELLER $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD | jq -r .deployedTo`
 echo Deployed FAMEusTimelockController to $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS
@@ -398,7 +398,7 @@ echo Deployed FAMEusGovernor to $FAMEUS_GOVERNOR
 If the verification fails, run this:
 
 ```
-forge verify-contract $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS src/FameusTimelockController.sol:FAMEusTimelockController $DEPLOYER_EXTRA_ARGS --constructor-args $(cast abi-encode "constructor(address,uint256,address,int48,uint32,uint256)" $GOV_SOCIETY_ADDRESS "$TIMELOCK_DELAY" $CANCELLER $VOTING_DELAY $VOTING_PERIOD $PROPOSAL_THRESHOLD)
+forge verify-contract $FAMEUS_TIMELOCK_CONTROLLER_ADDRESS src/FameusTimelockController.sol:FAMEusTimelockController $DEPLOYER_EXTRA_ARGS --constructor-args $(cast abi-encode "constructor(address,uint256,address,int48,uint32,uint256)" "$GOV_SOCIETY_ADDRESS" "$TIMELOCK_DELAY" "$CANCELLER" "$VOTING_DELAY" "$VOTING_PERIOD" "$PROPOSAL_THRESHOLD")
 ```
 
 And you will always need to verify the governor, since it was created within the timelock controller:
