@@ -5,12 +5,8 @@ import {LibString} from "solady/utils/LibString.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
+import {ITokenEmitable} from "./ITokenEmitable.sol";
 import "forge-std/console.sol";
-
-interface ITokemEmitable {
-    function emitBatchMetadataUpdate(uint256 start, uint256 end) external;
-    function emitMetadataUpdate(uint256 tokenId) external;
-}
 
 /**
  * @title FameSquadRemapper
@@ -23,13 +19,13 @@ contract FameSquadRemapper is OwnableRoles, ITokenURIGenerator {
     using LibString for string;
 
     ITokenURIGenerator public childRenderer;
-    ITokemEmitable public emitable;
+    ITokenEmitable public emitable;
 
     uint256 constant METADATA_UPDATER = _ROLE_0;
     uint256 constant METADAT_EMIT = _ROLE_1;
 
     constructor(address emitableAddress, address _childRenderer) {
-        emitable = ITokemEmitable(emitableAddress);
+        emitable = ITokenEmitable(emitableAddress);
         childRenderer = ITokenURIGenerator(_childRenderer);
         _initializeOwner(msg.sender);
         _grantRoles(msg.sender, METADATA_UPDATER);

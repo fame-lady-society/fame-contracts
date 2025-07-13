@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import {LibString} from "solady/utils/LibString.sol";
 import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
 
-import {Ownable} from "solady/auth/Ownable.sol";
+import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 
-interface ITokemEmitable {
+interface ITokenEmitable {
     function emitBatchMetadataUpdate(uint256 start, uint256 end) external;
     function emitMetadataUpdate(uint256 tokenId) external;
 }
@@ -16,13 +16,19 @@ interface ITokemEmitable {
  * @notice Moves tokens ids out of the way for the claim to fame musuem to be revealed
  */
 
-contract SimpleOffchainReveal is ITokenURIGenerator, Ownable {
+contract SimpleOffchainReveal is
+    ITokenURIGenerator,
+    OwnableRoles,
+    ITokenEmitable
+{
     using LibString for string;
     using LibString for uint256;
 
+    uint256 public constant RENDERER = _ROLE_0;
+
     ITokenURIGenerator public childRenderer;
-    ITokemEmitable public tokenemEmitable;
-    uint256 constant START_AT_TOKEN = 498;
+    ITokenEmitable public tokenEmitable;
+    uint256 public startAtToken;
     struct Batch {
         uint256 salt;
         uint256 startAtToken;
@@ -31,10 +37,16 @@ contract SimpleOffchainReveal is ITokenURIGenerator, Ownable {
     }
     Batch[] public batches;
 
-    constructor(address _childRenderer, address _tokenemEmitable) {
+    constructor(
+        address _childRenderer,
+        address _tokenEmitable,
+        uint256 _startAtToken
+    ) {
         childRenderer = ITokenURIGenerator(_childRenderer);
-        tokenemEmitable = ITokemEmitable(_tokenemEmitable);
+        tokenEmitable = ITokenEmitable(_tokenEmitable);
+        startAtToken = _startAtToken;
         _initializeOwner(msg.sender);
+        _grantRoles(_tokenEmitable, RENDERER);
     }
 
     /**
@@ -43,15 +55,16 @@ contract SimpleOffchainReveal is ITokenURIGenerator, Ownable {
     function tokenURI(
         uint256 tokenId
     ) external view override returns (string memory) {
-        if (tokenId < START_AT_TOKEN) {
+        if (tokenId < startAtToken) {
             return childRenderer.tokenURI(tokenId);
         }
         uint256 batchesLength = batches.length;
         for (uint256 i = 0; i < batchesLength; i++) {
             Batch memory batch = batches[i];
-            uint256 startAtToken = batch.startAtToken;
+            uint256 batchStartAtToken = batch.startAtToken;
             if (
-                tokenId >= startAtToken && tokenId < startAtToken + batch.length
+                tokenId >= batchStartAtToken &&
+                tokenId < batchStartAtToken + batch.length
             ) {
                 uint256 saltedTokenId = uint256(
                     keccak256(
@@ -75,14 +88,14 @@ contract SimpleOffchainReveal is ITokenURIGenerator, Ownable {
         Batch memory batch = Batch(salt, maxTokenId() + 1, length, baseUri);
         batches.push(batch);
         // emit metadata if it exists, but ignore any errors
-        if (address(tokenemEmitable) != address(0)) {
+        if (address(tokenEmitable) != address(0)) {
             if (batch.length == 1) {
                 try
-                    tokenemEmitable.emitMetadataUpdate(batch.startAtToken)
+                    tokenEmitable.emitMetadataUpdate(batch.startAtToken)
                 {} catch {}
             } else {
                 try
-                    tokenemEmitable.emitBatchMetadataUpdate(
+                    tokenEmitable.emitBatchMetadataUpdate(
                         batch.startAtToken,
                         batch.startAtToken + batch.length - 1
                     )
@@ -94,7 +107,7 @@ contract SimpleOffchainReveal is ITokenURIGenerator, Ownable {
     function maxTokenId() public view returns (uint256) {
         uint256 batchesLength = batches.length;
         if (batchesLength == 0) {
-            return START_AT_TOKEN - 1;
+            return startAtToken - 1;
         }
         Batch memory lastBatch = batches[batchesLength - 1];
         return lastBatch.startAtToken + lastBatch.length - 1;
@@ -113,5 +126,23 @@ contract SimpleOffchainReveal is ITokenURIGenerator, Ownable {
             }
         }
         revert NoBatchForTokenId();
+    }
+
+    function updateTokenEmitable(address _tokenEmitable) external onlyOwner {
+        tokenEmitable = ITokenEmitable(_tokenEmitable);
+        _grantRoles(_tokenEmitable, RENDERER);
+    }
+
+    function emitMetadataUpdate(
+        uint256 tokenId
+    ) external override onlyRoles(RENDERER) {
+        tokenEmitable.emitMetadataUpdate(tokenId);
+    }
+
+    function emitBatchMetadataUpdate(
+        uint256 start,
+        uint256 end
+    ) external override onlyRoles(RENDERER) {
+        tokenEmitable.emitBatchMetadataUpdate(start, end);
     }
 }

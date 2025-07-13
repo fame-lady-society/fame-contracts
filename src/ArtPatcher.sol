@@ -5,12 +5,8 @@ import {LibString} from "solady/utils/LibString.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
+import {ITokenEmitable} from "./ITokenEmitable.sol";
 import "forge-std/console.sol";
-
-interface ITokemEmitable {
-    function emitBatchMetadataUpdate(uint256 start, uint256 end) external;
-    function emitMetadataUpdate(uint256 tokenId) external;
-}
 
 /**
  * @title FameSquadRemapper
@@ -22,7 +18,8 @@ contract ArtPatcher is ITokenURIGenerator {
 
     ITokenURIGenerator public childRenderer;
 
-    string constant URI = "https://gateway.irys.xyz/pVCz-f3gIsy1VH9fl1S6CCKM-eL40l_0W9Z2PFwpD9w/";
+    string constant URI =
+        "https://gateway.irys.xyz/pVCz-f3gIsy1VH9fl1S6CCKM-eL40l_0W9Z2PFwpD9w/";
 
     constructor(address _childRenderer) {
         childRenderer = ITokenURIGenerator(_childRenderer);

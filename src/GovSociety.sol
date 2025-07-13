@@ -125,18 +125,14 @@ import "@openzeppelin5/contracts/token/ERC721/extensions/ERC721Wrapper.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
 import {IERC4906} from "./IERC4906.sol";
-
-interface ITokemEmitable {
-    function emitBatchMetadataUpdate(uint256 start, uint256 end) external;
-    function emitMetadataUpdate(uint256 tokenId) external;
-}
+import {ITokenEmitable} from "./ITokenEmitable.sol";
 
 contract GovSociety is
     ERC721Wrapper,
     EIP712,
     ERC721Votes,
     AccessControl,
-    ITokemEmitable,
+    ITokenEmitable,
     IERC4906
 {
     using LibBitmap for LibBitmap.Bitmap;

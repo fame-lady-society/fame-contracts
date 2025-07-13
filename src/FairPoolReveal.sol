@@ -5,12 +5,8 @@ import {LibString} from "solady/utils/LibString.sol";
 import {LibBitmap} from "solady/utils/LibBitmap.sol";
 import {OwnableRoles} from "solady/auth/OwnableRoles.sol";
 import {ITokenURIGenerator} from "./ITokenURIGenerator.sol";
+import {ITokenEmitable} from "./ITokenEmitable.sol";
 import "forge-std/console.sol";
-
-interface ITokemEmitable {
-    function emitBatchMetadataUpdate(uint256 start, uint256 end) external;
-    function emitMetadataUpdate(uint256 tokenId) external;
-}
 
 /**
  * @title FairReveal
@@ -44,7 +40,7 @@ contract FairPoolReveal is OwnableRoles, ITokenURIGenerator {
 
     string private _tokenIdSalt;
     ITokenURIGenerator public upgradeableUriGenerator;
-    ITokemEmitable public emitable;
+    ITokenEmitable public emitable;
 
     /**
      * @dev Used to read the order of the token ids
@@ -74,7 +70,7 @@ contract FairPoolReveal is OwnableRoles, ITokenURIGenerator {
         );
         startAtToken = _startAtToken;
         highestTotalAvailableArt = 0;
-        emitable = ITokemEmitable(emitableAddress);
+        emitable = ITokenEmitable(emitableAddress);
         unrevealedTokensRemaining = totalTokens;
         startingSize = totalTokens;
         _initializeOwner(msg.sender);

@@ -19,7 +19,8 @@ contract DeploySimpleOffchain is Script {
 
         SimpleOffchainReveal renderer = new SimpleOffchainReveal(
             0xE5B20c26716bA7c42b398423c2F95e5F9D9aC093,
-            0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418
+            0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418,
+            498
         );
 
         renderer.pushBatch(

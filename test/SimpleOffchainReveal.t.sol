@@ -13,7 +13,7 @@ contract MockChildRenderer is ITokenURIGenerator {
     }
 }
 
-contract MockTokenEmitable is ITokemEmitable {
+contract MockTokenEmitable is ITokenEmitable {
     bool public shouldRevert;
     event MetadataUpdate(uint256 tokenId);
     event BatchMetadataUpdate(uint256 start, uint256 end);
@@ -45,7 +45,8 @@ contract SimpleOffchainRevealTest is Test {
         mockTokenEmitable = new MockTokenEmitable();
         offchainReveal = new SimpleOffchainReveal(
             address(mockChildRenderer),
-            address(mockTokenEmitable)
+            address(mockTokenEmitable),
+            498
         );
     }
 
