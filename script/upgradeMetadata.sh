@@ -25,7 +25,7 @@ while true; do
     fi
     if [[ "$TOKEN_URI" =~ \"https://www\.fameladysociety\.com ]]; then
         break
-    fi
+    fi  
 
     STARTING_TOKEN_ID=$((STARTING_TOKEN_ID + 1))
 done

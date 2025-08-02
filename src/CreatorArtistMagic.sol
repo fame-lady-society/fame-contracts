@@ -12,9 +12,31 @@ import {FameMirror} from "./FameMirror.sol";
 
 /**
  * @title CreatorArtistMagic
- * @notice A contract that allows creators to manage token metadata by banishing tokens to different pools
- * @dev This contract implements a metadata management system with three pools: art pool, mint pool, and burn pool
- * @dev The contract uses DN404 storage reading to interact with the underlying Fame contract
+ * @notice A contract that allows creators to manage token metadata by banishing tokens between different pools
+ * @dev This contract implements a robust metadata management system with four distinct pools:
+ *
+ * **Art Pool** (tokenId 265-419):
+ *   - Purpose: Explicitly managed pool for custom metadata swapping
+ *   - State: Locked tokens that cannot be minted/burned
+ *   - Operations: banishToArtPool() consumes art pool slots by incrementing artPoolNextIndex
+ *
+ * **Burn Pool**:
+ *   - Purpose: Tokens that were minted but then burned
+ *   - Criteria: ownerOf(tokenId) reverts + tokenId <= totalNFTSupply + not in art pool
+ *   - Operations: banishToBurnPool() swaps metadata with burned tokens
+ *
+ * **Mint Pool**:
+ *   - Purpose: Tokens with metadata that were never minted, available for swapping
+ *   - Criteria: ownerOf(tokenId) reverts + tokenId > totalNFTSupply + tokenId < nextTokenId + not in art pool
+ *   - Operations: banishToMintPool() swaps metadata with unminted tokens
+ *
+ * **End of Mint Pool**:
+ *   - Purpose: Unrevealed metadata slots that can be consumed to create new metadata
+ *   - Criteria: tokenId >= nextTokenId + ownerOf(tokenId) reverts + not in art pool
+ *   - Operations: banishToEndOfMintPool() consumes by incrementing nextTokenId
+ *
+ * The contract uses ownerOf() revert patterns to detect token states without requiring
+ * direct access to Fame contract's internal DN404 storage.
  */
 contract CreatorArtistMagic is
     OwnableRoles,
@@ -25,15 +47,17 @@ contract CreatorArtistMagic is
     using LibString for string;
     using LibMap for LibMap.Uint16Map;
 
-    uint256 internal constant CREATOR = _ROLE_0;
     uint256 internal constant RENDERER = _ROLE_0;
+    uint256 internal constant CREATOR = _ROLE_1;
+    uint256 internal constant BANISHER = _ROLE_2;
+    uint256 internal constant ART_POOL_MANAGER = _ROLE_3;
     uint256 internal constant ART_POOL_START_INDEX = 265;
     uint256 internal constant ART_POOL_END_INDEX = 419;
 
     uint256 private artPoolNextIndex = ART_POOL_START_INDEX + 1;
 
     ITokenURIGenerator public childRenderer;
-    // emit metadata and get DND404 storage data
+    // Interface to immutable Fame DN404 contract for token state queries
     Fame public fame;
 
     // Metadata registry design for robust swap-of-swaps
@@ -45,6 +69,9 @@ contract CreatorArtistMagic is
     // Metadata ID counter
     uint16 private nextMetadataId = 1;
 
+    // Boundary between Mint Pool and End of Mint Pool
+    // Tokens >= nextTokenId are in End of Mint Pool (unrevealed)
+    // Tokens < nextTokenId (but > totalNFTSupply) are in Mint Pool (revealed but unminted)
     uint16 public nextTokenId;
 
     error TokenNotOwned();
@@ -57,9 +84,12 @@ contract CreatorArtistMagic is
 
     /**
      * @notice Constructor to initialize the contract
-     * @param _childRenderer Address of the child renderer contract
-     * @param _fame Address of the Fame DN404 contract
-     * @param _nextTokenId Starting token ID for the contract
+     * @param _childRenderer Address of the child renderer contract that provides metadata for revealed tokens
+     * @param _fame Address of the Fame DN404 contract (immutable)
+     * @param _nextTokenId Starting token ID where unrevealed metadata begins (End of Mint Pool start)
+     *                     This defines the boundary between Mint Pool (< nextTokenId) and End of Mint Pool (>= nextTokenId)
+     *                     Expected: childRenderer already contains revealed tokens (excluding art pool 265-419)
+     *                     and nextTokenId marks where unrevealed/default metadata starts
      */
     constructor(
         address _childRenderer,
@@ -95,16 +125,17 @@ contract CreatorArtistMagic is
     }
 
     /**
-     * @notice Banish a token's metadata to the art pool and replace it with new metadata
-     * @dev Takes a token that the CREATOR owns and swaps its metadata with an unrevealed art pool slot
-     * @dev The original metadata is preserved in the metadata registry, new metadata assigned to token
-     * @param tokenIdToUpdate The token ID to update with new metadata
-     * @param newMetadataUrl The new metadata URL to assign to the token
+     * @notice Banish a token's metadata to the Art Pool and assign new custom metadata
+     * @dev Consumes an Art Pool slot (265-419) by incrementing artPoolNextIndex
+     * @dev Original metadata is preserved in registry, new custom metadata assigned to token
+     * @dev Art Pool contains locked tokens that cannot be minted/burned
+     * @param tokenIdToUpdate The token ID owned by CREATOR to update
+     * @param newMetadataUrl The new custom metadata URL to assign
      */
     function banishToArtPool(
         uint256 tokenIdToUpdate,
         string memory newMetadataUrl
-    ) external onlyRoles(CREATOR) {
+    ) external onlyRoles(ART_POOL_MANAGER | CREATOR) {
         // Require non-empty metadata URL
         if (bytes(newMetadataUrl).length == 0) {
             revert InvalidMetadata();
@@ -112,7 +143,7 @@ contract CreatorArtistMagic is
 
         FameMirror mirror = fame.fameMirror();
 
-        // Verify CREATOR owns the token
+        // Verify ART_POOL_MANAGER owns the token
         if (mirror.ownerOf(tokenIdToUpdate) != msg.sender) {
             revert TokenNotOwned();
         }
@@ -142,16 +173,17 @@ contract CreatorArtistMagic is
     }
 
     /**
-     * @notice Banish a token's metadata to the end of the mint pool and replace it with new metadata
-     * @dev Takes a token that the CREATOR owns and swaps its metadata with an unrevealed mint pool slot
-     * @dev The original metadata is preserved in the metadata registry, new metadata assigned to token
-     * @param tokenIdToUpdate The token ID to update with new metadata
-     * @param newMetadataUrl The new metadata URL to assign to the token
+     * @notice Banish a token's metadata to the End of Mint Pool and assign new metadata
+     * @dev Consumes an End of Mint Pool slot (tokenId >= nextTokenId) by incrementing nextTokenId
+     * @dev Original metadata is preserved in registry, new metadata assigned to token
+     * @dev End of Mint Pool contains unrevealed tokens that were never minted
+     * @param tokenIdToUpdate The token ID owned by CREATOR to update
+     * @param newMetadataUrl The new metadata URL to assign to the consumed slot
      */
     function banishToEndOfMintPool(
         uint256 tokenIdToUpdate,
         string memory newMetadataUrl
-    ) external onlyRoles(CREATOR) {
+    ) external onlyRoles(BANISHER | CREATOR) {
         // Require non-empty metadata URL
         if (bytes(newMetadataUrl).length == 0) {
             revert InvalidMetadata();
@@ -159,7 +191,7 @@ contract CreatorArtistMagic is
 
         FameMirror mirror = fame.fameMirror();
 
-        // Verify CREATOR owns the token
+        // Verify BANISHER owns the token
         if (mirror.ownerOf(tokenIdToUpdate) != msg.sender) {
             revert TokenNotOwned();
         }
@@ -189,34 +221,29 @@ contract CreatorArtistMagic is
     }
 
     /**
-     * @notice Banish a token's metadata to the mint pool
-     * @dev Takes a token that the CREATOR owns and banishes the metadata to the mint pool
-     * @dev The mint pool contains tokens that have never been minted by the FAME DN404 contract
-     * @param tokenIdToUpdate The token ID to update with mint pool metadata
-     * @param tokenIdFromMintPool The token ID from the mint pool to use for metadata
+     * @notice Banish a token's metadata to the Mint Pool via bidirectional swap
+     * @dev Swaps metadata between owned token and an unminted Mint Pool token
+     * @dev Mint Pool contains tokens with metadata that were never minted:
+     *      - ownerOf(tokenId) reverts (never existed)
+     *      - tokenId > totalNFTSupply (never been minted)
+     *      - tokenId < nextTokenId (has metadata from childRenderer)
+     *      - tokenId not in art pool
+     * @param tokenIdToUpdate The token ID owned by CREATOR to update
+     * @param tokenIdFromMintPool The Mint Pool token ID to swap metadata with
      */
     function banishToMintPool(
         uint256 tokenIdToUpdate,
         uint256 tokenIdFromMintPool
-    ) external onlyRoles(CREATOR) {
+    ) external onlyRoles(BANISHER | CREATOR) {
         FameMirror mirror = fame.fameMirror();
 
-        // Verify CREATOR owns the token to update
+        // Verify BANISHER owns the token to update
         if (mirror.ownerOf(tokenIdToUpdate) != msg.sender) {
             revert TokenNotOwned();
         }
 
-        // Get DN404 storage to calculate mint pool boundaries correctly
-        (
-            uint32 burnedPoolHead,
-            uint32 burnedPoolTail,
-            uint32 totalNFTSupply
-        ) = getDN404Storage();
-        uint256 maxNFTSupply = getMaxNFTSupply();
-
-        // Mint pool starts at totalNFTSupply + (burnedPoolTail - burnedPoolHead)
-        uint256 mintPoolStart = uint256(totalNFTSupply) +
-            uint256(burnedPoolTail - burnedPoolHead);
+        // Mint pool starts after all minted tokens (including space for burned tokens)
+        uint256 mintPoolStart = getTotalNFTSupply() + 1;
 
         // Verify tokenIdFromMintPool is in the mint pool (never been minted, has metadata)
         if (
@@ -251,19 +278,22 @@ contract CreatorArtistMagic is
     }
 
     /**
-     * @notice Banish a token's metadata to the burn pool
-     * @dev Takes a token that the CREATOR owns and banishes the metadata to the burn pool
-     * @dev The burn pool contains tokens that have been burned and are no longer in circulation
-     * @param tokenIdToUpdate The token ID to update with burn pool metadata
-     * @param tokenIdFromBurnPool The token ID from the burn pool to use for metadata
+     * @notice Banish a token's metadata to the Burn Pool via bidirectional swap
+     * @dev Swaps metadata between owned token and a burned Burn Pool token
+     * @dev Burn Pool contains tokens that were minted but then burned:
+     *      - ownerOf(tokenId) reverts (because burned)
+     *      - tokenId <= totalNFTSupply (was minted at some point)
+     *      - tokenId not in art pool
+     * @param tokenIdToUpdate The token ID owned by CREATOR to update
+     * @param tokenIdFromBurnPool The Burn Pool token ID to swap metadata with
      */
     function banishToBurnPool(
         uint256 tokenIdToUpdate,
         uint256 tokenIdFromBurnPool
-    ) external onlyRoles(CREATOR) {
+    ) external onlyRoles(BANISHER | CREATOR) {
         FameMirror mirror = fame.fameMirror();
 
-        // Verify CREATOR owns the token to update
+        // Verify BANISHER owns the token to update
         if (mirror.ownerOf(tokenIdToUpdate) != msg.sender) {
             revert TokenNotOwned();
         }
@@ -289,6 +319,34 @@ contract CreatorArtistMagic is
     }
 
     /**
+     * @notice Update the metadata for a token
+     * @param tokenId The token ID to update
+     * @param newMetadataUrl The new metadata URL to assign to the token
+     */
+    function updateMetadata(
+        uint256 tokenId,
+        string memory newMetadataUrl
+    ) external onlyRoles(CREATOR) {
+        // Require non-empty metadata URL
+        if (bytes(newMetadataUrl).length == 0) {
+            revert InvalidMetadata();
+        }
+
+        // Get or create metadata ID for the token's current metadata (preserves it in registry)
+        uint16 originalMetadataId = _getOrCreateMetadataId(tokenId);
+
+        // Create new metadata ID for the new metadata
+        uint16 newMetadataId = nextMetadataId++;
+        metadataRegistry[newMetadataId] = newMetadataUrl;
+
+        // Assign new metadata to the token
+        tokenMetadata.set(tokenId, newMetadataId);
+
+        // Emit metadata update for the token
+        fame.emitMetadataUpdate(tokenId);
+    }
+
+    /**
      * @notice Get the total NFT supply from the Fame contract
      * @return The total number of NFTs that have been minted
      */
@@ -311,177 +369,122 @@ contract CreatorArtistMagic is
     }
 
     /**
-     * @notice Read DN404 storage to get burn pool information
-     * @dev Reads the packed storage slot containing burn pool data
-     * @return burnedPoolHead The head pointer of the burned pool
-     * @return burnedPoolTail The tail pointer of the burned pool
-     * @return totalNFTSupply The total number of NFTs that have been minted
-     */
-    function getDN404Storage()
-        public
-        view
-        returns (
-            uint32 burnedPoolHead,
-            uint32 burnedPoolTail,
-            uint32 totalNFTSupply
-        )
-    {
-        // DN404 storage slot is at 0xa20d6e21d0e5255308
-        bytes32 slot = bytes32(uint256(0xa20d6e21d0e5255308));
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        // Extract packed data:
-        // burnedPoolHead at bits 64-95 (32 bits)
-        // burnedPoolTail at bits 96-127 (32 bits)
-        // totalNFTSupply at bits 128-159 (32 bits)
-        uint256 packedData = uint256(data);
-        burnedPoolHead = uint32((packedData >> 64) & 0xFFFFFFFF);
-        burnedPoolTail = uint32((packedData >> 96) & 0xFFFFFFFF);
-        totalNFTSupply = uint32((packedData >> 128) & 0xFFFFFFFF);
-    }
-
-    /**
-     * @notice Get the burned pool head pointer
-     * @return The head pointer of the burned pool
-     */
-    function getBurnedPoolHead() public view returns (uint32) {
-        (uint32 burnedPoolHead, , ) = getDN404Storage();
-        return burnedPoolHead;
-    }
-
-    /**
-     * @notice Get the burned pool tail pointer
-     * @return The tail pointer of the burned pool
-     */
-    function getBurnedPoolTail() public view returns (uint32) {
-        (, uint32 burnedPoolTail, ) = getDN404Storage();
-        return burnedPoolTail;
-    }
-
-    /**
-     * @notice Get the total number of burned tokens in the pool
-     * @return The number of tokens in the burned pool
-     */
-    function getBurnedPoolSize() public view returns (uint32) {
-        (uint32 burnedPoolHead, uint32 burnedPoolTail, ) = getDN404Storage();
-        return burnedPoolTail - burnedPoolHead;
-    }
-
-    /**
-     * @notice Get the actual mint pool start (accounts for burned tokens)
-     * @return The starting index of the mint pool
+     * @notice Get the Mint Pool start boundary
+     * @dev Mint Pool range: (totalNFTSupply, nextTokenId) - tokens with metadata but never minted
+     * @return The starting index of the Mint Pool (totalNFTSupply + 1)
      */
     function getMintPoolStart() public view returns (uint256) {
-        (
-            uint32 burnedPoolHead,
-            uint32 burnedPoolTail,
-            uint32 totalNFTSupply
-        ) = getDN404Storage();
-        return
-            uint256(totalNFTSupply) + uint256(burnedPoolTail - burnedPoolHead);
+        return getTotalNFTSupply() + 1;
     }
 
+    /**
+     * @notice Get the Mint Pool end boundary (exclusive)
+     * @dev Also serves as the End of Mint Pool start boundary
+     * @return The ending index of the Mint Pool (nextTokenId)
+     */
     function getMintPoolEnd() public view returns (uint256) {
         return nextTokenId;
     }
 
     /**
-     * @notice Read a specific burned token ID from the burned pool at the given index
-     * @param poolIndex The index within the burned pool to read from
-     * @return The token ID at the specified index in the burned pool
-     */
-    function getBurnedTokenAtIndex(
-        uint32 poolIndex
-    ) public view returns (uint32) {
-        (uint32 burnedPoolHead, uint32 burnedPoolTail, ) = getDN404Storage();
-        require(
-            poolIndex >= burnedPoolHead && poolIndex < burnedPoolTail,
-            "Index out of bounds"
-        );
-
-        // DN404 burnedPool mapping is at slot 9 relative to base storage
-        bytes32 baseSlot = bytes32(uint256(0xa20d6e21d0e5255308));
-        bytes32 mapSlot = bytes32(uint256(baseSlot) + 9);
-
-        // Calculate storage slot for burnedPool[poolIndex]
-        // burnedPool uses packed storage: 8 uint32 values per slot
-        bytes32 slot = bytes32(uint256(mapSlot) * (2 ** 96) + poolIndex / 8);
-        bytes32 data;
-
-        assembly {
-            data := sload(slot)
-        }
-
-        // Extract the uint32 value at the correct position within the slot
-        uint256 offset = (poolIndex % 8) * 32; // 32 bits per uint32
-        return uint32((uint256(data) >> offset) & 0xFFFFFFFF);
-    }
-
-    /**
-     * @notice Get all burned token IDs (convenience method for debugging/inspection)
-     * @return An array containing all token IDs in the burned pool
-     */
-    function getAllBurnedTokens() public view returns (uint32[] memory) {
-        (uint32 burnedPoolHead, uint32 burnedPoolTail, ) = getDN404Storage();
-        uint32 poolSize = burnedPoolTail - burnedPoolHead;
-
-        if (poolSize == 0) {
-            return new uint32[](0);
-        }
-
-        uint32[] memory burnedTokens = new uint32[](poolSize);
-
-        for (uint32 i = 0; i < poolSize; i++) {
-            burnedTokens[i] = getBurnedTokenAtIndex(burnedPoolHead + i);
-        }
-
-        return burnedTokens;
-    }
-
-    /**
-     * @notice Check if a token ID exists in the burned pool
+     * @notice Check if a token ID exists in the Burn Pool
+     * @dev Uses ownerOf() revert pattern to detect burned tokens
+     * @dev Burn Pool criteria:
+     *      - ownerOf(tokenId) reverts (because burned)
+     *      - tokenId <= totalNFTSupply (was minted at some point)
+     *      - tokenId not in art pool (265-419)
      * @param tokenId The token ID to check
-     * @return True if the token is in the burned pool, false otherwise
+     * @return True if the token is in the Burn Pool, false otherwise
      */
     function isTokenInBurnedPool(uint256 tokenId) public view returns (bool) {
-        (uint32 burnedPoolHead, uint32 burnedPoolTail, ) = getDN404Storage();
-
-        // If burn pool is empty, token is not in it
-        if (burnedPoolHead == burnedPoolTail) {
+        // Token must be within minted range
+        if (tokenId == 0 || tokenId > getTotalNFTSupply()) {
             return false;
         }
 
-        // DN404 burnedPool mapping is at slot 9 relative to base storage
-        bytes32 baseSlot = bytes32(uint256(0xa20d6e21d0e5255308));
-        bytes32 mapSlot = bytes32(uint256(baseSlot) + 9);
-
-        // Iterate through burned pool indices
-        for (uint32 i = burnedPoolHead; i < burnedPoolTail; i++) {
-            // Calculate storage slot for burnedPool[i]
-            // burnedPool uses packed storage: 8 uint32 values per slot
-            bytes32 slot = bytes32(uint256(mapSlot) * (2 ** 96) + i / 8);
-            bytes32 data;
-
-            assembly {
-                data := sload(slot)
-            }
-
-            // Extract the uint32 value at the correct position within the slot
-            uint256 offset = (i % 8) * 32; // 32 bits per uint32
-            uint32 burnedTokenId = uint32(
-                (uint256(data) >> offset) & 0xFFFFFFFF
-            );
-
-            if (burnedTokenId == tokenId) {
-                return true;
-            }
+        // Token must not be in art pool range
+        if (tokenId >= ART_POOL_START_INDEX && tokenId <= ART_POOL_END_INDEX) {
+            return false;
         }
 
-        return false;
+        FameMirror mirror = fame.fameMirror();
+
+        // If ownerOf reverts, token is burned
+        try mirror.ownerOf(tokenId) returns (address) {
+            return false; // Token has owner, not burned
+        } catch {
+            return true; // Token reverts, therefore burned
+        }
+    }
+
+    /**
+     * @notice Check if a token ID exists in the Mint Pool
+     * @dev Mint Pool criteria:
+     *      - ownerOf(tokenId) reverts (never existed)
+     *      - tokenId > totalNFTSupply (never been minted)
+     *      - tokenId < nextTokenId (has metadata from childRenderer)
+     *      - tokenId not in art pool
+     * @param tokenId The token ID to check
+     * @return True if the token is in the Mint Pool, false otherwise
+     */
+    function isTokenInMintPool(uint256 tokenId) public view returns (bool) {
+        uint256 totalSupply = getTotalNFTSupply();
+
+        // Must be beyond minted range
+        if (tokenId <= totalSupply) {
+            return false;
+        }
+
+        // Must be within revealed range
+        if (tokenId >= nextTokenId) {
+            return false;
+        }
+
+        // Must not be in art pool (though in production this check is redundant)
+        if (tokenId >= ART_POOL_START_INDEX && tokenId <= ART_POOL_END_INDEX) {
+            return false;
+        }
+
+        FameMirror mirror = fame.fameMirror();
+
+        // ownerOf must revert (token never existed)
+        try mirror.ownerOf(tokenId) returns (address) {
+            return false; // Token exists, not in mint pool
+        } catch {
+            return true; // Token never existed = valid for mint pool
+        }
+    }
+
+    /**
+     * @notice Check if a token ID exists in the End of Mint Pool
+     * @dev End of Mint Pool criteria:
+     *      - tokenId >= nextTokenId (unrevealed range)
+     *      - ownerOf(tokenId) reverts (never existed)
+     *      - tokenId not in art pool (in production, always true)
+     * @param tokenId The token ID to check
+     * @return True if the token is in the End of Mint Pool, false otherwise
+     */
+    function isTokenInEndOfMintPool(
+        uint256 tokenId
+    ) public view returns (bool) {
+        // Must be in unrevealed range
+        if (tokenId < nextTokenId) {
+            return false;
+        }
+
+        // Must not be in art pool (in production, always true since nextTokenId > 419)
+        if (tokenId >= ART_POOL_START_INDEX && tokenId <= ART_POOL_END_INDEX) {
+            return false;
+        }
+
+        FameMirror mirror = fame.fameMirror();
+
+        // ownerOf must revert (token never existed)
+        try mirror.ownerOf(tokenId) returns (address) {
+            return false; // Token exists, not in end of mint pool
+        } catch {
+            return true; // Token never existed = valid for end of mint pool
+        }
     }
 
     /**
