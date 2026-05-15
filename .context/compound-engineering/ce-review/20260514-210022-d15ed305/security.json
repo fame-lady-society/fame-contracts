@@ -1,1 +1,0 @@
-{"reviewer":"security","findings":[],"residual_risks":["Static review only; tests were not run because the request prohibited mutating project files beyond this artifact, and Foundry/Bun verification can update local build/cache outputs."],"testing_gaps":[]}
