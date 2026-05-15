@@ -1,0 +1,29 @@
+{
+  "lib/dn404": {
+    "rev": "e353170f8752581f592ec4c9ab26d3951c189c18"
+  },
+  "lib/forge-std": {
+    "rev": "bb4ceea94d6f10eeb5b41dc2391c6c8bf8e734ef"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "1c3d6c97f7469721b9c683706c88558d544fc0da"
+  },
+  "lib/openzeppelin-contracts-5": {
+    "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+  },
+  "lib/solady": {
+    "rev": "bb4b43b44bec3c5d42604c08904bca0442e0bc78"
+  },
+  "lib/token-vesting-contracts": {
+    "rev": "cbd985da1039256954e81241882ce544db2c6f30"
+  },
+  "lib/v2-core": {
+    "rev": "4dd59067c76dea4a0e8e4bfdda41877a6b16dedc"
+  },
+  "lib/v3-core": {
+    "rev": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
+  },
+  "lib/v3-periphery": {
+    "rev": "80f26c86c57b8a5e4b913f42844d4c8bd274d058"
+  }
+}

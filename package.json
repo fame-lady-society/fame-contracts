@@ -9,7 +9,12 @@
   "type": "module",
   "scripts": {
     "nodets": "node --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));'",
-    "build:fountain": "esbuild src/fountain/index.js --bundle --outfile=out/fountain/index.js --format=iife --global-name=ThreeParticleFountain --minify"
+    "build:fountain": "esbuild src/fountain/index.js --bundle --outfile=out/fountain/index.js --format=iife --global-name=ThreeParticleFountain --minify",
+    "router:generate": "bun run --cwd router-ts generate",
+    "router:generate:check": "bun run --cwd router-ts generate:check",
+    "router:test": "bun run --cwd router-ts test",
+    "router:typecheck": "bun run --cwd router-ts typecheck",
+    "router:verify": "bun run --cwd router-ts verify"
   },
   "dependencies": {
     "@irys/sdk": "^0.2.6",

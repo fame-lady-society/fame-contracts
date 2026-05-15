@@ -2,6 +2,8 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+optimizer = true
+fs_permissions = [{ access = "read", path = "./test/router/fixtures" }]
 remappings = [
   "forge-std=lib/forge-std/src",
   "solady=lib/solady/src",
@@ -17,6 +19,10 @@ remappings = [
 
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC}"
+base = "${BASE_RPC}"
+base_sepolia = "${BASE_SEPOLIA_RPC}"
 
 [etherscan]
 sepolia = { key = "${ETHERSCAN_API_KEY}" }
+base = { key = "${BASE_ETHERSCAN_API_KEY}" }
+base_sepolia = { key = "${BASE_ETHERSCAN_API_KEY}" }

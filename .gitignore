@@ -2,12 +2,11 @@
 cache/
 out/
 
-# Ignores development broadcast logs
-!/broadcast
-/broadcast/*/31337/
-/broadcast/*/11155111/
-/broadcast/**/dry-run/
+# Foundry broadcast logs are generated deployment output and must not be committed.
+broadcast/
 
+# Compound Engineering local workflow artifacts are agent/runtime state, not source.
+.context/compound-engineering/
 
 # Dotenv file
 .env
