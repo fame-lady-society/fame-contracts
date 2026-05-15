@@ -1,0 +1,88 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Universal Router wrapper can route output around fee settlement and satisfy the router with dust",
+      "severity": "P1",
+      "file": "src/router/adapters/UniversalRouterAdapter.sol",
+      "line": 19,
+      "confidence": 0.86,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "The raw Universal Router guard only rejects route data whose first four bytes equal execute(bytes,bytes[],uint256), then delegates everything else to an owner-enabled target's executeLeg hook. Concrete chain: governance enables a V3/V4 wrapper target; a user-supplied route provides wrapper-shaped data containing nested Universal Router commands that pay the real swap output directly to the route recipient and send only 1 wei of tokenOut back to FameRouter; _dispatch succeeds, _executeLeg measures only the 1 wei router balance delta, and executeRoute charges the community fee on that dust before transferring it. The recipient keeps the direct Universal Router output, but the router's fee and final minimum accounting only saw the dust. This violates the documented requirement that Universal Router payer/recipient/sweep/wrap/unwrap semantics be constrained to preserve router custody.",
+      "evidence": [
+        "src/router/adapters/UniversalRouterAdapter.sol:19-24 checks only the top-level data prefix and then calls IRouterLegExecutor(target).executeLeg instead of decoding or constructing a constrained Universal Router command set.",
+        "src/FameRouter.sol:101-111 computes grossAmountOut and the fee only from route-local tokenOut held by FameRouter after all legs, so any output paid directly by the enabled wrapper to the user is outside fee settlement.",
+        "docs/brainstorms/2026-05-11-fame-multi-leg-router-requirements.md requires raw Universal Router commands to be rejected and allowed commands to constrain payer, recipient, sweep, unwrap/wrap, and Permit2 semantics; the current adapter does not inspect nested commands at all."
+      ],
+      "suggested_fix": "Do not accept generic wrapper data for V3/V4. Decode structured V3/V4 payloads, build the Universal Router commands internally, and assert payer, recipient, sweep, unwrap/wrap, hook data, and Permit2 semantics keep all output in router custody until final settlement."
+    },
+    {
+      "title": "Post-fee minimum can pass while a transfer-tax tokenOut under-delivers to the recipient",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 101,
+      "confidence": 0.84,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "The router checks minAmountOutAfterFee against its own tokenOut balance before making the fee and recipient transfers. Concrete chain: a route produces 100 units of a fee-on-transfer tokenOut into FameRouter; feePpm computes a 0.2222 unit fee and netAmountOut passes the user's minimum; _transferAsset sends the fee and net amounts, but tokenOut burns or redirects part of the recipient transfer. The transaction can succeed while the recipient's actual balance delta is below minAmountOutAfterFee, because no post-transfer recipient delta is measured.",
+      "evidence": [
+        "src/FameRouter.sol:101-106 calculates grossAmountOut, feeAmount, netAmountOut, and checks the final minimum before settlement.",
+        "src/FameRouter.sol:108-111 transfers feeAmount and netAmountOut without checking fee-recipient or recipient balance deltas after the token transfer side effects.",
+        "test/router/FameRouter.t.sol uses MockERC20 with standard transfer semantics only, so this chain is not excluded by current tests."
+      ],
+      "suggested_fix": "Either restrict launch fixtures to standard-transfer final output tokens or measure the recipient's tokenOut/native balance delta across settlement and require the delivered net delta to meet minAmountOutAfterFee."
+    },
+    {
+      "title": "Native ETH leftovers can make otherwise successful contract-sender routes revert after settlement checks",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 269,
+      "confidence": 0.78,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "Successful routes refund every route-local leftover asset to msg.sender after fee and net output settlement. Concrete chain: an account-abstraction wallet, Safe module, or other contract sender submits a multi-leg route where an intermediate native-ETH leg leaves dust; all leg minimums and the final minimum pass; then _refundRouteLocalLeftovers tries to safeTransferETH that dust to msg.sender. If the contract sender has no payable receive path or deliberately rejects ETH, the refund reverts and unwinds the whole route. The user cannot opt into leaving or redirecting native dust, so native ETH dust becomes an integration-level denial condition.",
+      "evidence": [
+        "src/FameRouter.sol:112 calls _refundRouteLocalLeftovers only after output fee and recipient transfers have been attempted.",
+        "src/FameRouter.sol:269-274 refunds every positive route-local balance to msg.sender, including address(0) native ETH.",
+        "src/FameRouter.sol:296-300 uses SafeTransferLib.safeTransferETH for native refunds, which reverts when the receiver rejects ETH."
+      ],
+      "suggested_fix": "Add an explicit refund recipient, allow native dust to be wrapped to WETH, or make route construction reject native-leftover paths for non-payable senders."
+    },
+    {
+      "title": "Launch validation can pass a hand-edited manifest without proving fixture parity or route executability",
+      "severity": "P1",
+      "file": "script/ValidateFameRouterBase.s.sol",
+      "line": 24,
+      "confidence": 0.9,
+      "autofix_class": "manual",
+      "owner": "release",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "The Base validation script treats a hardcoded Solidity manifest boolean as the fixture gate. Concrete chain: the JSON fixture files are filled incorrectly, drift from www, or remain empty while FameRouterFixtureManifest is manually changed to nonzero counts with zero pending fixtures; ValidateFameRouterBase checks fee recipient, fee ppm, skip-NFT, and isLaunchable, then exits successfully without parsing the JSON manifests, checking snapshot hashes against file contents, verifying enabled venue targets, validating pool metadata, or executing/simulating any route. A release operator can get a green validation run while the documented launch requirements are still missing.",
+      "evidence": [
+        "script/ValidateFameRouterBase.s.sol:24-28 reads only the deployed router config, Fame.getSkipNFT, and FameRouterFixtureManifest.isLaunchable().",
+        "test/router/fixtures/FameRouterFixtureManifest.sol:16-37 derives launchability from hardcoded counts, not from base-v1-pools.json or base-v1-routes.json contents.",
+        "test/router/fixtures/base-v1-pools.json and test/router/fixtures/base-v1-routes.json currently contain empty fixture arrays plus pending-name lists, demonstrating that the source-of-truth data and Solidity manifest are manually synchronized rather than mechanically checked."
+      ],
+      "suggested_fix": "Make validation manifest-driven: parse the JSON fixtures or generate the Solidity manifest from them, compare a content hash, require a pinned Base block, verify every pool/target metadata entry, execute or simulate every route fixture, and fail if www's snapshot hash/schema is not the same artifact."
+    }
+  ],
+  "residual_risks": [
+    "The actual production V3/V4 wrapper or adapter implementation is not present, so the Universal Router finding is framed around the enabled-target boundary the current contract exposes.",
+    "The router unit tests passed, but the router fork smoke test could not complete because this environment could not resolve the configured Base RPC host.",
+    "Production fixture data is still pending, so route-specific pool, hook, Permit2, native ETH, and FAME DN404 behavior remains unproven."
+  ],
+  "testing_gaps": [
+    "No malicious enabled-target test covers direct-recipient output plus router dust to demonstrate fee-accounting bypass.",
+    "No fee-on-transfer or malicious tokenOut test measures recipient balance deltas after final settlement.",
+    "No contract-sender native ETH leftover refund test covers non-payable msg.sender behavior.",
+    "No validation harness proves JSON fixture contents, manifest constants, www parity, enabled targets, and live route execution all agree."
+  ]
+}

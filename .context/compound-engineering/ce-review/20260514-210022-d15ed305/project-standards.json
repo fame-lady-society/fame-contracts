@@ -1,0 +1,46 @@
+{
+  "reviewer": "project-standards",
+  "base": "1f6086a8570c33d9a54a43abcbec9f0b17bd389a",
+  "intent": "add FAME multi-leg router, generated route artifacts, native WETH/Aerodrome V2 support, deploy validation, docs/todos",
+  "standards_paths": [
+    "AGENTS.md"
+  ],
+  "findings": [
+    {
+      "id": "PS-001",
+      "severity": "P3",
+      "title": "Router source duplicates the public fee-recipient deployment constant outside config/fame-public.env",
+      "file": "src/FameRouter.sol",
+      "line": 19,
+      "rule": {
+        "path": "AGENTS.md",
+        "line": 6,
+        "quote": "Keep public deployment constants in `config/fame-public.env`."
+      },
+      "violation": "The diff adds `address public constant DEFAULT_FEE_RECIPIENT = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;` in router source, while the same public deployment value is already defined as `BASE_FAME_ROUTER_FEE_RECIPIENT` in `config/fame-public.env`.",
+      "why_it_matters": "This creates a second canonical location for a deployment-specific address. Even though the deploy script correctly reads `BASE_FAME_ROUTER_FEE_RECIPIENT`, the Solidity constant can drift from the public config or be treated by integrators as the authoritative launch value.",
+      "evidence": [
+        {
+          "path": "src/FameRouter.sol",
+          "line": 19,
+          "excerpt": "address public constant DEFAULT_FEE_RECIPIENT = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;"
+        },
+        {
+          "path": "config/fame-public.env",
+          "line": 38,
+          "excerpt": "BASE_FAME_ROUTER_FEE_RECIPIENT=0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D"
+        }
+      ],
+      "suggested_fix": "Remove the unused `DEFAULT_FEE_RECIPIENT` constant from `FameRouter` and keep the launch fee recipient exclusively in `config/fame-public.env` plus the deploy/validation scripts that read it.",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": false,
+      "confidence": 0.86,
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [
+    "Review was limited to AGENTS.md compliance over the current branch diff; it did not attempt to prove the operational correctness of the deployed router or generated route artifacts."
+  ],
+  "testing_gaps": []
+}

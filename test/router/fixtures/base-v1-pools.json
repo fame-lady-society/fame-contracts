@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "status": "launchable-pinned-fork-validated",
+  "pinnedBaseBlock": 45884844,
+  "source": "../www/src/features/fame/swap",
+  "pools": [
+    {
+      "id": "scale-equalizer-weth-fame",
+      "venue": "solidly",
+      "router": "0x2f87bf58d5a9b2efade55cdbd46153a0902be6fa",
+      "pool": "0x0db3a3228520fc31162c24f1b47177255cc1b82e",
+      "token0": "0x4200000000000000000000000000000000000006",
+      "token1": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "stable": false,
+      "feeBps": 100
+    },
+    {
+      "id": "scale-equalizer-frxusd-fame",
+      "venue": "solidly",
+      "router": "0x2f87bf58d5a9b2efade55cdbd46153a0902be6fa",
+      "pool": "0xeded4e8790e01199da13dfec93bf5432f1980489",
+      "token0": "0xe5020a6d073a794b6e7f05678707de47986fb0b6",
+      "token1": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "stable": false,
+      "feeBps": 100
+    },
+    {
+      "id": "scale-equalizer-usdc-frxusd",
+      "venue": "solidly",
+      "router": "0x2f87bf58d5a9b2efade55cdbd46153a0902be6fa",
+      "pool": "0x65d26744882857b08b69dd0b857246fda0ed5276",
+      "token0": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "token1": "0xe5020a6d073a794b6e7f05678707de47986fb0b6",
+      "stable": true,
+      "feeBps": 4
+    },
+    {
+      "id": "scale-equalizer-scale-fame",
+      "venue": "solidly",
+      "router": "0x2f87bf58d5a9b2efade55cdbd46153a0902be6fa",
+      "pool": "0xbbf6e67f14ed21884d9e12505a9b979fc42808be",
+      "token0": "0x54016a4848a38f257b6e96331f7404073fd9c32c",
+      "token1": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "stable": false,
+      "feeBps": 100
+    },
+    {
+      "id": "scale-equalizer-usdc-scale",
+      "venue": "solidly",
+      "router": "0x2f87bf58d5a9b2efade55cdbd46153a0902be6fa",
+      "pool": "0xd467b1bb20e9c5569ad8bc91d2236a8ceb574075",
+      "token0": "0x54016a4848a38f257b6e96331f7404073fd9c32c",
+      "token1": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "stable": false,
+      "feeBps": 100
+    },
+    {
+      "id": "uniswap-v2-fame-direct",
+      "venue": "uniswap-v2",
+      "router": "0x4752ba5dbc23f44d87826276bf6fd6b1c372ad24",
+      "pool": "0x3e2cab55bebf41719148b4e6b63f6644b18ae49c",
+      "token0": "0x4200000000000000000000000000000000000006",
+      "token1": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "feeBps": 30
+    },
+    {
+      "id": "aerodrome-v2-usdc-weth",
+      "venue": "aerodrome-v2",
+      "router": "0xcf77a3ba9a5ca399b7c97c74d54e5b1beb874e43",
+      "factory": "0x420dd381b31aef6683db6b902084cb0ffece40da",
+      "pool": "0xcdac0d6c6c59727a65f871236188350531885c43",
+      "token0": "0x4200000000000000000000000000000000000006",
+      "token1": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "stable": false,
+      "feeBps": 30
+    },
+    {
+      "id": "slipstream-basedflick-fame",
+      "venue": "aerodrome-slipstream",
+      "router": "0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5",
+      "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+      "pool": "0xbd7e5bb5a6251f6dde2cf56afa50ed0c8b4c2cdb",
+      "token0": "0x15e012abf9d32cd67fc6cf480ea0e318e9ed5926",
+      "token1": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "tickSpacing": 2000,
+      "feeBps": 100
+    },
+    {
+      "id": "slipstream-spx-weth",
+      "venue": "aerodrome-slipstream",
+      "router": "0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5",
+      "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+      "pool": "0x4ba1e3e9280facbacafa7baf4ae0b78bea60beca",
+      "token0": "0x4200000000000000000000000000000000000006",
+      "token1": "0x50da645f148798f68ef2d7db7c1cb22a6819bb2c",
+      "tickSpacing": 200,
+      "feeBps": 25
+    },
+    {
+      "id": "slipstream-usdc-frxusd",
+      "venue": "aerodrome-slipstream",
+      "router": "0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5",
+      "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+      "pool": "0xd3d9f0f7d0d477e0a19222965b59233ad7f6bc6b",
+      "token0": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "token1": "0xe5020a6d073a794b6e7f05678707de47986fb0b6",
+      "tickSpacing": 1,
+      "feeBps": 5
+    },
+    {
+      "id": "slipstream-msusd-usdc-a",
+      "venue": "aerodrome-slipstream",
+      "router": "0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5",
+      "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+      "pool": "0x7501bc8bb51616f79bfa524e464fb7b41f0b10fb",
+      "token0": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d",
+      "token1": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tickSpacing": 50,
+      "feeBps": 5
+    },
+    {
+      "id": "slipstream-weth-mseth",
+      "venue": "aerodrome-slipstream",
+      "router": "0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5",
+      "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+      "pool": "0x74f72788f4814d7ff3c49b44684aa98eee140c0e",
+      "token0": "0x4200000000000000000000000000000000000006",
+      "token1": "0x7ba6f01772924a82d9626c126347a28299e98c98",
+      "tickSpacing": 50,
+      "feeBps": 5
+    },
+    {
+      "id": "slipstream-zora-usdc",
+      "venue": "aerodrome-slipstream",
+      "router": "0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5",
+      "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+      "pool": "0x3f53f1fd5b7723ddf38d93a584d280b9b94c3111",
+      "token0": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "token1": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tickSpacing": 100,
+      "feeBps": 30
+    },
+    {
+      "id": "slipstream-zora-weth",
+      "venue": "aerodrome-slipstream",
+      "router": "0xbe6d8f0d05cc4be24d5167a3ef062215be6d18a5",
+      "factory": "0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a",
+      "pool": "0xadb8fb846dbd3bd6a23335cee65bb610c1cf0ea3",
+      "token0": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "token1": "0x4200000000000000000000000000000000000006",
+      "tickSpacing": 100,
+      "feeBps": 30
+    },
+    {
+      "id": "slipstream2-msusd-mseth",
+      "venue": "aerodrome-slipstream2",
+      "router": "0xcbbb8035cac7d4b3ca7abb74cf7bdf900215ce0d",
+      "factory": "0xade65c38cd4849adba595a4323a8c7ddfe89716a",
+      "pool": "0x8845126640b36df1d24bf3df9b2903fd4c730fe6",
+      "token0": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d",
+      "token1": "0x7ba6f01772924a82d9626c126347a28299e98c98",
+      "tickSpacing": 200,
+      "feeBps": 5
+    },
+    {
+      "id": "slipstream2-msusd-usdc-c",
+      "venue": "aerodrome-slipstream2",
+      "router": "0xcbbb8035cac7d4b3ca7abb74cf7bdf900215ce0d",
+      "factory": "0xade65c38cd4849adba595a4323a8c7ddfe89716a",
+      "pool": "0x054b67943ba17b2cd8c420544c88bde71a81ef9f",
+      "token0": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d",
+      "token1": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tickSpacing": 1,
+      "feeBps": 5
+    },
+    {
+      "id": "uniswap-v3-zora-usdc",
+      "venue": "uniswap-v3",
+      "router": "0x6ff5693b99212da76ad316178a184ab56d299b43",
+      "pool": "0xedc625b74537ee3a10874f53d170e9c17a906b9c",
+      "token0": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "token1": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "fee": 3000,
+      "tickSpacing": 60
+    },
+    {
+      "id": "uniswap-v3-zora-weth",
+      "venue": "uniswap-v3",
+      "router": "0x6ff5693b99212da76ad316178a184ab56d299b43",
+      "pool": "0xa0ca5bebc42cdbf3623b1c09206ae4e3975b0fc7",
+      "token0": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "token1": "0x4200000000000000000000000000000000000006",
+      "fee": 3000,
+      "tickSpacing": 60
+    },
+    {
+      "id": "uniswap-v4-basedflick-zora",
+      "venue": "uniswap-v4",
+      "router": "0x6ff5693b99212da76ad316178a184ab56d299b43",
+      "poolManager": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+      "stateView": "0xa3c0c9b65bad0b08107aa264b0f3db444b867a71",
+      "poolId": "0x0fe6333346fcd0ffa4be3fda91f271bda52c6755f604b06483b709666d363628",
+      "currency0": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "currency1": "0x15e012abf9d32cd67fc6cf480ea0e318e9ed5926",
+      "fee": 30000,
+      "tickSpacing": 200,
+      "hooks": "0xd61a675f8a0c67a73dc3b54fb7318b4d91409040",
+      "hookData": "0x"
+    },
+    {
+      "id": "uniswap-v4-zora-eth",
+      "venue": "uniswap-v4",
+      "router": "0x6ff5693b99212da76ad316178a184ab56d299b43",
+      "poolManager": "0x498581ff718922c3f8e6a244956af099b2652b2b",
+      "stateView": "0xa3c0c9b65bad0b08107aa264b0f3db444b867a71",
+      "poolId": "0xd694bd7285eeeee19d3d5da38f613859168c422d628def88a0c95dad12071f3a",
+      "currency0": "0x0000000000000000000000000000000000000000",
+      "currency1": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "fee": 3000,
+      "tickSpacing": 60,
+      "hooks": "0x0000000000000000000000000000000000000000"
+    }
+  ],
+  "pendingLaunchBlockingPools": []
+}

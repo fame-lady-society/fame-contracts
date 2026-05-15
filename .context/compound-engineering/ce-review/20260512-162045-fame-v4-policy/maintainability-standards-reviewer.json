@@ -1,0 +1,70 @@
+{
+  "reviewer": "maintainability-project-standards",
+  "findings": [
+    {
+      "severity": "P2",
+      "file": "router-ts/src/catalog/creatorCoins.ts",
+      "line": 26,
+      "title": "Catalog field `poolId` is ambiguous for V4 consumers",
+      "description": "`CreatorCoinCatalogEntry.poolId` currently stores the internal fixture id (`uniswap-v4-basedflick-zora`), while `UniswapV4PoolConfig.poolId` is the canonical bytes32 V4 pool id. The generated catalog now exposes `poolId` as the fixture id and omits the canonical V4 PoolId, which makes the artifact harder to compare against fork metadata and easy to misread once downstream tooling consumes it.",
+      "confidence": 0.87,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "evidence": [
+        "router-ts/src/catalog/creatorCoins.ts:28 defines `poolId: string` on the public catalog entry.",
+        "router-ts/src/catalog/creatorCoins.ts:137 emits `poolId: spec.poolId`, the fixture/config id.",
+        "router-ts/src/compiler/types.ts:161 defines `UniswapV4PoolConfig.poolId: Hex`, the canonical V4 pool id, but it is not emitted."
+      ],
+      "suggested_fix": "Rename the catalog fixture identifier to `poolConfigId` and add a separate `v4PoolId: Hex` populated from the V4 pool config. Regenerate JSON and update TypeScript/Solidity assertions to verify both fields."
+    },
+    {
+      "severity": "P2",
+      "file": "router-ts/src/catalog/creatorCoins.ts",
+      "line": 117,
+      "title": "`non-empty-approved` can overclaim evidence with only non-empty bytes",
+      "description": "The policy goal is to avoid overclaiming non-empty V4 swap `hookData` coverage, but the catalog builder treats any spec marked `non-empty-approved` with `pool.hookData !== \"0x\"` as proof. It does not require a production payload source, local harness label, fork route id, approval hash, or even non-empty evidence. That makes the future escape hatch too easy to misuse and recreates the original problem in a different field.",
+      "confidence": 0.83,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "evidence": [
+        "router-ts/src/catalog/creatorCoins.ts:117 only checks that `non-empty-approved` is not `0x`.",
+        "router-ts/src/catalog/creatorCoins.ts:122 derives `non-empty-swap-hook-data` solely from `swapHookDataPolicy`.",
+        "router-ts/src/catalog/creatorCoins.ts:150 sets `proves.nonEmptySwapHookData` directly from the same policy flag."
+      ],
+      "suggested_fix": "Require explicit non-empty proof metadata before `proves.nonEmptySwapHookData` can be true, such as a production route artifact/fork proof id or a local harness evidence type. Add a negative test where `non-empty-approved` plus arbitrary bytes and empty/diagnostic evidence is rejected."
+    },
+    {
+      "severity": "P3",
+      "file": ".context/compound-engineering/todos/007-pending-p2-prove-non-empty-v4-hook-data-fork-route.md",
+      "line": 101,
+      "title": "Residual non-empty hook-data proof is marked complete without separate tracking",
+      "description": "The updated todo says residual non-empty swap-hook-data proof is either satisfied or separately tracked, but the current diff marks the only related todo complete and no new pending todo exists for the production payload or local harness path. The residual work is mentioned in prose, but it is easy to lose because the durable tracker is closed.",
+      "confidence": 0.78,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": false,
+      "pre_existing": false,
+      "evidence": [
+        ".context/compound-engineering/todos/007-pending-p2-prove-non-empty-v4-hook-data-fork-route.md:2 sets `status: complete`.",
+        ".context/compound-engineering/todos/007-pending-p2-prove-non-empty-v4-hook-data-fork-route.md:101 checks the residual proof/tracking criterion.",
+        "`find .context/compound-engineering/todos -maxdepth 1 -type f -name '*.md'` shows no new pending follow-up for non-empty V4 swap hook-data proof."
+      ],
+      "suggested_fix": "Either create a new pending todo for the narrower non-empty swap-hook-data production/harness proof and link it here, or leave this criterion unchecked/worded as deferred rather than complete."
+    }
+  ],
+  "residual_risks": [
+    "No AGENTS.md secret-handling or portability violation found in the changed docs: references are repo-relative or sibling-reference paths, and the fork command routes the RPC secret through Doppler without printing a value.",
+    "The catalog currently starts from committed pool config and evidence labels; it is not yet a live fleet-style importer/discovery tool. That matches the plan's known-config-first decision but should remain explicit in handoff language.",
+    "Adding required capability fields under schemaVersion 1 is intentionally additive for checked-in artifacts, but exact-schema downstream JSON consumers may need a coordinated update."
+  ],
+  "testing_gaps": [
+    "Verified locally: `bun run --cwd router-ts verify` passed.",
+    "Verified locally: `forge test --match-path test/router/FameRouterGeneratedArtifacts.t.sol -vv` passed.",
+    "Not run in this reviewer pass: Doppler/Base RPC pinned fork suite, including `test_PinnedBaseForkGeneratedSolverRouteTableExecutesEveryRoute`.",
+    "No test covers a positive `non-empty-approved` catalog entry with required production or harness evidence; current tests only reject non-empty bytes under the `empty` policy."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@fame/router-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "bun run typecheck",
+    "generate": "bun run src/artifacts/writeArtifacts.ts",
+    "generate:check": "bun run src/artifacts/writeArtifacts.ts --check",
+    "verify": "bun run typecheck && bun test && bun run generate:check"
+  }
+}

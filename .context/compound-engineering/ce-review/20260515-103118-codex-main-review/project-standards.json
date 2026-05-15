@@ -1,0 +1,9 @@
+{
+  "reviewer": "project-standards",
+  "findings": [],
+  "residual_risks": [
+    "AGENTS.md does not define a protected-pipeline-artifact rule beyond the documented docs/solutions workflow context, so checked-in .context and broadcast artifacts were not treated as violations without a written repository rule.",
+    "This pass was inspection-only apart from writing the requested reviewer artifact; no tests or live Doppler/RPC commands were run."
+  ],
+  "testing_gaps": []
+}

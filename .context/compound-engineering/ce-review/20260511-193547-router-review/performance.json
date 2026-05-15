@@ -1,0 +1,54 @@
+{
+  "persona": "performance",
+  "scope": "Solidity gas/code-size review of src/FameRouter.sol and src/router/**",
+  "findings": [
+    {
+      "title": "Route-local accounting repeatedly linear-scans snapshots on the per-leg hot path",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 188,
+      "confidence": 0.91,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "During snapshot construction, assign each distinct asset a compact index and precompute per-leg tokenIn/tokenOut snapshot indexes. Route-local balance checks can then read snapshots[index].baseline directly instead of calling _baseline's linear scan for every available/before/after/final/refund balance check. Keep the external balanceOf delta invariant, but remove the O(legs * assets) memory scans from _executeLeg and _refundRouteLocalLeftovers."
+    },
+    {
+      "title": "ERC20 balanceOf helper allocates ABI memory for dozens of hot-path balance checks",
+      "severity": "P3",
+      "file": "src/FameRouter.sol",
+      "line": 305,
+      "confidence": 0.84,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Replace abi.encodeWithSelector/staticcall/abi.decode with a small memory-safe assembly staticcall that writes the balanceOf selector and account into scratch memory and reads the first returndata word. This preserves the current tolerant failure behavior while avoiding repeated dynamic bytes allocation across initial snapshots, per-leg checks, final output, and leftover refunds."
+    },
+    {
+      "title": "Exact approve-then-clear pattern adds two external token calls per ERC20 leg",
+      "severity": "P3",
+      "file": "src/FameRouter.sol",
+      "line": 192,
+      "confidence": 0.78,
+      "autofix_class": "gated_auto",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Decide whether every leg must clear allowance immediately, or whether the router can safely batch approvals by token/target for the route and clear once after the last use. If immediate clearing is kept as the security policy, document the gas tradeoff; otherwise precompute last-use indexes and clear only on last use to avoid up to 16 redundant zero approvals on real multi-leg ERC20 routes."
+    },
+    {
+      "title": "Adapter layer duplicates identical executor calls and dispatch branches in deployed bytecode",
+      "severity": "P3",
+      "file": "src/FameRouter.sol",
+      "line": 215,
+      "confidence": 0.87,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Collapse SolidlyRouterAdapter, UniswapV2Adapter, and SlipstreamAdapter into one shared internal executor call path, keeping only the Universal Router raw-command guard as a special case. This removes duplicated internal library code and branch payload while preserving the enabled family/target checks already performed before execution."
+    }
+  ]
+}

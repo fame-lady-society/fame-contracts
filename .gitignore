@@ -2,11 +2,8 @@
 cache/
 out/
 
-# Ignores development broadcast logs
-!/broadcast
-/broadcast/*/31337/
-/broadcast/*/11155111/
-/broadcast/**/dry-run/
+# Foundry broadcast logs are generated deployment output and must not be committed.
+broadcast/
 
 
 # Dotenv file

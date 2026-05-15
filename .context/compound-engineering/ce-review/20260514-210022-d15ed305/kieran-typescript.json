@@ -1,0 +1,10 @@
+{
+  "reviewer": "kieran-typescript",
+  "findings": [],
+  "residual_risks": [
+    "Generated route executability still depends on the pinned Base fork execution suite; this review did not run RPC-backed fork tests."
+  ],
+  "testing_gaps": [
+    "Verified `bun run verify` in `router-ts` and `forge test --match-path test/router/FameRouterGeneratedArtifacts.t.sol`; full generated-route fork execution was not run because it requires Base RPC access."
+  ]
+}

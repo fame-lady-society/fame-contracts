@@ -1,0 +1,65 @@
+{
+  "reviewer": "testing",
+  "findings": [
+    {
+      "title": "Launchable fork gate makes the default Foundry suite depend on live Base RPC",
+      "severity": "P1",
+      "file": "test/router/FameRouterForkBase.t.sol",
+      "line": 84,
+      "confidence": 0.9,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "why_it_matters": "Once the manifest is launchable, `test_BaseForkLaunchGateRequiresPinnedBlockAndRpc` reverts when `BASE_RPC` is missing, while the rest of the fork tests use `vm.skip(true)`. That turns ordinary `forge test` runs without Doppler/RPC into failures instead of keeping pure tests and live fork validation separated.",
+      "evidence": [
+        "Line 84 reads `BASE_RPC`; lines 85-86 revert if it is empty after launchability is true.",
+        "The helper used by the rest of the fork suite skips when `BASE_RPC` is absent, so this one test is the outlier gate."
+      ],
+      "suggested_fix": "Move the hard BASE_RPC requirement behind an explicit launch/live validation test target or profile, and keep the default Foundry suite skip-based when RPC is absent. Add a separate documented command or CI job that requires Doppler/Base RPC and runs the pinned fork gate."
+    },
+    {
+      "title": "Deployment validator mismatch branches are not covered",
+      "severity": "P2",
+      "file": "test/router/FameRouterDeploymentValidation.t.sol",
+      "line": 69,
+      "confidence": 0.86,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "why_it_matters": "The new validation script is a deployment gate, but tests only cover a happy router config plus venue target, skip-NFT, and snapshot failures. The fee recipient, fee ppm, owner, chain id, and live metadata mismatch branches can regress without a test failing.",
+      "evidence": [
+        "`validateRouterConfiguration` has explicit revert branches for chain id, fee recipient, fee ppm, and owner at script/ValidateFameRouterBase.s.sol:77.",
+        "`validateLivePoolMetadata` has token, factory, identity, stable, tick-spacing, and fee mismatch branches at script/ValidateFameRouterBase.s.sol:158, but the suite only calls the happy path on a pinned fork."
+      ],
+      "suggested_fix": "Add targeted negative tests for wrong `BASE_CHAIN_ID`, `BASE_FAME_ROUTER_FEE_RECIPIENT`, `BASE_FAME_ROUTER_FEE_PPM`, and `BASE_FAME_ROUTER_OWNER`. For live metadata, add a small mock/harness path or fixture override that exercises token, factory, stable, fee, and tick-spacing mismatch selectors without depending on mutating the Base fork."
+    },
+    {
+      "title": "Several adapter encoding tests only assert that structured payloads are hex",
+      "severity": "P2",
+      "file": "router-ts/test/adapter-encoding.spec.ts",
+      "line": 28,
+      "confidence": 0.84,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "why_it_matters": "The route artifacts depend on exact ABI shapes, but the Solidly and Slipstream tests would still pass if field order, deadline, stable flag, tick spacing, or router/factory encoding regressed. Fork tests may be skipped without RPC, so pure tests need to catch these schema mistakes.",
+      "evidence": [
+        "The Solidly test at line 28 only checks `payload.startsWith(\"0x\")`.",
+        "The Slipstream test at line 33 only checks `payload.startsWith(\"0x\")` despite the adapter encoding seven typed fields."
+      ],
+      "suggested_fix": "Decode each payload with the expected ABI and assert every behaviorally relevant field. Do the same for Universal Router V3/V4 structured payload tests where they currently rely on hex-shape assertions rather than decoded recipient, payer, amount, pool key, and hook-data fields."
+    }
+  ],
+  "residual_risks": [
+    "Pinned Base route execution still depends on external RPC state and should remain a separately required live-validation step for release.",
+    "Aerodrome V2 has one launchable USDC->WETH fixture path; broader route quality and reverse-direction selection remain outside this contracts test suite unless future supported fixtures add them."
+  ],
+  "testing_gaps": [
+    "Default-vs-live fork test separation for launchable Base validation.",
+    "Negative deployment validation for router config and pool metadata mismatch selectors.",
+    "Decoded ABI assertions for TypeScript adapter payloads instead of hex-shape checks."
+  ]
+}

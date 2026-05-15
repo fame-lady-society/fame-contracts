@@ -1,0 +1,51 @@
+{
+  "reviewer": "testing",
+  "findings": [
+    {
+      "title": "Deploy script target configuration is not asserted by the deploy test",
+      "severity": "P2",
+      "file": "test/router/FameRouterDeploymentValidation.t.sol",
+      "line": 21,
+      "confidence": 0.86,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Extend test_DeployConfiguredRouterRequiresLaunchableManifest to iterate FameRouterFixtureManifest.requiredVenueTargetCount() on the returned router and assert every required family and target is enabled, including NativeWrap/WETH and AerodromeV2. Also assert feeRecipient and feePpm on the deployed router so deployConfiguredRouter is covered as the production materialization path, not only as an owner-transfer smoke test."
+    },
+    {
+      "title": "Production materialization rejection branches are only partially tested",
+      "severity": "P3",
+      "file": "router-ts/src/materializeRoute.ts",
+      "line": 126,
+      "confidence": 0.78,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add router-ts tests for deadline <= now, nonzero NativeWrap leg minimums, and zero quote-derived minimums on non-NativeWrap swap legs. The existing tests cover long-lived deadlines, zero final minimums, and missing leg-minimum count, but not these new guard branches that protect production route materialization."
+    },
+    {
+      "title": "Public config secret-safety policy has no automated assertion",
+      "severity": "P3",
+      "file": "config/fame-public.env",
+      "line": 3,
+      "confidence": 0.72,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add a lightweight test or verification script that scans config/fame-public.env for forbidden secret-shaped variable names and values, such as RPC URLs, PRIVATE_KEY, MNEMONIC, API_KEY, SNIPE keys, and 64-hex private-key literals. Wire it into the local verification path so the documented Doppler/public-config split is enforced, not just stated in comments."
+    }
+  ],
+  "residual_risks": [
+    "The fork suites provide the meaningful Base, NativeWrap, and Aerodrome V2 execution proof, but they depend on BASE_RPC and will skip most route execution tests when that secret is absent. The launch-gate test intentionally fails when the manifest is launchable and BASE_RPC is missing, so CI must include that test path to avoid silent fork coverage loss.",
+    "I did not run tests because this review was requested with read-only commands only. The findings are based on static inspection of the diff artifact, source, and tests."
+  ],
+  "testing_gaps": [
+    "No deploy-script test proves deployConfiguredRouter enables every manifest-required venue family/target on the returned router.",
+    "No router-ts production materialization tests cover expired deadlines, nonzero NativeWrap production minimums, or zero non-NativeWrap leg minimums.",
+    "No automated secret-safety assertion currently enforces that config/fame-public.env remains public-only.",
+    "Aerodrome V2 has unit and fork coverage, but the pure unit tests still rely on a permissive mock venue; the real ABI/factory behavior is only proven by the Base fork suite."
+  ]
+}

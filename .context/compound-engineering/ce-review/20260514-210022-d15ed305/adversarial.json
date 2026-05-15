@@ -1,0 +1,69 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Fork-evidence route artifacts can be lifted into live swaps with a one-wei floor",
+      "severity": "P1",
+      "file": "router-ts/src/compiler/compileRoute.ts",
+      "line": 211,
+      "confidence": 0.86,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "The generated solver routes include complete executable route objects, ABI-encoded calldata, route hashes, real Base targets, and descriptions such as \"Composed production route\", but the compiler hardcodes final and downstream leg minimums to 1 for most multi-leg paths and uses a deterministic deadline in year 2100. Concrete chain: a release script, frontend importer, or operator consumes base-v1-solver-routes.json because it contains route.route, abiEncodedRoute, callValue, and production-looking descriptions; the route is submitted on mainnet after prices move or under sandwich pressure; executeRoute accepts any output above 1 wei after fee, so the user can lose effectively the whole input while all router checks pass. The status string says generated-fork-evidence, but the artifact shape is directly executable and the compiler enforces the smoke-minimum policy instead of preventing production reuse.",
+      "evidence": [
+        "router-ts/src/compiler/compileRoute.ts:206-246 builds generated routes with real tokens/targets and minAmountOutAfterFee set to 1, including routes described as production composed routes.",
+        "router-ts/src/compiler/compileRoute.ts:639-643 rejects generated routes whose final minimum is greater than postFeeMinimum(1), which turns the 1-wei smoke floor into a compiler invariant rather than a clearly non-production placeholder.",
+        "router-ts/src/compiler/types.ts:5 sets DETERMINISTIC_DEADLINE to 4102444800, and test/router/fixtures/base-v1-solver-routes.json exposes complete route objects plus abiEncodedRoute/callValue for those long-lived, low-minimum routes."
+      ],
+      "suggested_fix": "Separate fork-evidence artifacts from any executable production route export. Either omit abiEncodedRoute/callValue and use impossible recipients/deadlines for evidence fixtures, or add a production compiler path that requires quote-derived per-leg and final minimums plus a near-term deadline before artifacts can be consumed outside tests."
+    },
+    {
+      "title": "Any non-payable fee recipient bricks all native-output routes after the swaps execute",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 121,
+      "confidence": 0.81,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "Native-output routes pay the protocol fee in native ETH before transferring net output to the user. Concrete chain: governance or deployment config sets feeRecipient to a contract without a payable receive path; a FAME -> WETH -> ETH or V4 ETH-output route produces native ETH; gross and final minimum checks pass; _transferAsset tries SafeTransferLib.safeTransferETH(feeRecipient, feeAmount); the fee recipient rejects ETH and the whole route reverts. The user funds are reverted, but every native-output path is unavailable until governance changes the fee recipient or fee policy. Current validation only compares the configured address and does not prove that it can receive native fees.",
+      "evidence": [
+        "src/FameRouter.sol:121-124 transfers feeAmount to feeRecipient before final output settlement whenever tokenOut is native ETH and feePpm is nonzero.",
+        "src/FameRouter.sol:145-148 accepts any nonzero feeRecipient without checking native ETH receive behavior, and src/FameRouter.sol:386-389 uses reverting safeTransferETH for native transfers.",
+        "script/ValidateFameRouterBase.s.sol:71-84 validates feeRecipient by equality only; it does not execute or probe a native-fee route against the configured recipient."
+      ],
+      "suggested_fix": "Add a deployment/validation gate that proves the configured fee recipient can receive native ETH, or route native fees through WETH/claimable accounting so a non-payable recipient cannot brick native-output swaps."
+    },
+    {
+      "title": "Empty-hookData V4 pools bypass the hook allowlist entirely",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 301,
+      "confidence": 0.78,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "The V4 guard only checks v4HookDataHashEnabled when hookData is non-empty, but a V4 pool can have a nonzero hook address with empty swap hookData. Concrete chain: governance enables the Universal Router target to support the checked-in basedflick/ZORA hooked pool; an attacker submits a route for a different V4 pool with a hostile hook address and hookData = 0x; v4HookDataKey returns hasHookData=false, so no hook/pool key allowlist is consulted; Universal Router executes the hook callbacks under the FameRouter call. The router remains non-reentrant, but the intended hook governance boundary is not actually a hook boundary, it is only a non-empty-bytes boundary.",
+      "evidence": [
+        "src/FameRouter.sol:301-306 only enforces v4HookDataHashEnabled when UniversalRouterAdapter.v4HookDataKey reports hasHookData.",
+        "src/router/adapters/UniversalRouterAdapter.sol:182-186 returns hasHookData=false immediately for empty hookData, even though the decoded payload also contains payload.hooks, currency0, currency1, fee, and tickSpacing.",
+        "src/router/adapters/UniversalRouterAdapter.sol:163-172 validates token direction and fee/tickSpacing but does not require the V4 pool key or hook address to be allowlisted; test/router/fixtures/base-v1-pools.json includes a nonzero-hook V4 pool with hookData set to 0x."
+      ],
+      "suggested_fix": "Treat nonzero V4 hook addresses as governed even when hookData is empty. Require an allowlisted pool-key or hook-key for every V4 payload with payload.hooks != address(0), and have deploy validation assert every generated V4 route's required key is enabled on the deployed router."
+    }
+  ],
+  "residual_risks": [
+    "I did not execute Foundry or fork tests because the review was requested as an artifact-only adversarial pass and test runs would create additional build/cache mutations.",
+    "The Universal Router Permit2 approval lifetime appears intentionally same-transaction scoped, but this pass did not verify behavior against the live Permit2 bytecode.",
+    "The router is publicly callable and intentionally allows user-supplied routes over enabled venue targets; remaining risk depends on whether product intends it as a constrained FAME route executor or a generic fee-taking router."
+  ],
+  "testing_gaps": [
+    "No validation test proves the configured fee recipient can receive native ETH fees on a native-output route.",
+    "No invariant asserts generated fork-evidence routes are impossible to confuse with production executable artifacts, or that production artifacts must have quote-derived minimums and short deadlines.",
+    "No negative V4 test covers a nonzero hook address with empty hookData and an unapproved pool/hook key."
+  ]
+}

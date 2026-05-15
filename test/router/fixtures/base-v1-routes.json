@@ -1,0 +1,345 @@
+{
+  "schemaVersion": 1,
+  "status": "launchable-pinned-fork-validated",
+  "pinnedBaseBlock": 45884844,
+  "source": "../www/src/features/fame/swap",
+  "routes": [
+    {
+      "id": "solidly-weth-fame-buy",
+      "venue": "solidly",
+      "direction": "buy",
+      "tokenIn": "0x4200000000000000000000000000000000000006",
+      "tokenOut": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "poolIds": ["scale-equalizer-weth-fame"],
+      "amountIn": "1000000000000000",
+      "legMinAmountOut": "8879521154801013503624",
+      "minAmountOutAfterFee": "8859790858795045651619",
+      "funding": {
+        "type": "native-weth-wrap",
+        "amount": "1000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "solidly-weth-fame-sell",
+      "venue": "solidly",
+      "direction": "sell",
+      "tokenIn": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "tokenOut": "0x4200000000000000000000000000000000000006",
+      "poolIds": ["scale-equalizer-weth-fame"],
+      "amountIn": "8879521154801013503624",
+      "legMinAmountOut": "974928043905035",
+      "minAmountOutAfterFee": "972761753791479",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "solidly-weth-fame-buy",
+        "amountIn": "1000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "solidly-usdc-frxusd-fame-buy",
+      "venue": "solidly",
+      "direction": "buy",
+      "tokenIn": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tokenOut": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "poolIds": ["scale-equalizer-usdc-frxusd", "scale-equalizer-frxusd-fame"],
+      "amountIn": "1000000",
+      "legMinAmountOut": "3810431550972542402086",
+      "minAmountOutAfterFee": "3801964772066281412869",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000",
+        "justification": "User-side USDC balance setup avoids mutating venue pools or FAME DN404 accounting."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "solidly-usdc-scale-fame-buy",
+      "venue": "solidly",
+      "direction": "buy",
+      "tokenIn": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tokenOut": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "poolIds": ["scale-equalizer-usdc-scale", "scale-equalizer-scale-fame"],
+      "amountIn": "1000000",
+      "legMinAmountOut": "3709450551357584042341",
+      "minAmountOutAfterFee": "3701208152232467490599",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000",
+        "justification": "User-side USDC balance setup avoids mutating venue pools or FAME DN404 accounting."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v2-fame-buy",
+      "venue": "uniswap-v2",
+      "direction": "buy",
+      "tokenIn": "0x4200000000000000000000000000000000000006",
+      "tokenOut": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "poolIds": ["uniswap-v2-fame-direct"],
+      "amountIn": "1000000000000000",
+      "legMinAmountOut": "9028183572925608335245",
+      "minAmountOutAfterFee": "9008122949026567633525",
+      "funding": {
+        "type": "native-weth-wrap",
+        "amount": "1000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v2-fame-sell",
+      "venue": "uniswap-v2",
+      "direction": "sell",
+      "tokenIn": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "tokenOut": "0x4200000000000000000000000000000000000006",
+      "poolIds": ["uniswap-v2-fame-direct"],
+      "amountIn": "9028183572925608335245",
+      "legMinAmountOut": "1",
+      "minAmountOutAfterFee": "1",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "uniswap-v2-fame-buy",
+        "amountIn": "1000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "aerodrome-v2-usdc-weth-buy",
+      "venue": "aerodrome-v2",
+      "direction": "buy",
+      "tokenIn": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tokenOut": "0x4200000000000000000000000000000000000006",
+      "poolIds": ["aerodrome-v2-usdc-weth"],
+      "amountIn": "1000000",
+      "legMinAmountOut": "1",
+      "minAmountOutAfterFee": "1",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000",
+        "justification": "User-side USDC balance setup proves Aerodrome V2 explicit-factory USDC -> WETH execution without mutating venue pools."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "slipstream-basedflick-fame-buy",
+      "venue": "aerodrome-slipstream",
+      "direction": "buy",
+      "tokenIn": "0x15e012abf9d32cd67fc6cf480ea0e318e9ed5926",
+      "tokenOut": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "poolIds": ["slipstream-basedflick-fame"],
+      "amountIn": "1000000000000000000",
+      "legMinAmountOut": "31597600141347829",
+      "minAmountOutAfterFee": "31527390273833755",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000000000000000",
+        "justification": "User-side basedflick balance setup avoids mutating venue pools or FAME DN404 accounting."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "slipstream-basedflick-fame-sell",
+      "venue": "aerodrome-slipstream",
+      "direction": "sell",
+      "tokenIn": "0xf307e242bfe1ec1ff01a4cef2fdaa81b10a52418",
+      "tokenOut": "0x15e012abf9d32cd67fc6cf480ea0e318e9ed5926",
+      "poolIds": ["slipstream-basedflick-fame"],
+      "amountIn": "31597600141347829",
+      "legMinAmountOut": "980099953709809408",
+      "minAmountOutAfterFee": "977922171612666212",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "slipstream-basedflick-fame-buy",
+        "amountIn": "1000000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "slipstream2-msusd-mseth-buy",
+      "venue": "aerodrome-slipstream2",
+      "direction": "buy",
+      "tokenIn": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d",
+      "tokenOut": "0x7ba6f01772924a82d9626c126347a28299e98c98",
+      "poolIds": ["slipstream2-msusd-mseth"],
+      "amountIn": "1000000000000000000",
+      "legMinAmountOut": "431407816590040",
+      "minAmountOutAfterFee": "430449228421577",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000000000000000",
+        "justification": "User-side msUSD balance setup avoids mutating venue pools."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "slipstream2-msusd-mseth-sell",
+      "venue": "aerodrome-slipstream2",
+      "direction": "sell",
+      "tokenIn": "0x7ba6f01772924a82d9626c126347a28299e98c98",
+      "tokenOut": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d",
+      "poolIds": ["slipstream2-msusd-mseth"],
+      "amountIn": "431407816590040",
+      "legMinAmountOut": "994008914430953183",
+      "minAmountOutAfterFee": "991800226623087606",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "slipstream2-msusd-mseth-buy",
+        "amountIn": "1000000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "slipstream2-msusd-usdc-c-buy",
+      "venue": "aerodrome-slipstream2",
+      "direction": "buy",
+      "tokenIn": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d",
+      "tokenOut": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "poolIds": ["slipstream2-msusd-usdc-c"],
+      "amountIn": "1000000000000000000",
+      "legMinAmountOut": "995832",
+      "minAmountOutAfterFee": "993620",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000000000000000",
+        "justification": "User-side msUSD balance setup avoids mutating venue pools."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "slipstream2-msusd-usdc-c-sell",
+      "venue": "aerodrome-slipstream2",
+      "direction": "sell",
+      "tokenIn": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tokenOut": "0x526728dbc96689597f85ae4cd716d4f7fccbae9d",
+      "poolIds": ["slipstream2-msusd-usdc-c"],
+      "amountIn": "995832",
+      "legMinAmountOut": "999799201543207176",
+      "minAmountOutAfterFee": "997577647717378170",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "slipstream2-msusd-usdc-c-buy",
+        "amountIn": "1000000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v3-zora-usdc-buy",
+      "venue": "uniswap-v3",
+      "direction": "buy",
+      "tokenIn": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "tokenOut": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "poolIds": ["uniswap-v3-zora-usdc"],
+      "amountIn": "1000000",
+      "legMinAmountOut": "73837797098392273783",
+      "minAmountOutAfterFee": "73673729513239646151",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000",
+        "justification": "User-side USDC balance setup avoids mutating venue pools."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v3-zora-usdc-sell",
+      "venue": "uniswap-v3",
+      "direction": "sell",
+      "tokenIn": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "tokenOut": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "poolIds": ["uniswap-v3-zora-usdc"],
+      "amountIn": "73837797098392273783",
+      "legMinAmountOut": "994006",
+      "minAmountOutAfterFee": "991798",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "uniswap-v3-zora-usdc-buy",
+        "amountIn": "1000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v3-zora-weth-buy",
+      "venue": "uniswap-v3",
+      "direction": "buy",
+      "tokenIn": "0x4200000000000000000000000000000000000006",
+      "tokenOut": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "poolIds": ["uniswap-v3-zora-weth"],
+      "amountIn": "1000000000000000",
+      "legMinAmountOut": "170736967622944382137",
+      "minAmountOutAfterFee": "170357590080886199720",
+      "funding": {
+        "type": "native-weth-wrap",
+        "amount": "1000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v3-zora-weth-sell",
+      "venue": "uniswap-v3",
+      "direction": "sell",
+      "tokenIn": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "tokenOut": "0x4200000000000000000000000000000000000006",
+      "poolIds": ["uniswap-v3-zora-weth"],
+      "amountIn": "170736967622944382137",
+      "legMinAmountOut": "993954653582347",
+      "minAmountOutAfterFee": "991746086342088",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "uniswap-v3-zora-weth-buy",
+        "amountIn": "1000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v4-basedflick-zora-buy",
+      "venue": "uniswap-v4",
+      "direction": "buy",
+      "tokenIn": "0x15e012abf9d32cd67fc6cf480ea0e318e9ed5926",
+      "tokenOut": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "poolIds": ["uniswap-v4-basedflick-zora"],
+      "amountIn": "1000000000000000000",
+      "legMinAmountOut": "550819486629831",
+      "minAmountOutAfterFee": "549595565730540",
+      "funding": {
+        "type": "deal-erc20",
+        "amount": "1000000000000000000",
+        "justification": "User-side basedflick balance setup avoids mutating venue pools."
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v4-basedflick-zora-sell",
+      "venue": "uniswap-v4",
+      "direction": "sell",
+      "tokenIn": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "tokenOut": "0x15e012abf9d32cd67fc6cf480ea0e318e9ed5926",
+      "poolIds": ["uniswap-v4-basedflick-zora"],
+      "amountIn": "550819486629831",
+      "legMinAmountOut": "940899989355952407",
+      "minAmountOutAfterFee": "938809309579603481",
+      "funding": {
+        "type": "acquire-via-route",
+        "routeId": "uniswap-v4-basedflick-zora-buy",
+        "amountIn": "1000000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    },
+    {
+      "id": "uniswap-v4-zora-eth-native",
+      "venue": "uniswap-v4",
+      "direction": "buy",
+      "tokenIn": "0x0000000000000000000000000000000000000000",
+      "tokenOut": "0x1111111111166b7fe7bd91427724b487980afc69",
+      "poolIds": ["uniswap-v4-zora-eth"],
+      "amountIn": "1000000000000000",
+      "legMinAmountOut": "170174733551265108370",
+      "minAmountOutAfterFee": "169796605293314197300",
+      "funding": {
+        "type": "native-eth",
+        "amount": "1000000000000000"
+      },
+      "minimumPolicy": "pinned-fork-smoke-minimum"
+    }
+  ],
+  "pendingLaunchBlockingRoutes": []
+}

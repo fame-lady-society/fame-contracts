@@ -1,0 +1,63 @@
+{
+  "reviewer": "maintainability",
+  "findings": [
+    {
+      "title": "Transient ce-review artifacts are committed as branch content",
+      "severity": "P3",
+      "file": ".context/compound-engineering/ce-review/20260511-193547-router-review/adversarial.json",
+      "line": 1,
+      "confidence": 0.91,
+      "autofix_class": "manual",
+      "owner": "repo-maintainers",
+      "requires_verification": false,
+      "pre_existing": false,
+      "suggested_fix": "Remove prior `.context/compound-engineering/ce-review/**` outputs and completed or resolved `.context/compound-engineering/todos/**` from the implementation branch, or move only active, durable follow-ups into normal issue/docs tracking with clear ownership. Add an ignore rule for local review runs so future review JSON, synthesis files, and scratch diffs do not become part of the product diff."
+    },
+    {
+      "title": "Mainnet broadcast logs are checked in and normalized by gitignore policy",
+      "severity": "P2",
+      "file": "broadcast/DeployFameRouter.s.sol/8453/run-latest.json",
+      "line": 1,
+      "confidence": 0.87,
+      "autofix_class": "manual",
+      "owner": "release-engineering",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Remove the generated `broadcast/DeployFameRouter.s.sol/8453/*.json` files from the branch and change the ignore policy to ignore broadcast output by default, with only deliberately curated deployment summaries committed. Before merge, run a focused secret/operational-data scan on any retained broadcast artifact; these files include deployer addresses, calldata, nonces, and bytecode today, and the current policy makes it easy for future script outputs with sensitive constructor arguments or environment-derived values to land in history."
+    },
+    {
+      "title": "Router wire schema has multiple manual sources of truth",
+      "severity": "P3",
+      "file": "router-ts/src/compiler/types.ts",
+      "line": 3,
+      "confidence": 0.78,
+      "autofix_class": "manual",
+      "owner": "router-ts",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Introduce one canonical schema descriptor or generated artifact for schema version, enum ordinals, route ABI components, and fee/payload constants, then consume it from the TypeScript encoder/docs/tests or generate the TypeScript schema from the Solidity definition. Until then, every new venue or field requires coordinated edits across `FameRouterTypes.sol`, `router-ts/src/compiler/types.ts`, `router-ts/src/artifacts/routeEncoding.ts`, docs, and fixture manifests, which is easy to drift despite parity tests."
+    },
+    {
+      "title": "Default test documentation blurs no-secret unit tests with live RPC gates",
+      "severity": "P3",
+      "file": "README.md",
+      "line": 54,
+      "confidence": 0.84,
+      "autofix_class": "manual",
+      "owner": "developer-experience",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Replace the documented `forge test` unit-test command with an explicit no-secret local command or profile that excludes launchable fork gates, and document the Doppler-backed Base fork validation as a separate release command. The current README labels `forge test` as unit tests while `test_BaseForkLaunchGateRequiresPinnedBlockAndRpc` reverts without `BASE_RPC` once the manifest is launchable, which encourages developers and agents to wrap broad local test runs in Doppler and makes the public-config versus secret-backed boundary harder to maintain."
+    }
+  ],
+  "residual_risks": [
+    "This pass was static and read-only except for writing this review artifact; it did not execute Bun, Foundry, or secret-scanning tools.",
+    "The regex scan did not show obvious committed private keys or RPC URLs in the reviewed paths, but committed review and broadcast artifacts should still be scanned before merge because they are generated from operational workflows.",
+    "The router ABI/schema duplication is partially mitigated by parity tests, but the branch still relies on humans remembering all duplicated edit sites when adding schema version 2 or another venue family."
+  ],
+  "testing_gaps": [
+    "No repository guard currently proves `.context/compound-engineering/ce-review/**` and generated broadcast outputs are absent from mergeable diffs.",
+    "No single-source schema generation check exists; tests compare current outputs but do not remove the duplicated Solidity/TypeScript/docs schema maintenance surface.",
+    "No documented no-secret test script was verified as the default local route after the manifest became launchable."
+  ]
+}

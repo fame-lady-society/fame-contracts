@@ -1,0 +1,52 @@
+{
+  "reviewer": "api-contract",
+  "findings": [
+    {
+      "title": "Schema calls target a venue, but the ABI requires an undocumented executeLeg adapter",
+      "severity": "P1",
+      "file": "docs/router/fame-router-schema.md",
+      "line": 24,
+      "confidence": 0.94,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "`target` is documented as the enabled venue target for the family, but every adapter dispatches `IRouterLegExecutor(target).executeLeg(...)` rather than a Solidly/Uniswap/Slipstream/Universal Router ABI. A `www` client following the schema and passing the real venue router address plus venue calldata will build routes that satisfy the documented shape but revert at runtime. The contract-side agreement needs to either make `target` an explicit Fame adapter implementing `IRouterLegExecutor` with per-family payload schemas, or replace the generic adapter hook with real venue ABI calls.",
+      "suggested_fix": "Define the public target/payload contract in the schema and fixtures, including the exact `IRouterLegExecutor` ABI if adapter targets are intended; otherwise implement per-family adapters that consume documented venue calldata."
+    },
+    {
+      "title": "Enum and amount-mode wire values are not frozen in the schema",
+      "severity": "P2",
+      "file": "docs/router/fame-router-schema.md",
+      "line": 20,
+      "confidence": 0.88,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "The Solidity ABI encodes `VenueFamily` and `AmountMode` as integer enum ordinals, but the schema only lists display names. It also leaves `BalanceBps` range/denominator and `All` amount handling implicit. That makes the route JSON/TypeScript contract fragile: `www` can choose the wrong uint8, fail to reject `BalanceBps > 10000`, or drift if enum order changes while `version` remains 1.",
+      "suggested_fix": "Add a canonical wire table for venue and amount-mode ordinals, `BalanceBps` denominator/range/rounding, and ignored `All.amount`; add a fixture or test that asserts the docs/JSON constants match `FameRouterTypes`."
+    },
+    {
+      "title": "RouteExecuted omits route identity needed for client parity and migrations",
+      "severity": "P3",
+      "file": "src/FameRouter.sol",
+      "line": 37,
+      "confidence": 0.81,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "details": "The success event only emits payer, recipient, tokenOut, and output/fee amounts. It omits `version`, `tokenIn`, `amountIn`, `minAmountOutAfterFee`, leg count, and any route hash, so indexers and support tooling cannot prove which client-constructed schema route executed once multiple route builders or a future version exist.",
+      "suggested_fix": "Emit a stable route identifier such as `keccak256(abi.encode(route))` plus version/input amount, or document that no event-level route parity/audit guarantee exists for v1."
+    }
+  ],
+  "residual_risks": [
+    "Production Base fixtures are still placeholders, so the real per-venue payload contract cannot be validated for `www` yet.",
+    "The schema version is enforced by calldata but is not exposed as a public getter, leaving clients to hardcode or parse docs/ABI artifacts."
+  ],
+  "testing_gaps": [
+    "No fixture asserts the documented schema wire values against the Solidity enum ordinals and constants.",
+    "No test proves a `www`-constructed fixture route can be encoded from JSON, submitted through the ABI, and matched back to an emitted route identity."
+  ]
+}

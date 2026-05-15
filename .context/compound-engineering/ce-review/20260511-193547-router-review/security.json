@@ -1,0 +1,33 @@
+{
+  "reviewer": "security",
+  "findings": [
+    {
+      "title": "Venue allowlist accepts arbitrary executeLeg contracts under typed venue families",
+      "severity": "P1",
+      "file": "src/FameRouter.sol",
+      "line": 136,
+      "confidence": "high",
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "attack_path": "If governance or deployment enables an attacker-controlled address for any venue family, the router treats it as a trusted venue, approves it for the route-local ERC20 amount at src/FameRouter.sol:193, and dispatches to its generic executeLeg hook instead of a real venue ABI. That target can pull the approved user funds or receive native callValue while still sitting behind a seemingly typed Solidly/Uniswap/Slipstream/Universal family flag.",
+      "suggested_fix": "Replace generic executeLeg adapters with per-family constrained calldata decoders and calls to the actual audited venue/router ABIs, and make deployment validation prove each enabled target is the expected production contract for its family."
+    },
+    {
+      "title": "Final minAmountOut can pass even when tokenOut transfer delivers less to the recipient",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 101,
+      "confidence": "medium",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "attack_path": "The router computes grossAmountOut from its own pre-settlement balance delta and checks minAmountOutAfterFee before transferring tokenOut. A fee-on-transfer or malicious ERC20 tokenOut can reduce the fee or recipient transfer at src/FameRouter.sol:108-111, so the transaction succeeds while the recipient receives less than the advertised post-fee minimum.",
+      "suggested_fix": "Either restrict route fixtures to final tokens with standard transfer semantics or enforce settlement by measuring recipient and fee-recipient balance deltas after transfer and reverting when the delivered recipient delta is below minAmountOutAfterFee."
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

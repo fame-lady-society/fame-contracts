@@ -1,0 +1,37 @@
+{
+  "reviewer": "performance",
+  "findings": [
+    {
+      "title": "V4 legs decode the Universal Router payload twice before execution",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 302,
+      "confidence": 0.88,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Decode the V4 payload once per leg and perform the hook-data allowlist check inside the same UniversalRouterAdapter execution path, or return the decoded payload from a validation helper and pass it into executeV4. Preserve the raw execute rejection and hook-data key derivation, but avoid the current v4HookDataKey(data) abi.decode plus executeV4(data) abi.decode sequence for every V4 leg."
+    },
+    {
+      "title": "Route-local accounting repeats snapshot scans and balance reads on the execution hot path",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 237,
+      "confidence": 0.86,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Precompute compact asset indexes while building snapshots and carry each leg's tokenIn/tokenOut indexes into execution, so baseline lookup is O(1). In the refund loop, compute current balance minus snapshots[i].baseline directly instead of calling _baseline again. Keep the external balance-delta invariant, but measure generated split routes and a max-leg synthetic route before accepting the optimization."
+    }
+  ],
+  "residual_risks": [
+    "The TypeScript compiler and artifact writer currently operate over small static route and pool sets, so no generator-side path met the material-performance threshold. If this becomes graph search over a larger catalog, revisit pool lookup indexing and matrix generation.",
+    "No gas snapshot was run as part of this read-only review, so severity is based on code-path inspection rather than measured deltas."
+  ],
+  "testing_gaps": [
+    "No Foundry gas benchmark covers generated V4-heavy routes before and after consolidating V4 payload decoding.",
+    "No gas benchmark covers generated split routes or a high-leg synthetic route for route-local accounting overhead."
+  ]
+}

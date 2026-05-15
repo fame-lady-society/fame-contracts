@@ -1,0 +1,38 @@
+{
+  "reviewer": "kieran-typescript",
+  "findings": [
+    {
+      "title": "JSON route conversion can accept unknown enum names when ordinals are missing",
+      "severity": "P2",
+      "file": "router-ts/src/artifacts/schema.ts",
+      "line": 162,
+      "confidence": 0.9,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Treat JSON as unknown at the boundary and validate it before producing Route: require route.version === SCHEMA_VERSION, require every leg venue and amountMode to be own keys of VenueFamily/AmountMode, require the ordinal fields to be numbers that match those keys, and validate address/hex/string-bigint fields. Add negative tests for an unknown venue or amountMode with the ordinal omitted, because `VenueFamily[badName]` and the missing ordinal are both undefined today."
+    },
+    {
+      "title": "Deadline patching hides payload ABI drift behind a broad cast",
+      "severity": "P3",
+      "file": "router-ts/src/materializeRoute.ts",
+      "line": 195,
+      "confidence": 0.82,
+      "autofix_class": "gated_auto",
+      "owner": "review-fixer",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Remove the `abi as typeof solidlyPayloadAbi` escape hatch. Either export the concrete payload ABIs from each adapter and use small venue-specific patch helpers, or add a typed deadline-payload helper that preserves the ABI generic instead of pretending every payload is Solidly-shaped. Cover Solidly, UniswapV2, Slipstream, and Aerodrome deadline rewrites in materialization tests so schema drift fails close to the changed adapter."
+    }
+  ],
+  "residual_risks": [
+    "The review was limited to static inspection plus `bun run --cwd router-ts typecheck`; runtime route execution and generated artifact parity tests were not run because the task requested read-only command use.",
+    "Production materialization still depends on callers supplying a correct deployed router address, recipient, deadline, and quote-derived minimums; those values are TypeScript-typed but not fully runtime-validated."
+  ],
+  "testing_gaps": [
+    "No materializeRoute negative test covers schema-drifted JSON with an unknown venue or amountMode and missing ordinal fields.",
+    "No materializeRoute tests exercise the Solidly, UniswapV2, or Slipstream deadline patch branches.",
+    "No test asserts production materialization rejects zero or malformed routerAddress and recipient before constructing Universal Router payloads."
+  ]
+}

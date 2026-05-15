@@ -1,0 +1,78 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Coarse Universal Router target allowlisting lets routes bypass the frozen pool universe",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 203,
+      "confidence": 0.86,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add pool/path-level allowlists derived from the frozen fixture manifest, at least for Universal Router V3/V4 payloads. For V3, validate the full path or fee tier against an approved hash. For V4, validate the full PoolKey plus hookData policy against an approved hash before executing the enabled Universal Router target."
+    },
+    {
+      "title": "Production materialization can turn exact intermediate legs into All and consume assets reserved for later legs",
+      "severity": "P2",
+      "file": "router-ts/src/materializeRoute.ts",
+      "line": 153,
+      "confidence": 0.84,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Make dynamic-input conversion explicit in the route artifact instead of inferring it from tokenIn != route.tokenIn. Preserve Exact intermediate amounts unless the compiler marks that leg as consuming the full prior route-local output, and add a materialization test for split/merge routes that reserve an intermediate asset for a later leg."
+    },
+    {
+      "title": "Fork evidence artifacts still expose executable one-wei calldata that a consumer can submit without materialization",
+      "severity": "P2",
+      "file": "test/router/fixtures/base-v1-solver-routes.json",
+      "line": 8,
+      "confidence": 0.78,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Do not publish raw abiEncodedRoute for fork-evidence artifacts in a path production consumers may import. Move executable calldata to a test-only fixture, rename it to testAbiEncodedRoute, or require a parser that rejects productionExecutable=false before exposing calldata. Production consumers should receive only freshly materialized routes with live recipient, deadline, and quote-derived minimums."
+    },
+    {
+      "title": "Live deployment validation can pass after pool metadata stays stable but route execution has gone stale",
+      "severity": "P2",
+      "file": "script/ValidateFameRouterBase.s.sol",
+      "line": 68,
+      "confidence": 0.77,
+      "autofix_class": "manual",
+      "owner": "human",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Extend the live validation script or release gate to simulate or execute freshly materialized production routes against current Base state, including final post-fee minimums, NativeWrap paths, Universal Router paths, and enabled targets. Treat pinned-fork execution as regression evidence, not proof that current liquidity still satisfies launch routes."
+    },
+    {
+      "title": "Native ETH dust refunds can revert otherwise successful routes sent by non-payable contract wallets",
+      "severity": "P3",
+      "file": "src/FameRouter.sol",
+      "line": 359,
+      "confidence": 0.82,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add an explicit refund recipient, allow native dust to be wrapped to WETH before refund, or reject route shapes that can leave native ETH leftovers when msg.sender cannot receive ETH. Cover Safe/module or non-payable sender behavior in tests."
+    }
+  ],
+  "residual_risks": [
+    "No committed secret values were identified in config/fame-public.env or the searched broadcast artifacts; broadcast files do publish deployment transaction calldata, deployer address, contract address, and transaction hashes.",
+    "Route quality, MEV exposure, and pool selection remain offchain responsibilities; the onchain router enforces custody and minimums but does not prove that a user-selected route is economically sensible.",
+    "Non-empty Universal Router V4 swap hookData is intentionally not part of the current production pool universe, so the hook-data allowlist path remains mostly unit-tested rather than production-fixture-tested.",
+    "The review did not run fork tests because the requested role was read-only inspection and the findings were derived from source and fixture artifacts."
+  ],
+  "testing_gaps": [
+    "No test proves that production materialization preserves Exact intermediate amounts in split or split-then-merge routes where later legs need the same intermediate asset.",
+    "No consumer-facing test rejects base-v1-solver-routes.json artifacts with productionExecutable=false before calldata can be submitted.",
+    "No deployment validation test fails when live pool metadata matches but route execution or quote-derived minimums fail at the current Base block.",
+    "No fork or unit test demonstrates that enabled Universal Router targets are constrained to the frozen V3 path and V4 PoolKey universe rather than any same-endpoint pool under the target.",
+    "No non-payable contract-sender test covers native ETH leftover refund behavior."
+  ]
+}

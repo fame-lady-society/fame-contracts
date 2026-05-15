@@ -1,0 +1,8 @@
+{
+  "reviewer": "api-contract",
+  "findings": [],
+  "residual_risks": [
+    "BASE_RPC-dependent pinned-fork route execution and live Base validation were not rerun in this pass; API-contract compatibility was assessed from the changed files plus no-RPC TypeScript artifact verification and Solidity fixture/hash parity tests."
+  ],
+  "testing_gaps": []
+}

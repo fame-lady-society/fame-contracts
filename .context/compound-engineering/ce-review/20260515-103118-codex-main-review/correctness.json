@@ -1,0 +1,39 @@
+{
+  "reviewer": "correctness",
+  "findings": [
+    {
+      "title": "Base deployment can broadcast Base venue targets on the wrong chain",
+      "severity": "P2",
+      "file": "script/DeployFameRouter.s.sol",
+      "line": 20,
+      "confidence": 0.74,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Read BASE_CHAIN_ID and compare it to block.chainid before vm.startBroadcast. Revert on mismatch, and add a deployment-script test that proves the Base-specific router deployment/configuration path cannot proceed on a non-Base chain."
+    },
+    {
+      "title": "Native ETH leftovers make otherwise valid routes fail for non-payable contract senders",
+      "severity": "P2",
+      "file": "src/FameRouter.sol",
+      "line": 359,
+      "confidence": 0.8,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "suggested_fix": "Add an explicit refund recipient, allow native dust to be wrapped to WETH, or reject routes that can leave route-local native ETH unless the caller can receive it. Cover a contract sender with no payable receive path and a partial native-wrap or native-leftover route."
+    }
+  ],
+  "residual_risks": [
+    "I did not run forge or bun tests because this review was constrained to read-only commands except writing this artifact.",
+    "Universal Router V3/V4 behavior still depends on live Permit2 and Universal Router semantics; static review and mocks do not fully prove every production command path.",
+    "Secret scan matches in the reviewed diff were variable names, comments, or Doppler-wrapped command examples; I found no raw RPC URL, private key, mnemonic, explorer key, or secret embedded in the new public config, router artifacts, or DeployFameRouter broadcasts."
+  ],
+  "testing_gaps": [
+    "Add a non-Base chain-id negative test for DeployFameRouter before broadcast starts.",
+    "Add a contract-sender native ETH refund test for partial NativeWrap/native-leftover routes.",
+    "Run the pinned Base fork route suite with Doppler-provided BASE_RPC before launch."
+  ]
+}
