@@ -10,6 +10,7 @@ broadcast/
 
 # Dotenv file
 .env
+.society-nft-auction-fork.env
 
 # Node modules
 node_modules

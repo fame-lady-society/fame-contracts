@@ -26,6 +26,41 @@ source config/fame-public.env
 set +a
 ```
 
+## Local Base fork for webpage development
+
+Run one command from this repository:
+
+```sh
+./script/start-society-nft-auction-fork.sh
+```
+
+The launcher loads `config/fame-public.env`, enters Doppler's `prd` config for the Base-mainnet RPC and deployer key, and then:
+
+1. starts an Anvil Base fork on `http://127.0.0.1:8545`;
+2. verifies the configured deployer owns the configured Society NFT at the fork block;
+3. deploys the auction only to the local fork;
+4. approves the local auction for the configured token;
+5. runs the read-only deployment validator; and
+6. writes public frontend values to the ignored `.society-nft-auction-fork.env` file.
+
+The launcher owns the Anvil process and remains in the foreground. Keep that terminal open while developing; Ctrl-C stops the fork and removes that invocation's generated environment file. A new run creates a fresh fork and local deployment, so consume the address written by that run instead of hardcoding an old local address.
+
+To launch the fork with an already-active local auction:
+
+```sh
+./script/start-society-nft-auction-fork.sh --start
+```
+
+Useful overrides:
+
+```sh
+./script/start-society-nft-auction-fork.sh --port 8546
+./script/start-society-nft-auction-fork.sh --block-number 48549412
+./script/start-society-nft-auction-fork.sh --env-file /path/to/fls-www/.env.auction-fork.local
+```
+
+The launcher overwrites files carrying its generated-file marker, but refuses to overwrite an existing unmarked file. Even with that guard, use a dedicated output path rather than an application's primary `.env.local`. The generated file contains no RPC secret or signing material. The default localhost RPC and local deployment are disposable and must never be copied into production configuration.
+
 ## Deploy and validate
 
 1. Confirm the owner is nonzero, Base chain ID is `8453`, and the intended token ID is correct.
