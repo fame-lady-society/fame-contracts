@@ -106,6 +106,17 @@ doppler run -- forge script --chain base script/DeployFameRouter.s.sol:DeployFam
 doppler run -- forge script --chain base script/ValidateFameRouterBase.s.sol:ValidateFameRouterBase --rpc-url base
 ```
 
+### Closed-Loop Gallery Swap
+
+Gallery deployment is gated by `docs/gallery/closed-loop-gallery-swap.md`. Confirm `BASE_CREATOR_ARTIST_MAGIC_ADDRESS` before deployment, keep the gallery vault `getSkipNFT(gallery) == false`, grant only the narrow CreatorMagic swap roles to the vault, and set `BASE_CLOSED_LOOP_GALLERY_ADDRESS` in `config/fame-public.env` after validation. Do not commit Foundry `broadcast/` logs.
+
+```
+doppler run -- forge test --match-path test/ClosedLoopGallerySwap.t.sol
+doppler run -- forge test --match-path test/ClosedLoopGallerySwapDeploymentValidation.t.sol
+doppler run -- forge script --chain base script/DeployClosedLoopGallerySwap.s.sol:DeployClosedLoopGallerySwap --verify --broadcast --rpc-url base
+doppler run -- forge script --chain base script/ValidateClosedLoopGallerySwapBase.s.sol:ValidateClosedLoopGallerySwapBase --rpc-url base
+```
+
 ```
 doppler run -- anvil --fork-url base --block-time 2
 ```

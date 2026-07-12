@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ideation: CreatorMagic FAME Society Marketplace</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f5ef;
+      --paper: #fffdf8;
+      --ink: #1d2528;
+      --muted: #5e686b;
+      --line: #d7d0c2;
+      --accent: #2e6f73;
+      --accent-soft: #e3f0ee;
+      --warn: #8c4f19;
+      --warn-soft: #f5e7d7;
+      --ok: #2f6f46;
+      --ok-soft: #e2f0e7;
+      --blue: #334f82;
+      --blue-soft: #e4eaf5;
+      --shadow: 0 12px 32px rgba(29, 37, 40, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--accent); }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      background: rgba(46, 111, 115, 0.1);
+      padding: 0.1rem 0.28rem;
+      border-radius: 4px;
+    }
+    .page {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 42px 22px 56px;
+    }
+    header {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+    }
+    .eyebrow {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 750;
+      color: var(--accent);
+      font-size: 0.78rem;
+    }
+    h1, h2, h3 { line-height: 1.18; letter-spacing: 0; }
+    h1 { margin: 8px 0 10px; font-size: clamp(2rem, 4vw, 3.2rem); }
+    h2 { margin: 0 0 14px; font-size: 1.45rem; }
+    h3 { margin: 0; font-size: 1.08rem; }
+    p { max-width: 76ch; }
+    .meta, .stats, .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      background: #ffffff;
+      border-radius: 999px;
+      padding: 5px 10px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+    .chip strong { color: var(--ink); }
+    .stat {
+      background: var(--accent-soft);
+      color: #244f52;
+      border: 1px solid #bdd8d5;
+      border-radius: 8px;
+      padding: 10px 12px;
+      min-width: 150px;
+    }
+    .stat b { display: block; font-size: 1.1rem; }
+    section {
+      margin-top: 24px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .callout {
+      background: var(--blue-soft);
+      border: 1px solid #c5cfe4;
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: #273d66;
+    }
+    .axes {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .axis {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fffaf0;
+    }
+    .jump-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 8px;
+      margin: 12px 0 20px;
+      padding: 0;
+      list-style: none;
+    }
+    .jump-list a {
+      display: block;
+      border: 1px solid var(--line);
+      background: #fffaf0;
+      border-radius: 8px;
+      padding: 9px 10px;
+      text-decoration: none;
+      color: var(--ink);
+    }
+    article.idea {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      margin-top: 14px;
+      background: #ffffff;
+    }
+    .idea-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .rank {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 34px;
+      height: 28px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: white;
+      font-weight: 800;
+      margin-right: 8px;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: minmax(100px, 145px) 1fr;
+      gap: 8px 12px;
+      margin: 14px 0 0;
+    }
+    dt {
+      color: var(--muted);
+      font-weight: 750;
+      text-transform: uppercase;
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+    }
+    dd { margin: 0; }
+    .visual {
+      margin: 16px 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbf8f0;
+      overflow: hidden;
+    }
+    svg { width: 100%; height: auto; display: block; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.94rem;
+    }
+    th, td {
+      border-top: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.76rem;
+    }
+    .confidence-high { background: var(--ok-soft); color: var(--ok); border-color: #bad8c5; }
+    .confidence-med { background: var(--warn-soft); color: var(--warn); border-color: #e4c7a8; }
+    footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+    @media (max-width: 680px) {
+      .page { padding: 22px 12px 36px; }
+      header, section { padding: 18px; }
+      dl { grid-template-columns: 1fr; }
+      th:nth-child(3), td:nth-child(3) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div class="eyebrow">Ideation Artifact</div>
+      <h1>CreatorMagic FAME Society Marketplace</h1>
+      <p>Ranked directions for turning the existing CreatorMagic metadata swapper into a FAME-native Society NFT buying and art-selection surface.</p>
+      <div class="meta">
+        <span class="chip"><strong>Date</strong> <time datetime="2026-06-21">2026-06-21</time></span>
+        <span class="chip"><strong>Topic</strong> creator-magic-fame-society-marketplace</span>
+        <span class="chip"><strong>Mode</strong> repo-grounded</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>20 raw ideas</b> generated and deduped</div>
+        <div class="stat"><b>6 survivors</b> after critique</div>
+        <div class="stat"><b>Top pick</b> closed-loop gallery swap</div>
+      </div>
+    </header>
+
+    <section id="grounding-context">
+      <div class="eyebrow">Repository Grounding</div>
+      <h2>Grounding Context</h2>
+      <p>The core contract is <code>CreatorArtistMagic</code>, a metadata registry and renderer layer with explicit Art, Burn, Mint, and End-of-Mint pool concepts. Its banish functions preserve metadata in a registry, swap or assign metadata, and emit metadata updates through <code>Fame</code>.</p>
+      <p><code>Fame</code> is not a normal ERC721 collection. It is a DN404-style hybrid where one Society NFT corresponds to <code>1_000_000 * 10**18</code> FAME. The local mirror NFT transfer path also moves one full FAME unit from the NFT sender to the NFT recipient. Any sale design must account for that embedded unit, or the economics will be misleading.</p>
+      <p><code>CreatorArtistMagic.updateMetadata</code> is role-gated but does not check token ownership, while the banish functions do check that the caller owns the token being updated. A marketplace must use a narrow settlement or redemption surface rather than exposing broad metadata authority to buyers.</p>
+      <p>External marketplace research points in the same direction. ERC-4906 exists so platforms can refresh NFT metadata after changes, and OpenSea documents metadata refresh via those events. Seaport-style marketplace orders model what is being offered and required in return, and fee recipients are represented as separate consideration items. That favors real NFT transfer for the "buy an NFT" lane and metadata updates for a distinct "customize art" lane.</p>
+      <div class="callout"><strong>Key reframing:</strong> the coherent product is not "an NFT costs more than 1,000,000 FAME." It is "the buyer posts one embedded unit plus a FAME premium, receives a selected unit-backed Society NFT, and the premium is the protocol fee."</div>
+    </section>
+
+    <section id="topic-axes">
+      <div class="eyebrow">Surface Map</div>
+      <h2>Topic Axes</h2>
+      <div class="axes">
+        <div class="axis"><strong>Inventory and settlement</strong><br>How a selected token or art slot is actually delivered.</div>
+        <div class="axis"><strong>Metadata selection</strong><br>How unminted, burned, or curated art is exposed safely.</div>
+        <div class="axis"><strong>Buyer semantics</strong><br>Whether the user is buying an NFT, buying art, or upgrading an owned token.</div>
+        <div class="axis"><strong>Protocol economics</strong><br>How the fee, embedded unit, and inventory loop stay coherent.</div>
+        <div class="axis"><strong>Marketplace compatibility</strong><br>What external marketplaces and indexers can observe.</div>
+      </div>
+    </section>
+
+    <section id="ranked-ideas">
+      <div class="eyebrow">Survivors</div>
+      <h2>Ranked Ideas</h2>
+      <ul class="jump-list">
+        <li><a href="#idea-1">1. Closed-loop rotating gallery swap</a></li>
+        <li><a href="#idea-2">2. Two-lane Society Art Market</a></li>
+        <li><a href="#idea-3">3. Signed curated art catalog</a></li>
+        <li><a href="#idea-4">4. Premium-only holder art upgrade</a></li>
+        <li><a href="#idea-5">5. Rare-piece drops and auctions</a></li>
+        <li><a href="#idea-6">6. Protocol-compatible FAME orders</a></li>
+      </ul>
+
+      <article class="idea" id="idea-1">
+        <div class="idea-head">
+          <h3><span class="rank">1</span>Closed-loop rotating gallery swap</h3>
+          <div class="chips"><span class="chip confidence-high">Conf 86%</span><span class="chip">Cx Medium</span></div>
+        </div>
+        <div class="visual" aria-label="Closed-loop gallery swap diagram">
+          <svg viewBox="0 0 920 250" role="img">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e6f73"></path>
+              </marker>
+            </defs>
+            <rect x="35" y="58" width="210" height="104" rx="8" fill="#e4eaf5" stroke="#9aa9c8"></rect>
+            <text x="140" y="92" text-anchor="middle" font-size="16" font-weight="700" fill="#273d66">Buyer</text>
+            <text x="140" y="122" text-anchor="middle" font-size="13" fill="#273d66">posts unit + premium</text>
+            <rect x="355" y="38" width="220" height="144" rx="8" fill="#e3f0ee" stroke="#9cc6c2"></rect>
+            <text x="465" y="75" text-anchor="middle" font-size="16" font-weight="700" fill="#244f52">Gallery Vault</text>
+            <text x="465" y="105" text-anchor="middle" font-size="13" fill="#244f52">receives replacement unit</text>
+            <text x="465" y="130" text-anchor="middle" font-size="13" fill="#244f52">keeps FAME premium</text>
+            <rect x="680" y="58" width="205" height="104" rx="8" fill="#f5e7d7" stroke="#d6b184"></rect>
+            <text x="782" y="92" text-anchor="middle" font-size="16" font-weight="700" fill="#70400f">Selected NFT</text>
+            <text x="782" y="122" text-anchor="middle" font-size="13" fill="#70400f">transfers to buyer</text>
+            <path d="M245 100 L348 100" stroke="#2e6f73" stroke-width="3" marker-end="url(#arrow)"></path>
+            <text x="296" y="87" text-anchor="middle" font-size="12" fill="#1d2528" paint-order="stroke fill" stroke="#f7f5ef" stroke-width="4">FAME in</text>
+            <path d="M680 145 C560 220 300 220 190 160" fill="none" stroke="#2e6f73" stroke-width="3" marker-end="url(#arrow)"></path>
+            <text x="446" y="218" text-anchor="middle" font-size="12" fill="#1d2528" paint-order="stroke fill" stroke="#f7f5ef" stroke-width="4">unit-backed Society NFT out</text>
+          </svg>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>The protocol vault holds a curated gallery of Society NFTs. A buyer posts <code>fame.unit() + feeFame</code>; the vault receives the FAME first, then transfers the chosen Society NFT to the buyer. Because the mirror NFT transfer carries one FAME unit back to the buyer, the vault's inventory stays flat or grows while the premium accumulates as protocol revenue.</dd>
+          <dt>Axis</dt>
+          <dd>Inventory and settlement</dd>
+          <dt>Basis</dt>
+          <dd>direct: <code>Fame.unit()</code> returns <code>1_000_000 * 10 ** 18</code> in <a href="https://github.com/fame-lady-society/fame-contracts/blob/main/src/Fame.sol">src/Fame.sol</a>, and DN404 mirror transfer debits one unit from sender while crediting recipient in <a href="https://github.com/fame-lady-society/fame-contracts/blob/main/src/DN404.sol">src/DN404.sol</a>.</dd>
+          <dt>Rationale</dt>
+          <dd>This is the strongest version of the protocol-owned stock option because it is both user-legible and economically closed. The protocol is not simply selling down rare stock; it is rotating stock while collecting the premium.</dd>
+          <dt>Downsides</dt>
+          <dd>Requires careful vault skip-NFT policy, settlement ordering, approvals, and UI copy. If implemented as a naive gross sale, it will confuse the embedded-unit economics.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-2">
+        <div class="idea-head">
+          <h3><span class="rank">2</span>Two-lane Society Art Market</h3>
+          <div class="chips"><span class="chip confidence-high">Conf 84%</span><span class="chip">Cx Medium</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Split the product into two explicit lanes: <strong>Buy a Society NFT</strong> uses protocol-owned stock and real NFT transfers; <strong>Customize my Society</strong> uses CreatorMagic to assign selected art to a token the user already owns. The UI never asks users to understand mint-pool or burn-pool internals before trusting the purchase.</dd>
+          <dt>Axis</dt>
+          <dd>Buyer semantics</dd>
+          <dt>Basis</dt>
+          <dd>direct: <code>CreatorArtistMagic</code> supports metadata pool operations, but those operations update metadata rather than transferring an owned NFT. external: Seaport describes marketplace orders as explicit offer and consideration items for ETH/ERC20/ERC721/ERC1155.</dd>
+          <dt>Rationale</dt>
+          <dd>This preserves the honest meaning of each action. If the user buys an NFT, they get an NFT transfer. If they choose art, they are buying an art assignment for an NFT they already own.</dd>
+          <dt>Downsides</dt>
+          <dd>Requires two product flows and two sets of labels. The upside is worth it because the alternative is a single confusing flow that appears to sell inventory the protocol does not own.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-3">
+        <div class="idea-head">
+          <h3><span class="rank">3</span>Signed curated art catalog with narrow redemption</h3>
+          <div class="chips"><span class="chip confidence-high">Conf 78%</span><span class="chip">Cx Medium</span></div>
+        </div>
+        <div class="visual" aria-label="Signed catalog redemption diagram">
+          <svg viewBox="0 0 920 210" role="img">
+            <rect x="40" y="52" width="190" height="98" rx="8" fill="#fffaf0" stroke="#d7d0c2"></rect>
+            <text x="135" y="83" text-anchor="middle" font-size="15" font-weight="700">Curated Catalog</text>
+            <text x="135" y="111" text-anchor="middle" font-size="12">art, pool, price, expiry</text>
+            <rect x="365" y="52" width="190" height="98" rx="8" fill="#e3f0ee" stroke="#9cc6c2"></rect>
+            <text x="460" y="83" text-anchor="middle" font-size="15" font-weight="700" fill="#244f52">Redeem Function</text>
+            <text x="460" y="111" text-anchor="middle" font-size="12" fill="#244f52">verifies signature</text>
+            <rect x="690" y="52" width="190" height="98" rx="8" fill="#e4eaf5" stroke="#9aa9c8"></rect>
+            <text x="785" y="83" text-anchor="middle" font-size="15" font-weight="700" fill="#273d66">CreatorMagic</text>
+            <text x="785" y="111" text-anchor="middle" font-size="12" fill="#273d66">limited art assignment</text>
+            <path d="M230 101 L357 101" stroke="#2e6f73" stroke-width="3" marker-end="url(#arrow)"></path>
+            <path d="M555 101 L682 101" stroke="#2e6f73" stroke-width="3" marker-end="url(#arrow)"></path>
+          </svg>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Publish a signed offchain catalog of eligible art pieces, their source pool, price, supply cap, expiration, and optional curator/artist fee. Onchain redemption verifies the signature and then calls only a narrow metadata assignment path for the buyer's owned token or the selected protocol-owned stock token.</dd>
+          <dt>Axis</dt>
+          <dd>Metadata selection</dd>
+          <dt>Basis</dt>
+          <dd>direct: current metadata is stored as strings in a registry and the contract already emits metadata updates. direct: broad <code>updateMetadata</code> is role-gated but ownerless, so a narrower redemption function is needed before any buyer-facing purchase flow.</dd>
+          <dt>Rationale</dt>
+          <dd>This gives the product a flexible gallery without writing the whole catalog onchain, while avoiding an arbitrary metadata-write backdoor.</dd>
+          <dt>Downsides</dt>
+          <dd>Introduces signing infrastructure and catalog invalidation rules. Must prevent replay across chains, contracts, token IDs, and sold-out supply.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-4">
+        <div class="idea-head">
+          <h3><span class="rank">4</span>Premium-only holder art upgrade shop</h3>
+          <div class="chips"><span class="chip confidence-high">Conf 76%</span><span class="chip">Cx Low</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>For holders who already own a Society NFT, charge only the FAME premium to apply a selected art treatment. Present this as customization, not a new NFT purchase. Use unminted or burned metadata only as curated art sources, with preview and provenance labels.</dd>
+          <dt>Axis</dt>
+          <dd>Protocol economics</dd>
+          <dt>Basis</dt>
+          <dd>direct: <code>CreatorArtistMagic.banishToMintPool</code> and <code>banishToBurnPool</code> already swap metadata with unminted and burned-token metadata candidates. external: ERC-4906 and OpenSea metadata docs support event-driven metadata refresh after token JSON changes.</dd>
+          <dt>Rationale</dt>
+          <dd>This salvages the best part of the "any unminted or burn pool piece" option without mislabeling metadata as inventory. It is likely the fastest path to let users pick varied art.</dd>
+          <dt>Downsides</dt>
+          <dd>It is not a marketplace sale and will not create normal NFT price-history signals. Burn-pool art needs careful provenance language.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-5">
+        <div class="idea-head">
+          <h3><span class="rank">5</span>Rare-piece drops and auctions</h3>
+          <div class="chips"><span class="chip confidence-med">Conf 63%</span><span class="chip">Cx Medium</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>Keep fixed premium pricing for normal gallery swaps, but use sealed bids, Dutch auctions, or claim windows for scarce protocol-owned stock or premium art assignments. Use this as an event layer, not the base mechanism.</dd>
+          <dt>Axis</dt>
+          <dd>Metadata selection</dd>
+          <dt>Basis</dt>
+          <dd>reasoned: scarce art slots and curated stock create demand uncertainty that a flat premium may price poorly, while timed events help users understand rotation and scarcity.</dd>
+          <dt>Rationale</dt>
+          <dd>This gives the protocol a way to price genuinely rare pieces without distorting the normal `unit + premium` gallery swap.</dd>
+          <dt>Downsides</dt>
+          <dd>Auction mechanics add complexity and MEV/UX concerns. Do not build this until the fixed-price flow is proven.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-6">
+        <div class="idea-head">
+          <h3><span class="rank">6</span>Protocol-compatible FAME order path</h3>
+          <div class="chips"><span class="chip confidence-med">Conf 58%</span><span class="chip">Cx High</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt>
+          <dd>For protocol-owned stock, model the order in a Seaport-like shape: the offered item is the Society NFT and the consideration is FAME split between vault, protocol fee recipient, and optional artist/curator. Treat this as protocol compatibility first; validate marketplace UI support live before promising OpenSea-native FAME listings.</dd>
+          <dt>Axis</dt>
+          <dd>Marketplace compatibility</dd>
+          <dt>Basis</dt>
+          <dd>external: OpenSea's Seaport docs describe offer and consideration items, and OpenSea fee docs show marketplace/creator fees as separate consideration recipients. direct: local public config already tracks FAME and router fee recipient addresses in <a href="https://github.com/fame-lady-society/fame-contracts/blob/main/config/fame-public.env">config/fame-public.env</a>.</dd>
+          <dt>Rationale</dt>
+          <dd>This is how the product can become more than a custom website button over time: external indexers and marketplaces have a recognizable transfer-and-consideration event shape.</dd>
+          <dt>Downsides</dt>
+          <dd>Arbitrary FAME-priced orders may not be supported in major marketplace front ends. This requires live integration testing and may remain a custom app flow.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <section id="rejection-summary">
+      <div class="eyebrow">Critique</div>
+      <h2>Rejection Summary</h2>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Generic any unminted/burn-pool marketplace</td><td>Too easy to misrepresent metadata pool entries as owned NFT inventory; users would need contract-internal knowledge to trust it.</td></tr>
+          <tr><td>2</td><td>Simple sale of protocol stock for <code>&gt;1,000,000 FAME</code></td><td>Inventory drains unless the replacement-unit loop is explicit; gross price language hides the embedded DN404 unit.</td></tr>
+          <tr><td>3</td><td>Burn-pool-first product</td><td>Potentially interesting as a limited "revival" theme, but too provenance-heavy and emotionally ambiguous for the default market.</td></tr>
+          <tr><td>4</td><td>User consignment metadata market</td><td>Consent, stale listings, and atomic peer-to-peer metadata swaps are too much complexity for V1.</td></tr>
+          <tr><td>5</td><td>Voucher or claim-ticket marketplace</td><td>Creates a second asset class and splits attention before proving the core Society market.</td></tr>
+          <tr><td>6</td><td>Wrapped <code>gSOCIETY</code> marketplace</td><td>Wrap, lock, guardian, and liquidity fragmentation are unjustified unless the product is governance-first.</td></tr>
+          <tr><td>7</td><td>Public arbitrary metadata purchase function</td><td>Current broad metadata authority is unsafe to expose; settlement needs narrow catalog-bound redemption.</td></tr>
+          <tr><td>8</td><td>ETH or stable fee beside exact FAME unit</td><td>May be useful for revenue stability, but weakens the FAME-native inventory compounding loop.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="sources">
+      <div class="eyebrow">Evidence</div>
+      <h2>Sources &amp; References</h2>
+      <table>
+        <thead><tr><th>Type</th><th>Reference</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td>Repo</td><td><a href="https://github.com/fame-lady-society/fame-contracts/blob/main/src/CreatorArtistMagic.sol">src/CreatorArtistMagic.sol</a></td><td>Metadata pools, banish functions, registry, and metadata update flow.</td></tr>
+          <tr><td>Repo</td><td><a href="https://github.com/fame-lady-society/fame-contracts/blob/main/src/Fame.sol">src/Fame.sol</a></td><td>DN404 unit size and renderer path.</td></tr>
+          <tr><td>Repo</td><td><a href="https://github.com/fame-lady-society/fame-contracts/blob/main/src/DN404.sol">src/DN404.sol</a></td><td>Mirror transfer and burn/mint mechanics.</td></tr>
+          <tr><td>Repo</td><td><a href="https://github.com/fame-lady-society/fame-contracts/blob/main/src/GovSociety.sol">src/GovSociety.sol</a></td><td>Rejected wrapped-governance marketplace alternative.</td></tr>
+          <tr><td>External</td><td><a href="https://eips.ethereum.org/EIPS/eip-4906">ERC-4906</a></td><td>Metadata update event standard.</td></tr>
+          <tr><td>External</td><td><a href="https://docs.opensea.io/docs/metadata-standards">OpenSea metadata standards</a></td><td>Metadata shape and refresh expectations.</td></tr>
+          <tr><td>External</td><td><a href="https://docs.opensea.io/docs/seaport">OpenSea Seaport overview</a></td><td>Offer and consideration marketplace model.</td></tr>
+          <tr><td>External</td><td><a href="https://docs.opensea.io/docs/opensea-fees">OpenSea fees</a></td><td>Fee recipients as separate consideration items.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="composition-signal">Composed 2026-06-21T16:58:00-06:00 by ce-ideate from the local repository and user prompt.</footer>
+  </main>
+</body>
+</html>

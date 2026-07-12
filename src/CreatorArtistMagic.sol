@@ -335,7 +335,7 @@ contract CreatorArtistMagic is
         // Get or create metadata ID for the token's current metadata (preserves it in registry)
         uint16 originalMetadataId = _getOrCreateMetadataId(tokenId);
 
-        // Create new metadata ID for the new metadata
+        // Create new metadata ID for the new meetadata
         uint16 newMetadataId = nextMetadataId++;
         metadataRegistry[newMetadataId] = newMetadataUrl;
 
