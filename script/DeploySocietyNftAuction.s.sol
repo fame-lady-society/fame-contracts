@@ -9,6 +9,7 @@ contract DeploySocietyNftAuction is Script {
 
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error ZeroOwner();
+    error DeployerMustBeOwner(address deployer, address owner);
 
     function run() external returns (SocietyNftAuction auction) {
         if (block.chainid != BASE_CHAIN_ID) revert ChainIdMismatch(BASE_CHAIN_ID, block.chainid);
@@ -17,6 +18,7 @@ contract DeploySocietyNftAuction is Script {
         if (initialOwner == address(0)) revert ZeroOwner();
 
         uint256 deployerPrivateKey = vm.envUint("BASE_DEPLOYER_PRIVATE_KEY");
+        requireDeployerOwner(vm.addr(deployerPrivateKey), initialOwner);
 
         vm.startBroadcast(deployerPrivateKey);
         auction = deployConfigured(initialOwner);
@@ -27,5 +29,9 @@ contract DeploySocietyNftAuction is Script {
         if (block.chainid != BASE_CHAIN_ID) revert ChainIdMismatch(BASE_CHAIN_ID, block.chainid);
         if (initialOwner == address(0)) revert ZeroOwner();
         auction = new SocietyNftAuction(initialOwner);
+    }
+
+    function requireDeployerOwner(address deployer, address initialOwner) internal pure {
+        if (deployer != initialOwner) revert DeployerMustBeOwner(deployer, initialOwner);
     }
 }

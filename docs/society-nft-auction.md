@@ -63,7 +63,7 @@ The launcher overwrites files carrying its generated-file marker, but refuses to
 
 ## Deploy and validate
 
-1. Confirm the owner is nonzero, Base chain ID is `8453`, and the intended token ID is correct.
+1. Confirm the owner is nonzero, Base chain ID is `8453`, and the intended token ID is correct. This emergency one-off deployment requires the address derived from `BASE_DEPLOYER_PRIVATE_KEY` to equal `BASE_SOCIETY_NFT_AUCTION_OWNER`; the deployment script rejects any mismatch before broadcast.
 2. Dry-run without `--broadcast`:
 
    ```sh

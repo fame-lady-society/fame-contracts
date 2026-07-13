@@ -10,6 +10,12 @@ import {ForceEth, MockSocietyNftMirror} from "./mocks/SocietyNftAuctionActors.so
 
 contract WrongAuctionCode {}
 
+contract DeploySocietyNftAuctionHarness is DeploySocietyNftAuction {
+    function checkDeployerOwner(address deployerAddress, address configuredOwner) external pure {
+        requireDeployerOwner(deployerAddress, configuredOwner);
+    }
+}
+
 contract SocietyNftAuctionDeploymentValidationTest is Test {
     using stdStorage for StdStorage;
 
@@ -33,6 +39,19 @@ contract SocietyNftAuctionDeploymentValidationTest is Test {
         vm.chainId(8453);
         vm.expectRevert(DeploySocietyNftAuction.ZeroOwner.selector);
         deployer.deployConfigured(address(0));
+    }
+
+    function testRunRejectsDeployerThatIsNotConfiguredOwner() public {
+        DeploySocietyNftAuctionHarness harness = new DeploySocietyNftAuctionHarness();
+        address deployerAddress = makeAddr("deployer");
+        address configuredOwner = address(0xB0B);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeploySocietyNftAuction.DeployerMustBeOwner.selector, deployerAddress, configuredOwner
+            )
+        );
+        harness.checkDeployerOwner(deployerAddress, configuredOwner);
     }
 
     function testRunRejectsWrongChainBeforeReadingPrivateKey() public {

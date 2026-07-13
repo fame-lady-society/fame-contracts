@@ -29,7 +29,7 @@ execution: code
 ### Summary
 
 Build a single-lot auction for the Society NFT mirror on Base.
-The owner escrows one approved NFT to start a fixed three-day auction, bidders compete with strictly higher native-ETH bids, anyone can settle after the deadline, and the current owner withdraws the proceeds afterward.
+The owner escrows one approved NFT to start a fixed three-day auction, bidders compete with native-ETH bids that increase the current high bid by at least 10%, anyone can settle after the deadline, and the current owner withdraws the proceeds afterward.
 
 ### Problem Frame
 
@@ -48,7 +48,7 @@ Once bidding opens, the prize and deadline must be fixed, a hostile bidder must 
 ### Actors
 
 - A1. **Current owner:** May start the auction, transfer ownership to another nonzero address at any time, receive the NFT when no bid exists, withdraw settled proceeds, and sweep forced ETH after settlement.
-- A2. **Bidder:** Submits a strictly higher native-ETH bid and receives an immediate refund attempt after being outbid.
+- A2. **Bidder:** Submits a qualifying native-ETH bid, may outbid themselves, and receives an immediate refund attempt when displaced.
 - A3. **Resolver:** Any address that calls settlement after the auction end time.
 - A4. **Society NFT mirror:** The fixed Base ERC-721 surface that owns and transfers the auctioned token.
 
@@ -67,8 +67,8 @@ Once bidding opens, the prize and deadline must be fixed, a hostile bidder must 
 **Bidding and refunds**
 
 - R8. Bidding is open while `startTime <= block.timestamp < endTime` and closed at every other time.
-- R9. Each bid consists only of native ETH, must be greater than zero, and must strictly exceed the current highest bid.
-- R10. The auction has no reserve price and no minimum increment beyond the strict-higher requirement.
+- R9. Each bid consists only of native ETH. The first bid must be at least 1 wei; every replacement bid must be at least the current highest bid plus 10% rounded up to the next wei.
+- R10. The auction has no reserve price. The current highest bidder may replace their own bid under the same full-bid, minimum-increase, and refund-or-donation rules as any other bidder.
 - R11. A valid replacement bid becomes the authoritative highest bid before the prior bidder's refund is attempted.
 - R12. The prior highest bid receives one immediate refund attempt with a bounded gas allowance.
 - R13. A successful refund returns the complete prior bid and removes it from auction custody.
@@ -220,7 +220,7 @@ Once bidding opens, the prize and deadline must be fixed, a hostile bidder must 
 stateDiagram-v2
   [*] --> Unstarted
   Unstarted --> Active: guarded custody handshake succeeds
-  Active --> Active: strictly higher bid
+  Active --> Active: bid meets 10% minimum increase
   Active --> Settled: settle after end
   Settled --> Settled: withdraw proceeds or sweep excess
 ```
@@ -337,24 +337,24 @@ Historical bid and donation totals remain observable after settlement, but only 
 
 ### U2. Top-bid replacement and refund-or-donation accounting
 
-- **Goal:** Implement strictly increasing native-ETH bids whose prior refund cannot block or reenter the auction.
+- **Goal:** Implement native-ETH bids with a 10% rounded-up minimum increase whose prior refund cannot block or reenter the auction.
 - **Requirements:** R8-R18; A2; F2; AE3-AE5, AE14-AE15; KTD4-KTD6.
 - **Dependencies:** U1.
 - **Files:** `src/SocietyNftAuction.sol`, `test/SocietyNftAuction.t.sol`, `test/mocks/SocietyNftAuctionActors.sol`.
-- **Approach:** Treat each `msg.value` as the full proposed bid, validate the half-open window and strict increase, record the new leader before interaction, enforce the pre-call gas floor, then use Solady's 100,000-gas try-transfer to resolve the complete prior bid as either refund success or donation.
+- **Approach:** Treat each `msg.value` as the full proposed bid, validate the half-open window and `highestBid + ceil(highestBid / 10)` floor, record the new leader before interaction, enforce the pre-call gas floor, then use Solady's 100,000-gas try-transfer to resolve the complete prior bid as either refund success or donation.
 - **Execution note:** Implement the refund path test-first with accepting, reverting, gas-burning, and reentrant prior bidders before optimizing storage or event shape.
 - **Patterns to follow:** `lib/solady/src/utils/SafeTransferLib.sol` for try-transfer semantics and stipend; `test/router/mocks/ReentrantToken.sol` and callback tests in `test/router/FameRouter.t.sol` for hostile actors.
 - **Test scenarios:**
   - The first positive bid becomes highest without any refund attempt.
-  - Covers AE3. Zero, equal, and lower bids revert without changing leader, amount, donations, or balance obligations.
+  - Covers AE3. Zero first bids and replacement bids below the rounded-up 10% floor revert without changing leader, amount, donations, or balance obligations.
   - A bid at `endTime - 1` succeeds; Covers AE14, a bid at `endTime` fails and settlement becomes available.
   - Covers AE4. An accepting prior bidder receives the complete prior bid within the 100,000-gas allowance and no donation is added.
   - Covers AE5. A reverting prior bidder leaves the higher bid authoritative and converts the complete prior amount into one donation.
   - A gas-burning prior bidder exhausts only its allowance; the outer bid completes with a donation.
   - A call immediately below the pre-refund gas floor reverts before replacing the leader; calls at and above the floor provide the full allowance and finish accounting.
   - Covers AE15. Refund callbacks cannot reenter start, bid, settle, withdraw, excess sweep, direct ownership transfer, or handover completion.
-  - A current leader may submit a full higher bid; its prior amount follows the same refund-or-donation policy as any other leader.
-  - Fuzzed valid bids keep the highest amount strictly increasing and preserve exact refund-or-donation conservation.
+  - A current leader may submit a full qualifying replacement bid; its prior amount follows the same refund-or-donation policy as any other leader.
+  - Fuzzed valid bids keep the highest amount increasing by at least the rounded-up 10% floor and preserve exact refund-or-donation conservation.
 - **Verification:** Every accepted replacement produces one new leader and exactly one prior-bid outcome while preserving the gas and reentrancy invariants.
 
 ### U3. Permissionless settlement, proceeds, and forced excess

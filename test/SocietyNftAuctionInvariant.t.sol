@@ -42,6 +42,8 @@ contract SocietyNftAuctionHandler is Test {
     SocietyNftAuctionOwnerActor public immutable ownerA;
     SocietyNftAuctionOwnerActor public immutable ownerB;
     uint256 public modeledForcedExcess;
+    uint256 public modeledHighestBid;
+    bool public bidFloorViolation;
 
     constructor(SocietyNftAuction auction_) {
         auction = auction_;
@@ -62,6 +64,7 @@ contract SocietyNftAuctionHandler is Test {
         vm.deal(bidder, amount);
         vm.prank(bidder);
         auction.bid{value: amount}();
+        modeledHighestBid = amount;
     }
 
     function bidFromRejectingRecipient(uint96 rawAmount) external {
@@ -70,6 +73,29 @@ contract SocietyNftAuctionHandler is Test {
         uint256 amount = bound(uint256(rawAmount), minimumBid, minimumBid + 10 ether);
         vm.deal(address(this), amount);
         rejectingBidder.placeBid{value: amount}(address(auction));
+        modeledHighestBid = amount;
+    }
+
+    function bidBelowMinimum(uint160 rawBidder) external {
+        if (auction.lifecycle() != SocietyNftAuction.Lifecycle.Active || block.timestamp >= auction.endTime()) return;
+
+        uint256 amount = auction.minimumNextBid() - 1;
+        address bidder = address(rawBidder);
+        if (bidder == address(0) || bidder == address(auction)) bidder = address(0xB1D);
+
+        address highestBidderBefore = auction.highestBidder();
+        uint256 highestBidBefore = auction.highestBid();
+        uint256 donationsBefore = auction.failedRefundDonations();
+        uint256 balanceBefore = address(auction).balance;
+
+        vm.deal(bidder, amount);
+        vm.prank(bidder);
+        (bool success,) = address(auction).call{value: amount}(abi.encodeCall(SocietyNftAuction.bid, ()));
+
+        if (
+            success || auction.highestBidder() != highestBidderBefore || auction.highestBid() != highestBidBefore
+                || auction.failedRefundDonations() != donationsBefore || address(auction).balance != balanceBefore
+        ) bidFloorViolation = true;
     }
 
     function advanceTime(uint32 secondsForward) external {
@@ -212,6 +238,11 @@ contract SocietyNftAuctionInvariantTest is StdInvariant, Test {
 
     function invariantBidderAndBidStayPaired() public view {
         assertEq(auction.highestBidder() == address(0), auction.highestBid() == 0);
+    }
+
+    function invariantAcceptedBidsAreMonotonicAndBidFloorRejectsAtomically() public view {
+        assertEq(auction.highestBid(), handler.modeledHighestBid());
+        assertFalse(handler.bidFloorViolation());
     }
 
     function invariantAuctionCustodyMatchesLifecycle() public view {

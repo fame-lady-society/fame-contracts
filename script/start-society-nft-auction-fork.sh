@@ -105,7 +105,11 @@ if cast chain-id --rpc-timeout 1 --rpc-url "$LOCAL_RPC_URL" >/dev/null 2>&1; the
     exit 1
 fi
 
-deployer_address="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+# This one-off launch intentionally uses the configured owner as the deployer.
+# Avoid passing the Doppler private key in process arguments merely to derive the
+# same public address; the deployment script rejects a mismatched key before
+# broadcasting, and the predicted-address code check remains a second guard.
+deployer_address="$BASE_SOCIETY_NFT_AUCTION_OWNER"
 owner_lower="$(printf '%s' "$BASE_SOCIETY_NFT_AUCTION_OWNER" | tr '[:upper:]' '[:lower:]')"
 
 runtime_dir="$(mktemp -d "${TMPDIR:-/tmp}/society-nft-auction-fork.XXXXXX")"
