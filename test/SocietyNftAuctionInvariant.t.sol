@@ -55,8 +55,8 @@ contract SocietyNftAuctionHandler is Test {
 
     function bid(uint96 rawAmount, uint160 rawBidder) external {
         if (auction.lifecycle() != SocietyNftAuction.Lifecycle.Active || block.timestamp >= auction.endTime()) return;
-        uint256 currentHighestBid = auction.highestBid();
-        uint256 amount = bound(uint256(rawAmount), currentHighestBid + 1, currentHighestBid + 10 ether + 1);
+        uint256 minimumBid = auction.minimumNextBid();
+        uint256 amount = bound(uint256(rawAmount), minimumBid, minimumBid + 10 ether);
         address bidder = address(rawBidder);
         if (bidder == address(0) || bidder == address(auction)) bidder = address(0xB1D);
         vm.deal(bidder, amount);
@@ -66,8 +66,8 @@ contract SocietyNftAuctionHandler is Test {
 
     function bidFromRejectingRecipient(uint96 rawAmount) external {
         if (auction.lifecycle() != SocietyNftAuction.Lifecycle.Active || block.timestamp >= auction.endTime()) return;
-        uint256 currentHighestBid = auction.highestBid();
-        uint256 amount = bound(uint256(rawAmount), currentHighestBid + 1, currentHighestBid + 10 ether + 1);
+        uint256 minimumBid = auction.minimumNextBid();
+        uint256 amount = bound(uint256(rawAmount), minimumBid, minimumBid + 10 ether);
         vm.deal(address(this), amount);
         rejectingBidder.placeBid{value: amount}(address(auction));
     }

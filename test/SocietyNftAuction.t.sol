@@ -219,6 +219,93 @@ contract SocietyNftAuctionTest is Test {
         auction.bid{value: 3 ether}();
     }
 
+    function testMinimumNextBidRoundsUpAndEnforcesTenPercentIncrease() public {
+        vm.expectRevert(SocietyNftAuction.BiddingClosed.selector);
+        auction.minimumNextBid();
+        _startAuction();
+        assertEq(auction.minimumNextBid(), 1);
+
+        address bidder = makeAddr("rounding-bidder");
+        vm.deal(bidder, 100 wei);
+        vm.prank(bidder);
+        auction.bid{value: 10 wei}();
+
+        assertEq(auction.minimumNextBid(), 11 wei);
+
+        vm.deal(stranger, 100 wei);
+        vm.prank(stranger);
+        auction.bid{value: 11 wei}();
+
+        assertEq(auction.minimumNextBid(), 13 wei);
+
+        vm.prank(stranger);
+        vm.expectRevert(SocietyNftAuction.BidTooLow.selector);
+        auction.bid{value: 12 wei}();
+
+        vm.prank(stranger);
+        auction.bid{value: 13 wei}();
+        assertEq(auction.highestBid(), 13 wei);
+        assertEq(auction.minimumNextBid(), 15 wei);
+
+        vm.warp(auction.endTime());
+        vm.expectRevert(SocietyNftAuction.BiddingClosed.selector);
+        auction.minimumNextBid();
+
+        auction.settle();
+        vm.expectRevert(SocietyNftAuction.BiddingClosed.selector);
+        auction.minimumNextBid();
+    }
+
+    function testFirstBidRejectsZeroAndAcceptsOneWei() public {
+        _startAuction();
+        address bidder = makeAddr("one-wei-bidder");
+        vm.deal(bidder, 1 wei);
+
+        vm.prank(bidder);
+        vm.expectRevert(SocietyNftAuction.BidTooLow.selector);
+        auction.bid{value: 0}();
+
+        vm.prank(bidder);
+        auction.bid{value: 1 wei}();
+
+        assertEq(auction.highestBidder(), bidder);
+        assertEq(auction.highestBid(), 1 wei);
+        assertEq(auction.minimumNextBid(), 2 wei);
+    }
+
+    function testHighestBidderCanOutbidThemselvesAtMinimumNextBid() public {
+        _startAuction();
+        address bidder = makeAddr("self-outbidder");
+        vm.deal(bidder, 3 ether);
+
+        vm.prank(bidder);
+        auction.bid{value: 1 ether}();
+        assertEq(auction.minimumNextBid(), 1.1 ether);
+
+        vm.prank(bidder);
+        auction.bid{value: 1.1 ether}();
+
+        assertEq(auction.highestBidder(), bidder);
+        assertEq(auction.highestBid(), 1.1 ether);
+        assertEq(auction.failedRefundDonations(), 0);
+        assertEq(address(auction).balance, 1.1 ether);
+        assertEq(bidder.balance, 1.9 ether);
+    }
+
+    function testRejectingHighestBidderCanSelfOutbidAndDonatePriorBid() public {
+        _startAuction();
+        AuctionBidder bidder = new AuctionBidder();
+        bidder.configure(AuctionBidder.RefundMode.Reject, address(auction), "");
+
+        bidder.placeBid{value: 1 ether}(address(auction));
+        bidder.placeBid{value: 1.1 ether}(address(auction));
+
+        assertEq(auction.highestBidder(), address(bidder));
+        assertEq(auction.highestBid(), 1.1 ether);
+        assertEq(auction.failedRefundDonations(), 1 ether);
+        assertEq(address(auction).balance, 2.1 ether);
+    }
+
     function testAcceptingPriorBidderReceivesFullRefundWithBoundedGas() public {
         _startAuction();
         AuctionBidder prior = new AuctionBidder();
@@ -341,14 +428,15 @@ contract SocietyNftAuctionTest is Test {
         assertEq(auction.failedRefundDonations(), 1 ether);
     }
 
-    function testFuzzStrictlyHigherBidConservesAccountedEth(uint96 first, uint96 second) public {
+    function testFuzzMinimumIncreaseConservesAccountedEth(uint96 first, uint96 second) public {
         first = uint96(bound(first, 1, 10 ether));
-        second = uint96(bound(second, uint256(first) + 1, 20 ether));
         _startAuction();
         address firstBidder = makeAddr("firstBidder");
         vm.deal(firstBidder, first);
         vm.prank(firstBidder);
         auction.bid{value: first}();
+
+        second = uint96(bound(second, auction.minimumNextBid(), 20 ether));
         vm.deal(stranger, second);
         vm.prank(stranger);
         auction.bid{value: second}();

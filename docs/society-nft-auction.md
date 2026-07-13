@@ -2,7 +2,7 @@
 
 This contract auctions one NFT from the Society DN404 mirror on Base. It uses only the mirror's ERC-721 surface at `0xBB5ED04dD7B207592429eb8d599d103CCad646c4`; the DN404 ERC-20 side is deliberately irrelevant.
 
-The auction has no reserve and runs for exactly three days after the owner atomically transfers the selected NFT into custody. Bids use native ETH and must strictly increase. When an outbid recipient rejects or exhausts the bounded 100,000-gas refund attempt, that complete prior bid becomes an irrevocable seller donation. Only the current top bid remains a bidder obligation.
+The auction has no reserve and runs for exactly three days after the owner atomically transfers the selected NFT into custody. Bids use native ETH. The first bid must be nonzero; every later bid must be at least 10% greater than the current bid, rounded up to the next wei. While bidding is active, `minimumNextBid()` exposes the exact accepted floor for wallets and interfaces; it reverts with `BiddingClosed` outside that window. The current leader may outbid themselves and receives the same bounded refund attempt as any other displaced bid. When an outbid recipient rejects or exhausts that 100,000-gas refund attempt, the complete prior bid becomes an irrevocable seller donation. Only the current top bid remains a bidder obligation.
 
 ## Irreversible boundary
 

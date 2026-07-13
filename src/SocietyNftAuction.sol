@@ -11,6 +11,7 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
     uint256 public constant AUCTION_DURATION = 3 days;
     uint256 public constant REFUND_GAS_STIPEND = 100_000;
     uint256 public constant MIN_GAS_BEFORE_REFUND = 175_000;
+    uint256 private constant TEN_PERCENT_DENOMINATOR = 10;
 
     enum Lifecycle {
         Unstarted,
@@ -120,8 +121,7 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
     }
 
     function bid() external payable nonReentrant {
-        if (lifecycle != Lifecycle.Active || block.timestamp >= endTime) revert BiddingClosed();
-        if (msg.value == 0 || msg.value <= highestBid) revert BidTooLow();
+        if (msg.value < minimumNextBid()) revert BidTooLow();
 
         address priorBidder = highestBidder;
         uint256 priorBid = highestBid;
@@ -140,6 +140,17 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
             failedRefundDonations += priorBid;
             emit BidRefundDonated(priorBidder, priorBid);
         }
+    }
+
+    function minimumNextBid() public view returns (uint256) {
+        if (lifecycle != Lifecycle.Active || block.timestamp >= endTime) revert BiddingClosed();
+
+        uint256 currentBid = highestBid;
+        if (currentBid == 0) return 1;
+
+        uint256 increase = currentBid / TEN_PERCENT_DENOMINATOR;
+        if (currentBid % TEN_PERCENT_DENOMINATOR != 0) ++increase;
+        return currentBid + increase;
     }
 
     function settle() external nonReentrant {
