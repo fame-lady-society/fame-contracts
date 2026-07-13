@@ -6,6 +6,17 @@ import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {IERC721} from "@openzeppelin5/contracts/token/ERC721/IERC721.sol";
 
+// ============================================================================
+//                    SOCIETY NFT ONE-OFF AUCTION
+//                  Built with Love by Flick + ChatGPT
+// ============================================================================
+
+/// @title Society NFT One-Off Auction
+/// @author Built with Love by Flick + ChatGPT
+/// @notice Auctions one Society DN404 mirror NFT for native ETH over three days.
+/// @dev This contract intentionally interacts only with the ERC-721 mirror. A successful
+///      start is irreversible, only the current highest bid remains refundable, and a failed
+///      refund becomes seller proceeds. Ownership carries every seller-side economic right.
 contract SocietyNftAuction is Ownable, ReentrancyGuard {
     address public constant SOCIETY_NFT = 0xBB5ED04dD7B207592429eb8d599d103CCad646c4;
     uint256 public constant AUCTION_DURATION = 3 days;
@@ -25,8 +36,10 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
     uint256 public endTime;
     address public highestBidder;
     uint256 public highestBid;
+    /// @notice Prior bids whose bounded refund attempts failed and became seller proceeds.
     uint256 public failedRefundDonations;
     address public settledRecipient;
+    /// @notice Settled auction proceeds reserved from any forced ETH excess.
     uint256 public withdrawableProceeds;
 
     bool private _expectingReceipt;
@@ -67,6 +80,10 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
         revert UnexpectedEth();
     }
 
+    /// @notice Atomically escrows the selected NFT and opens the one-time auction.
+    /// @dev The caller must own and approve the token. After success there is no cancellation,
+    ///      pause, extension, restart, or unrelated-NFT rescue path.
+    /// @param selectedTokenId The Society mirror token to auction.
     function start(uint256 selectedTokenId) external onlyOwner nonReentrant {
         if (lifecycle != Lifecycle.Unstarted) revert AlreadyStarted();
 
@@ -111,6 +128,7 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
         external
         returns (bytes4)
     {
+        // Accept only the exact transfer initiated inside start(); unsolicited NFTs are rejected.
         if (
             msg.sender != SOCIETY_NFT || !_expectingReceipt || operator != address(this) || from != _expectedFrom
                 || receivedTokenId != _expectedTokenId
@@ -120,6 +138,9 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
         return this.onERC721Received.selector;
     }
 
+    /// @notice Places a full replacement bid; this is never an incremental top-up.
+    /// @dev The current leader may outbid themselves. The displaced bid receives the same bounded
+    ///      refund attempt regardless of bidder identity; failure irrevocably donates that bid.
     function bid() external payable nonReentrant {
         if (msg.value < minimumNextBid()) revert BidTooLow();
 
@@ -142,6 +163,9 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
         }
     }
 
+    /// @notice Returns the lowest bid currently accepted by `bid()`.
+    /// @dev Reverts outside the active bidding window. The 10% increase is rounded up to wei.
+    /// @return One wei for the first bid, otherwise `highestBid + ceil(highestBid / 10)`.
     function minimumNextBid() public view returns (uint256) {
         if (lifecycle != Lifecycle.Active || block.timestamp >= endTime) revert BiddingClosed();
 
@@ -153,6 +177,9 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
         return currentBid + increase;
     }
 
+    /// @notice Finalizes the auction after its deadline; callable by anyone.
+    /// @dev Uses callback-free ERC-721 transfer semantics so a contract winner cannot veto
+    ///      settlement by rejecting `onERC721Received`.
     function settle() external nonReentrant {
         if (lifecycle != Lifecycle.Active || block.timestamp < endTime) revert SettlementUnavailable();
 
@@ -168,6 +195,8 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
         emit AuctionSettled(recipient, highestBid, proceeds);
     }
 
+    /// @notice Pays the final winning bid plus failed-refund donations to the current owner.
+    /// @dev A failed ETH transfer reverts without consuming the owner's claim.
     function withdrawProceeds() external onlyOwner nonReentrant {
         if (lifecycle != Lifecycle.Settled) revert NotSettled();
         uint256 amount = withdrawableProceeds;
@@ -180,6 +209,7 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
         emit ProceedsWithdrawn(currentOwner, amount);
     }
 
+    /// @notice Withdraws forced ETH after settlement without consuming reserved proceeds.
     function sweepExcess() external onlyOwner nonReentrant {
         if (lifecycle != Lifecycle.Settled) revert NotSettled();
         uint256 amount = address(this).balance - withdrawableProceeds;
@@ -198,6 +228,7 @@ contract SocietyNftAuction is Ownable, ReentrancyGuard {
 
     function renounceOwnership() public payable override onlyOwner {
         _rejectEth();
+        // A permanent nonzero owner is required for NFT return and proceeds recovery.
         revert OwnershipRenunciationDisabled();
     }
 
