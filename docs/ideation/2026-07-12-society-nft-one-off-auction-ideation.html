@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ideation: Society NFT One-Off Auction</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f4f1eb;
+      --surface: #fffdf8;
+      --surface-2: #eee8de;
+      --ink: #17151c;
+      --muted: #625d68;
+      --line: #d8d0c4;
+      --accent: #6a35c7;
+      --accent-soft: #eee5ff;
+      --accent-text: #402075;
+      --good-soft: #dff4e8;
+      --good-text: #155f3b;
+      --warn-soft: #fff0c7;
+      --warn-text: #76540c;
+      --shadow: 0 18px 45px rgba(36, 28, 49, .08);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.62;
+    }
+    main, header, footer { width: min(940px, calc(100% - 32px)); margin-inline: auto; }
+    header { padding: 64px 0 32px; }
+    .eyebrow { margin: 0 0 10px; color: var(--accent); font-size: .76rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; max-width: 18ch; font-family: Georgia, "Times New Roman", serif; font-size: clamp(2.5rem, 7vw, 5rem); line-height: .98; letter-spacing: -.045em; }
+    .lede { max-width: 68ch; margin: 24px 0 0; color: var(--muted); font-size: 1.08rem; }
+    .metadata, .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 7px; min-height: 34px;
+      padding: 7px 11px; border: 1px solid #d9caef; border-radius: 999px;
+      background: var(--accent-soft); color: var(--accent-text); font-size: .8rem; font-weight: 750;
+    }
+    .pill.neutral { background: var(--surface-2); color: #49424e; border-color: var(--line); }
+    .stats { margin-top: 18px; }
+    .stat { flex: 1 1 150px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .stat strong { display: block; font-family: Georgia, "Times New Roman", serif; font-size: 1.6rem; line-height: 1; }
+    .stat span { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+    section { margin: 24px 0; padding: 30px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    section > h2 { margin: 0 0 18px; font-family: Georgia, "Times New Roman", serif; font-size: 1.7rem; letter-spacing: -.02em; }
+    p { max-width: 74ch; }
+    code { padding: .1em .35em; border-radius: 5px; background: var(--surface-2); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88em; }
+    a { color: var(--accent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+    .callout { padding: 18px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-text); }
+    .callout p { margin: 0; }
+    .axes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; padding: 0; list-style: none; }
+    .axes li { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #faf7f1; }
+    .axes b { display: inline-grid; place-items: center; width: 25px; height: 25px; margin-right: 8px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); font-size: .78rem; }
+    .jump-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 8px; padding: 0; margin: 0 0 22px; list-style: none; }
+    .jump-list a { display: block; padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: #faf7f1; text-decoration: none; font-weight: 700; }
+    .idea { margin: 18px 0 0; padding: 26px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+    .idea:first-of-type { margin-top: 0; }
+    .idea-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 14px; }
+    .idea h3 { margin: 0; max-width: 27ch; font-family: Georgia, "Times New Roman", serif; font-size: 1.45rem; line-height: 1.15; }
+    .rank { display: block; margin-bottom: 4px; color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip { padding: 6px 9px; border: 1px solid #c9e5d5; border-radius: 999px; background: var(--good-soft); color: var(--good-text); font-size: .74rem; font-weight: 800; }
+    .chip.complexity { border-color: #ecdba5; background: var(--warn-soft); color: var(--warn-text); }
+    dl { display: grid; grid-template-columns: 112px 1fr; gap: 10px 16px; margin: 20px 0 0; }
+    dt { color: var(--muted); font-size: .74rem; font-weight: 850; letter-spacing: .09em; text-transform: uppercase; }
+    dd { margin: 0; }
+    .diagram { margin-top: 22px; padding: 14px; border-radius: 14px; background: #f6f1ff; overflow-x: auto; }
+    .diagram svg { display: block; width: 100%; min-width: 610px; height: auto; }
+    .diagram-caption { margin: 8px 0 0; color: var(--accent-text); font-size: .78rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    th, td { padding: 11px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; }
+    tbody tr:last-child td { border-bottom: 0; }
+    .table-wrap { overflow-x: auto; }
+    footer { padding: 18px 0 48px; color: var(--muted); font-size: .78rem; }
+    @media (max-width: 650px) {
+      header { padding-top: 42px; }
+      section { padding: 20px; }
+      .idea { padding: 20px; }
+      dl { grid-template-columns: 1fr; gap: 3px; }
+      dd { margin-bottom: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Contract design ideation</p>
+    <h1>Society NFT One-Off Auction</h1>
+    <p class="lede">A deliberately small Base auction for one Society NFT: native ETH, one live top bid, immediate refunds, no administrative escape hatch after custody, and settlement that cannot be held hostage by recipient callbacks.</p>
+    <div class="metadata" aria-label="Document metadata">
+      <span class="pill">Date <time datetime="2026-07-12">2026-07-12</time></span>
+      <span class="pill">Topic society-nft-one-off-auction</span>
+      <span class="pill">Mode repo-grounded</span>
+      <span class="pill neutral">Focus one-shot Base NFT top-bid auction</span>
+    </div>
+    <div class="stats" aria-label="Ideation statistics">
+      <div class="stat"><strong>22</strong><span>raw candidates</span></div>
+      <div class="stat"><strong>5</strong><span>ranked survivors</span></div>
+      <div class="stat"><strong>5</strong><span>topic axes covered</span></div>
+      <div class="stat"><strong>0</strong><span>post-start owner controls</span></div>
+    </div>
+  </header>
+
+  <main>
+    <section id="grounding-context">
+      <p class="eyebrow">Evidence before cleverness</p>
+      <h2>Grounding Context</h2>
+      <p><strong>Codebase Context.</strong> The Society NFT mirror address <code>0xbb5ed04dd7b207592429eb8d599d103ccad646c4</code> is already a canonical Base public constant. The local <code>DN404Mirror</code> exposes the normal ERC-721 ownership, approval, <code>transferFrom</code>, and <code>safeTransferFrom</code> surface. The auction should use only that mirror surface; no ERC-20 call, allowance, rescue, or WETH path belongs here.</p>
+      <p><code>FameLaunch</code> supplies the repo’s minimal receiver pattern. <code>FameRouter</code> is the stronger safety precedent: validate value before movement, apply a reentrancy guard around external calls, update effects before interactions, and keep business accounting independent from ambient balances. The existing repository has no auction contract or hostile-refund fixture yet.</p>
+      <p>External prior art confirms the core tradeoff: pushed ETH refunds can block progress when the recipient rejects payment, while ERC-721 safe delivery gives winner-controlled code a callback that can reject settlement. The user made the refund policy explicit: a bidder who rejects their outbid refund donates that amount to the seller. This means the honest accounting statement is “current top bid plus tracked failed-refund donations,” not literally “only the top bid” after a failed refund.</p>
+      <div class="callout"><p><strong>Scope lock.</strong> “Top-bid” here means a single lot, no reserve, a 10% rounded-up minimum increase after the first bid, no Dutch price curve, no anti-sniping extension, no royalty/fee engine, no proxy, and no reusable marketplace framework.</p></div>
+    </section>
+
+    <section id="topic-axes">
+      <p class="eyebrow">Surface map</p>
+      <h2>Topic Axes</h2>
+      <ol class="axes">
+        <li><b>1</b>Start and NFT custody flight checks</li>
+        <li><b>2</b>Bidding, immediate refunds, and rejected-refund donations</li>
+        <li><b>3</b>Time window and irreversible lifecycle</li>
+        <li><b>4</b>Permissionless settlement and NFT delivery</li>
+        <li><b>5</b>Proceeds accounting and owner withdrawal</li>
+      </ol>
+    </section>
+
+    <section id="ranked-ideas">
+      <p class="eyebrow">The cut</p>
+      <h2>Ranked Ideas</h2>
+      <nav aria-label="Ranked ideas">
+        <ol class="jump-list">
+          <li><a href="#idea-1">1. One-Transaction Ignition</a></li>
+          <li><a href="#idea-2">2. Non-Vetoable Bid Replacement</a></li>
+          <li><a href="#idea-3">3. Half-Open Custody Fuse</a></li>
+          <li><a href="#idea-4">4. Settlement the Winner Cannot Block</a></li>
+          <li><a href="#idea-5">5. Tracked Proceeds With a Retryable Owner Exit</a></li>
+        </ol>
+      </nav>
+
+      <article class="idea" id="idea-1">
+        <div class="idea-head">
+          <h3><span class="rank">Idea 1 · Top pick</span>One-Transaction Ignition</h3>
+          <div class="chips"><span class="chip">Confidence 92%</span><span class="chip complexity">Complexity Medium</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt><dd>Make <code>start(tokenId)</code> the only activation path. In one atomic transaction it targets the fixed Society mirror, validates token existence and current owner, confirms transfer authority, records <code>startTime</code> from the activation block and derives <code>endTime = startTime + 3 days</code>, pulls the NFT, verifies post-transfer custody, and then crosses a one-way activation boundary. Any failed flight check rolls the whole operation back.</dd>
+          <dt>Axis</dt><dd>Start and NFT custody flight checks</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> <code>DN404Mirror</code> exposes authoritative <code>ownerOf</code>, approval, and ERC-721 transfer behavior; the repo already uses one-way launch state and explicit preflight checks.</dd>
+          <dt>Rationale</dt><dd>The seller cannot open bidding while retaining the ability to move the prize or revoke an approval. Successful activation itself proves the advertised NFT is escrowed.</dd>
+          <dt>Downsides</dt><dd>The start transaction performs an external NFT transfer and must be carefully guarded. The receiver can validate safe receipts, but cannot stop somebody from later forcing an unrelated NFT into the contract through plain <code>transferFrom</code>; the contract should avoid claiming otherwise.</dd>
+        </dl>
+        <div class="diagram" aria-label="Conceptual ignition flow">
+          <svg viewBox="0 0 760 150" role="img" aria-labelledby="ignition-title ignition-desc">
+            <title id="ignition-title">Atomic custody-first activation</title>
+            <desc id="ignition-desc">All checks and NFT custody happen before the one-way Active state.</desc>
+            <defs><marker id="arrow-a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#6a35c7"/></marker></defs>
+            <g font-family="Inter, system-ui, sans-serif" font-size="14" text-anchor="middle">
+              <rect x="18" y="43" width="150" height="58" rx="13" fill="#fffdf8" stroke="#8f75be"/><text x="93" y="68" fill="#17151c">Owner + approval</text><text x="93" y="89" fill="#625d68">token exists</text>
+              <path d="M180 72 H254" stroke="#6a35c7" stroke-width="2.5" marker-end="url(#arrow-a)"/>
+              <rect x="266" y="31" width="210" height="82" rx="13" fill="#eee5ff" stroke="#6a35c7"/><text x="371" y="59" fill="#402075" font-weight="700">start(tokenId)</text><text x="371" y="82" fill="#402075">transfer + verify custody</text><text x="371" y="101" fill="#402075">freeze timestamps</text>
+              <path d="M488 72 H562" stroke="#6a35c7" stroke-width="2.5" marker-end="url(#arrow-a)"/>
+              <rect x="574" y="43" width="168" height="58" rx="13" fill="#dff4e8" stroke="#4a9871"/><text x="658" y="68" fill="#155f3b" font-weight="700">ACTIVE</text><text x="658" y="89" fill="#155f3b">no abort controls</text>
+            </g>
+          </svg>
+          <p class="diagram-caption">Illustrative only: complexity stays before the trust commitment; the live auction stays boring.</p>
+        </div>
+      </article>
+
+      <article class="idea" id="idea-2">
+        <div class="idea-head">
+          <h3><span class="rank">Idea 2</span>Non-Vetoable Bid Replacement</h3>
+          <div class="chips"><span class="chip">Confidence 90%</span><span class="chip complexity">Complexity Medium</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt><dd>A bid must be positive, arrive during the active half-open window, and strictly exceed the stored top bid. The contract records the new leader before attempting a guarded native-ETH refund to the prior leader. If the refund recipient rejects the call, the new bid still succeeds; the rejected amount is recorded as seller proceeds and an explicit donation event is emitted.</dd>
+          <dt>Axis</dt><dd>Bidding, immediate refunds, and rejected-refund donations</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> Existing native helpers revert when a recipient rejects ETH, while <code>FameRouter</code> supplies the local reentrancy and effects-before-interactions precedent. <strong>reasoned:</strong> A previous leader’s callback behavior must not give them a veto over later bids.</dd>
+          <dt>Rationale</dt><dd>This preserves the product’s immediate-refund feel for normal EOAs while turning hostile or incompatible recipients into a deterministic economic outcome chosen by the user: donation, not deadlock.</dd>
+          <dt>Downsides</dt><dd>This policy is intentionally harsh and nonstandard. The refund gas policy must be generous and documented so a merely expensive receiver is not accidentally classified as refusing payment; bidders using contracts must understand that rejection forfeits the refund.</dd>
+        </dl>
+        <div class="diagram" aria-label="Conceptual refund outcome flow">
+          <svg viewBox="0 0 760 205" role="img" aria-labelledby="refund-title refund-desc">
+            <title id="refund-title">Replacement bid and refund outcomes</title>
+            <desc id="refund-desc">The new leader is recorded before the prior refund branches to success or donation.</desc>
+            <defs><marker id="arrow-b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#6a35c7"/></marker></defs>
+            <g font-family="Inter, system-ui, sans-serif" font-size="14" text-anchor="middle">
+              <rect x="20" y="73" width="170" height="60" rx="13" fill="#fffdf8" stroke="#8f75be"/><text x="105" y="98" fill="#17151c">Strictly higher bid</text><text x="105" y="119" fill="#625d68">new ETH arrives</text>
+              <path d="M202 103 H276" stroke="#6a35c7" stroke-width="2.5" marker-end="url(#arrow-b)"/>
+              <rect x="288" y="61" width="170" height="84" rx="13" fill="#eee5ff" stroke="#6a35c7"/><text x="373" y="91" fill="#402075" font-weight="700">Record new leader</text><text x="373" y="114" fill="#402075">then attempt refund</text>
+              <path d="M470 103 C520 103 518 47 566 47" fill="none" stroke="#4a9871" stroke-width="2.5" marker-end="url(#arrow-b)"/>
+              <path d="M470 103 C520 103 518 159 566 159" fill="none" stroke="#b47a12" stroke-width="2.5" marker-end="url(#arrow-b)"/>
+              <rect x="578" y="20" width="164" height="54" rx="13" fill="#dff4e8" stroke="#4a9871"/><text x="660" y="52" fill="#155f3b">Refund succeeds</text>
+              <rect x="578" y="132" width="164" height="54" rx="13" fill="#fff0c7" stroke="#b47a12"/><text x="660" y="154" fill="#76540c">Refund rejected</text><text x="660" y="174" fill="#76540c">seller donation</text>
+            </g>
+          </svg>
+          <p class="diagram-caption">Both branches preserve the new high bid; recipient behavior changes only where the old funds are accounted.</p>
+        </div>
+      </article>
+
+      <article class="idea" id="idea-3">
+        <div class="idea-head">
+          <h3><span class="rank">Idea 3</span>Half-Open Custody Fuse</h3>
+          <div class="chips"><span class="chip">Confidence 95%</span><span class="chip complexity">Complexity Low</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt><dd>Use one unambiguous boundary: bids are valid for <code>startTime &lt;= block.timestamp &lt; endTime</code>; settlement is valid for <code>block.timestamp &gt;= endTime</code>. Once ignition succeeds, the owner has no pause, cancellation, extension, early-settlement, deadline-edit, or NFT-rescue function until the terminal settlement path executes.</dd>
+          <dt>Axis</dt><dd>Time window and irreversible lifecycle</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> Existing repo windows demonstrate the ambiguity created when bidding-like actions and post-deadline actions both include the exact end timestamp. The repo also contrasts reversible administrative controls with a one-way launch flag.</dd>
+          <dt>Rationale</dt><dd>At the exact end second only settlement is legal, and bidder trust comes from absent privileged controls rather than an owner promise not to use them.</dd>
+          <dt>Downsides</dt><dd>Operational mistakes made before start cannot be repaired after ignition. That is the point, but it raises the quality bar for preflight checks and dry-run deployment.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-4">
+        <div class="idea-head">
+          <h3><span class="rank">Idea 4</span>Settlement the Winner Cannot Block</h3>
+          <div class="chips"><span class="chip">Confidence 88%</span><span class="chip complexity">Complexity Low</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt><dd>After the deadline, anyone can settle. The contract records terminal state before external interaction, then uses the mirror’s plain ERC-721 <code>transferFrom</code> to register title to the winner without invoking winner-controlled receiver code. If there were no bids, the same terminal path returns the NFT to the owner. Seller payment is not attempted during settlement.</dd>
+          <dt>Axis</dt><dd>Permissionless settlement and NFT delivery</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> <code>DN404Mirror.safeTransferFrom</code> forwards into <code>onERC721Received</code> and bubbles rejection; plain <code>transferFrom</code> does not call the recipient. Existing callback tests show how a rejecting recipient can roll back a coupled flow.</dd>
+          <dt>Rationale</dt><dd>Permissionless settlement is meaningful only if the winner cannot make every resolver fail. Treat the NFT transfer like a title-registry update, not a parcel requiring the recipient’s signature.</dd>
+          <dt>Downsides</dt><dd>A winning contract that cannot later operate the NFT may strand its own asset. This deliberately places address suitability on the bidder to preserve auction liveness. The no-bid return path and repeated-settlement guard need explicit tests.</dd>
+        </dl>
+      </article>
+
+      <article class="idea" id="idea-5">
+        <div class="idea-head">
+          <h3><span class="rank">Idea 5</span>Tracked Proceeds With a Retryable Owner Exit</h3>
+          <div class="chips"><span class="chip">Confidence 91%</span><span class="chip complexity">Complexity Low</span></div>
+        </div>
+        <dl>
+          <dt>Description</dt><dd>Track the live top bid, failed-refund donations, and settled owner proceeds as explicit state transitions rather than using <code>address(this).balance</code> as the business ledger. Failed-refund donations remain locked during the active auction; no owner withdrawal is available before terminal settlement. Settlement converts the final bid and accumulated donations into owner proceeds. The owner then withdraws the exact proceeds to a chosen payable recipient; accounting clears before the call, and a rejected destination reverts so the owner can retry with another address.</dd>
+          <dt>Axis</dt><dd>Proceeds accounting and owner withdrawal</dd>
+          <dt>Basis</dt><dd><strong>direct:</strong> <code>FameRouter</code> separates route-local accounting from ambient balances. Existing native withdrawal paths show why a fixed rejecting recipient can block coupled work. <strong>reasoned:</strong> Forced ETH can make raw balance larger than the contract’s obligations, so state—not balance—must define proceeds.</dd>
+          <dt>Rationale</dt><dd>Tests, indexers, and humans can reconcile every economically meaningful wei, while accidental or forcibly sent ETH cannot corrupt bid comparisons or enable double withdrawal.</dd>
+          <dt>Downsides</dt><dd>A policy is still needed for unavoidable excess ETH that is not part of the tracked ledger: leave it inert, or allow an owner-only post-settlement excess sweep. Keeping that policy post-settlement avoids creating a live-auction escape hatch.</dd>
+        </dl>
+      </article>
+    </section>
+
+    <section id="rejection-summary">
+      <p class="eyebrow">Why the rest did not survive</p>
+      <h2>Rejection Summary</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Atomic Custody-First Ignition</td><td>Duplicate of the stronger synthesized One-Transaction Ignition.</td></tr>
+            <tr><td>2</td><td>A Receiver That Accepts Exactly One NFT, Once</td><td>Basis refuted: selective receiver logic cannot prevent unsolicited plain <code>transferFrom</code> deposits.</td></tr>
+            <tr><td>4</td><td>A Balance Equation Humans Can Audit</td><td>Useful support, absorbed into tracked proceeds rather than kept as a separate direction.</td></tr>
+            <tr><td>6</td><td>The Custody Fuse</td><td>Merged with exact boundary semantics in Half-Open Custody Fuse.</td></tr>
+            <tr><td>9</td><td>Start Means Custody</td><td>Duplicate of One-Transaction Ignition.</td></tr>
+            <tr><td>10</td><td>Refund Failure Becomes Revenue</td><td>Duplicate of Non-Vetoable Bid Replacement with less explicit effects ordering.</td></tr>
+            <tr><td>11</td><td>Safe Transfer Can Be Unsafe for the Auction</td><td>Rationale for callback-free settlement, not a separate direction.</td></tr>
+            <tr><td>12</td><td>Settlement Is Title Transfer, Not Seller Payment</td><td>Merged into callback-free settlement and retryable withdrawal.</td></tr>
+            <tr><td>13</td><td>Make the Collection Address Code, Not Configuration</td><td>Valid implementation choice but below the meeting-test alone; included in ignition.</td></tr>
+            <tr><td>14</td><td>Give the Owner Zero Lifecycle Controls After Start</td><td>Duplicate of Half-Open Custody Fuse.</td></tr>
+            <tr><td>15</td><td>Design Around One Conservation Equation</td><td>Valuable test invariant, absorbed into tracked proceeds.</td></tr>
+            <tr><td>16</td><td>Use a Monotonic Lifecycle Enum</td><td>Enum versus tightly controlled flags is an implementation detail, not a direction.</td></tr>
+            <tr><td>17</td><td>Land Registry Delivery, Not Certified Mail</td><td>The analogy adds no move beyond callback-free settlement.</td></tr>
+            <tr><td>18</td><td>Rocket Launch: Preflight, Ignition, No Abort Button</td><td>Duplicate framing of ignition plus custody fuse.</td></tr>
+            <tr><td>20</td><td>The Liveness Firewall</td><td>Strong synthesis but overlaps three more precise survivors; retained as the set-level principle.</td></tr>
+            <tr><td>21</td><td>Three-Bucket Conservation Ledger</td><td>Overlaps the tracked-proceeds survivor and is better handled as its invariant.</td></tr>
+            <tr><td>22</td><td>Minimal One-Shot ABI</td><td>Essential scope discipline on every survivor, not an independent idea.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="composition-signal">Composed 2026-07-12T17:44Z by ce-ideate from the user’s Society NFT one-off auction prompt and repository evidence.</footer>
+</body>
+</html>
