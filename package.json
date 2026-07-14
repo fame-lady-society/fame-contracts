@@ -1,6 +1,21 @@
 {
   "name": "fame-contracts",
   "version": "1.0.0",
+  "description": "Smart contracts and migration infrastructure for Fame Lady Society",
+  "repository": "git@github.com:fame-lady-society/fame-contracts.git",
+  "homepage": "https://github.com/fame-lady-society/fame-contracts#readme",
+  "bugs": {
+    "url": "https://github.com/fame-lady-society/fame-contracts/issues"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "smart-contracts",
+    "nft",
+    "dao",
+    "token-migration",
+    "onchain-metadata"
+  ],
   "main": "index.js",
   "repository": "git@github.com:fame-lady-society/fame-contracts.git",
   "author": "flick <github@0xflick.xyz>",
