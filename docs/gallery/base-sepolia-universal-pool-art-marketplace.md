@@ -67,7 +67,8 @@ or authority mismatch stops the run.
 | Strict deployed-address fork | Pending |
 | Activation transaction | Pending |
 | Post-activation fork | Pending |
-| Bounded smoke | Pending |
+| Smoke script rehearsal | Passed locally and on current-head fork |
+| Bounded live smoke | Pending |
 
 No `broadcast/` logs are committed. Mined public facts belong in this document
 and `config/fame-public.env`; signer material and RPC credentials remain in
@@ -77,3 +78,63 @@ The non-broadcast deployment rehearsal at nonce 30 completed successfully with
 four simulated transactions: deploy, grant BANISHER, seed shell one, and seed
 shell two. The simulated address is not a deployed-address claim and must be
 recomputed if the deployer nonce changes.
+
+## Bounded smoke
+
+The smoke tooling freezes one plan hash containing:
+
+- buyer and exact starting nonce;
+- direct, Burn, and Mint recipients;
+- three unique marketplace shell IDs;
+- Burn and Mint source IDs;
+- selected and displaced artwork hashes;
+- current unit, premium, exact three-purchase spend, inventory, fee balance,
+  buyer mirror balance, and buyer post-purchase minimum.
+
+The script sets an exact allowance and executes Burn, Mint, then direct held.
+That order is required because any unit deposited into the non-skip marketplace
+can remint a burned ID or advance supply into a Mint source. The result validator
+does not assume that DN404 replenishes inventory with either selected source ID.
+
+The smoke requires both an explicit confirmation value and a secret buyer key in
+Doppler. No live smoke plan is configured until the marketplace is deployed,
+verified, and activated.
+
+The complete smoke script plus independent result validator passed against an
+ephemeral successor on Base Sepolia fork block `44,298,936`
+(`0x69d736946efb1bdb0dc7662888b48aa3525404cfec56967d822df7c8ab0ca76e`).
+
+## WWW handoff
+
+The future frontend integration should use the verified deployed address and ABI
+for `UniversalPoolArtMarketplace`. The address is currently pending.
+
+Buyer discovery and routing:
+
+1. If `mirror.ownerAt(targetId) == marketplace`, buy that held shell with
+   `purchaseHeld`.
+2. Otherwise, if `isTokenInBurnedPool(targetId)` or
+   `isTokenInMintPool(targetId)` is true, select any canonically marketplace-owned
+   shell and call `purchasePool(shellId, targetId, ...)`.
+3. If the intended recipient already owns `targetId`, short-circuit to the owned
+   result instead of purchasing.
+4. Art Pool IDs are excluded and must not be presented as marketplace inventory.
+
+Transaction inputs:
+
+- `expectedArtworkHash = keccak256(bytes(creatorMagic.tokenURI(targetId)))`;
+- `maxPremium` is the premium the buyer accepted;
+- `minBuyerMirrorBalanceAfter` is `0` to opt out or a caller-selected DN404
+  postcondition;
+- payment is only `unit + premium` in the underlying FAME/TEST token;
+- external swap infrastructure may acquire the underlying token before this
+  transaction but is not part of the marketplace contract.
+
+The frontend should re-read source eligibility, shell custody, artwork hash,
+premium, allowance, and recipient immediately before simulation. A successful
+`ArtworkPurchased` event reports buyer, recipient, delivered shell, fulfillment
+path, selected source, artwork hash, unit, premium, and before/after inventory.
+
+Metadata remains a deployment-specific presentation concern. Base Sepolia TEST
+uses nested on-chain data URIs; production FAME uses URL metadata. Settlement
+depends only on the exact URI hash and does not parse either format.

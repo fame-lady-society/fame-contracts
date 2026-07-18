@@ -9,6 +9,10 @@ import {FameMirror} from "../src/FameMirror.sol";
 import {
     ValidateBaseSepoliaUniversalPoolArtMarketplace
 } from "../script/ValidateBaseSepoliaUniversalPoolArtMarketplace.s.sol";
+import {SmokeBaseSepoliaUniversalPoolArtMarketplace} from "../script/SmokeBaseSepoliaUniversalPoolArtMarketplace.s.sol";
+import {
+    ValidateBaseSepoliaUniversalPoolArtMarketplaceSmokeResult
+} from "../script/ValidateBaseSepoliaUniversalPoolArtMarketplaceSmokeResult.s.sol";
 import {ReentrantUniversalPoolMarketplaceRecipient} from "./mocks/ReentrantUniversalPoolMarketplaceRecipient.sol";
 
 abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
@@ -286,6 +290,59 @@ contract UniversalPoolArtMarketplaceCurrentHeadForkBaseSepoliaTest is
 
         UniversalPoolArtMarketplace market = _deployEphemeralMarket();
         _exerciseAllPaths(market);
+    }
+
+    function testCurrentHeadSmokeScriptRehearsal() public {
+        (uint256 forkBlock, bytes32 forkHash) = _selectCurrentFork();
+        _logCampaign("current-head-smoke", forkBlock, forkHash);
+
+        UniversalPoolArtMarketplace market = _deployEphemeralMarket();
+        uint256 burnSource = _createBurnCandidate();
+        uint256 mintSource = _findMintPoolToken();
+        SmokeBaseSepoliaUniversalPoolArtMarketplace smoke = new SmokeBaseSepoliaUniversalPoolArtMarketplace();
+        ValidateBaseSepoliaUniversalPoolArtMarketplaceSmokeResult resultValidator =
+            new ValidateBaseSepoliaUniversalPoolArtMarketplaceSmokeResult();
+
+        vm.prank(address(smoke));
+        fame.setSkipNFT(true);
+        uint256 totalSpend = 3 * (fame.unit() + market.premium());
+        vm.prank(admin);
+        fame.transfer(address(smoke), totalSpend);
+        vm.prank(admin);
+        market.unpause();
+
+        uint256 directShell = _ownedTokenAt(address(market), 0);
+        uint256 mintShell = _ownedTokenAt(address(market), 1);
+        uint256 burnShell = _ownedTokenAt(address(market), 2);
+        SmokeBaseSepoliaUniversalPoolArtMarketplace.SmokePlan memory plan =
+            SmokeBaseSepoliaUniversalPoolArtMarketplace.SmokePlan({
+                buyer: address(smoke),
+                directRecipient: address(0xCA01),
+                mintRecipient: address(0xCA02),
+                burnRecipient: address(0xCA03),
+                directShell: directShell,
+                mintShell: mintShell,
+                mintSource: mintSource,
+                burnShell: burnShell,
+                burnSource: burnSource,
+                directArtwork: market.artworkHash(directShell),
+                mintArtwork: market.artworkHash(mintSource),
+                mintDisplacedArtwork: market.artworkHash(mintShell),
+                burnArtwork: market.artworkHash(burnSource),
+                burnDisplacedArtwork: market.artworkHash(burnShell),
+                premium: market.premium(),
+                unit: fame.unit(),
+                totalSpend: totalSpend,
+                inventoryBefore: market.inventory(),
+                feeBalanceBefore: fame.balanceOf(feeRecipient),
+                buyerMirrorBalanceBefore: mirror.balanceOf(address(smoke)),
+                minimumBuyerMirrorBalanceAfter: 0,
+                expectedNonce: 0
+            });
+
+        smoke.execute(plan, fame, creatorMagic, market);
+        resultValidator.validateResult(plan, fame, creatorMagic, market);
+        assertEq(fame.allowance(address(smoke), address(market)), 0);
     }
 }
 
