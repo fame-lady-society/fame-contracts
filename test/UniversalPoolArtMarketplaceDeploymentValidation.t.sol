@@ -5,6 +5,9 @@ import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.so
 import {
     ValidateBaseSepoliaUniversalPoolArtMarketplace
 } from "../script/ValidateBaseSepoliaUniversalPoolArtMarketplace.s.sol";
+import {
+    DeployBaseSepoliaUniversalPoolArtMarketplace
+} from "../script/DeployBaseSepoliaUniversalPoolArtMarketplace.s.sol";
 import {UniversalPoolArtMarketplaceTestBase} from "./helpers/UniversalPoolArtMarketplaceTestBase.sol";
 
 contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArtMarketplaceTestBase {
@@ -13,10 +16,12 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
 
     ValidateBaseSepoliaUniversalPoolArtMarketplace internal validator;
+    DeployBaseSepoliaUniversalPoolArtMarketplace internal deployer;
 
     function setUp() public override {
         super.setUp();
         validator = new ValidateBaseSepoliaUniversalPoolArtMarketplace();
+        deployer = new DeployBaseSepoliaUniversalPoolArtMarketplace();
         creatorMagic.grantRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE);
         _seedShells(market, 2);
     }
@@ -219,6 +224,62 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
         validator.validateMarketplace(
             fame, mirror, creatorMagic, otherMarket, owner, feeRecipient, otherMarket.premium(), 2, true
         );
+    }
+
+    function testDeploymentPrefixClassifiesEverySafeContinuation() public {
+        uint256 configuredPremium = market.premium();
+        (DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix prefix, uint256 inventory) =
+            deployer.deploymentPrefix(market, fame, creatorMagic, owner, feeRecipient, configuredPremium, 2);
+        assertEq(uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.ReadyPaused));
+        assertEq(inventory, 2);
+
+        UniversalPoolArtMarketplace partialMarket = _deployMarket(configuredPremium, feeRecipient, owner);
+        (prefix, inventory) =
+            deployer.deploymentPrefix(partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, 2);
+        assertEq(uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.Deployed));
+        assertEq(inventory, 0);
+
+        creatorMagic.grantRoles(address(partialMarket), CREATOR_MAGIC_BANISHER_ROLE);
+        (prefix, inventory) =
+            deployer.deploymentPrefix(partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, 2);
+        assertEq(
+            uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.BanisherGranted)
+        );
+
+        fame.transfer(address(partialMarket), fame.unit());
+        (prefix, inventory) =
+            deployer.deploymentPrefix(partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, 2);
+        assertEq(
+            uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.PartiallySeeded)
+        );
+        assertEq(inventory, 1);
+
+        fame.transfer(address(partialMarket), fame.unit());
+        (prefix, inventory) =
+            deployer.deploymentPrefix(partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, 2);
+        assertEq(uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.ReadyPaused));
+        assertEq(inventory, 2);
+    }
+
+    function testDeploymentPrefixRejectsActivationAndBroadAuthority() public {
+        uint256 configuredPremium = market.premium();
+        market.unpause();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployBaseSepoliaUniversalPoolArtMarketplace.ExistingDeploymentActivated.selector, address(market)
+            )
+        );
+        deployer.deploymentPrefix(market, fame, creatorMagic, owner, feeRecipient, configuredPremium, 2);
+
+        market.pause();
+        creatorMagic.grantRoles(address(market), CREATOR_MAGIC_CREATOR_ROLE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployBaseSepoliaUniversalPoolArtMarketplace.ExistingDeploymentAuthorityTooBroad.selector,
+                CREATOR_MAGIC_CREATOR_ROLE
+            )
+        );
+        deployer.deploymentPrefix(market, fame, creatorMagic, owner, feeRecipient, configuredPremium, 2);
     }
 
     function _validate(bool expectedPaused) internal view {

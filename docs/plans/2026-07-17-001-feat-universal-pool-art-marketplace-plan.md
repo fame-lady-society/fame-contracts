@@ -862,14 +862,14 @@ Each campaign starts from a fresh fork, prohibits broadcast, records its own inp
 3. Broadcast with source verification only after explicit authorization:
 
 ```sh
-doppler run --config dev -- sh -c 'BASE_SEPOLIA_RPC="$RPC_URL" FOUNDRY_PROFILE=universal_marketplace forge script --chain base_sepolia script/DeployBaseSepoliaUniversalPoolArtMarketplace.s.sol:DeployBaseSepoliaUniversalPoolArtMarketplace --rpc-url base_sepolia --verifier etherscan --verify --broadcast'
+doppler run --config dev -- sh -c 'BASE_SEPOLIA_RPC="$RPC_URL" FOUNDRY_PROFILE=universal_marketplace forge script --chain 84532 script/DeployBaseSepoliaUniversalPoolArtMarketplace.s.sol:DeployBaseSepoliaUniversalPoolArtMarketplace --rpc-url base_sepolia --verifier etherscan --verify --broadcast'
 ```
 
 4. Record the mined address in `config/fame-public.env`.
 5. Run the read-only validator:
 
 ```sh
-doppler run --config dev -- sh -c 'BASE_SEPOLIA_RPC="$RPC_URL" FOUNDRY_PROFILE=universal_marketplace forge script --chain base_sepolia script/ValidateBaseSepoliaUniversalPoolArtMarketplace.s.sol:ValidateBaseSepoliaUniversalPoolArtMarketplace --rpc-url base_sepolia'
+doppler run --config dev -- sh -c 'BASE_SEPOLIA_RPC="$RPC_URL" FOUNDRY_PROFILE=universal_marketplace forge script --chain 84532 script/ValidateBaseSepoliaUniversalPoolArtMarketplace.s.sol:ValidateBaseSepoliaUniversalPoolArtMarketplace --rpc-url base_sepolia'
 ```
 
 6. Run the strict deployed-address fork.
