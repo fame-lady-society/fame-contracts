@@ -6,9 +6,9 @@ contract: UniversalPoolArtMarketplace
 
 # Base Sepolia Universal Pool Art Marketplace
 
-This deployment is intentionally pending. The successor contract and its release
-tooling are implemented, but no live transaction has been authorized or
-broadcast.
+The marketplace deployment is intentionally pending. The successor contract and
+its release tooling are implemented. Only the fee-recipient preparation
+transactions documented below have been authorized and broadcast.
 
 ## Intended configuration
 
@@ -19,18 +19,31 @@ broadcast.
 | Society NFT mirror | `0x2907936013BDF568F98A98893AC1C746256A9cC5` |
 | CreatorMagic | `0xa16C005203cD46cC1929cc8e494cF7945887951B` |
 | Owner | `0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9` |
-| Fee recipient | `0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9` |
+| Fee recipient | `0x0Bd54EcB903392B323bC2b3dA61023325f730241` |
 | Premium | `1,000 TEST` |
 | Seed inventory | 2 Society NFT shells |
 | Initial state | Paused |
 | Marketplace address | Pending |
-| Simulated nonce | 30 |
-| Simulated address | `0x0177e4CE933a672483758FB6a40BE83B969A8066` |
+| Simulated nonce | 31 |
+| Simulated address | `0x821ab043a94688aC22C5a1b0113fc33ed4Fb6843` |
 
 The marketplace receives only CreatorMagic `BANISHER`. It must not receive
 CreatorMagic `CREATOR`, CreatorMagic `ART_POOL_MANAGER`, or FAME `SKIP_MANAGER`.
 The fee recipient must remain `skipNFT=true`; the marketplace must remain
 `skipNFT=false`.
+
+## Fee recipient preparation
+
+Prepared on Base Sepolia on 2026-07-18:
+
+- Funded with exactly `0.0001 ETH`:
+  `0xa6ded7840580cc5ba84869946c442f4db07a1e2eaf8ffc601fa0fb062fff31aa`
+- Called `Fame.setSkipNFT(true)`:
+  `0xf4484234195720d0b2691ed5790319e90299c39f843412002fdc25f3dfcbb77c`
+- Canonical readback: `Fame.getSkipNFT(feeRecipient) == true`
+
+The private key is stored only as the masked Doppler `dev` secret
+`BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT_PRIVATE_KEY`.
 
 ## Release sequence
 
@@ -60,8 +73,8 @@ or authority mismatch stops the run.
 | 10,000-case fuzz campaign | Passed |
 | 512 x 128 invariant campaign | Passed |
 | Pinned Base Sepolia fork | Passed at block `44,267,553` |
-| Current-head fork | Passed at block `44,301,168` |
-| Deployment dry run | Passed at nonce 30 |
+| Current-head fork | Passed again after fee-recipient setup on 2026-07-18 |
+| Deployment dry run | Passed at nonce 31 |
 | Mined address and transaction hashes | Pending |
 | Explorer source and ABI | Pending |
 | Strict deployed-address fork | Pending |
@@ -74,10 +87,11 @@ No `broadcast/` logs are committed. Mined public facts belong in this document
 and `config/fame-public.env`; signer material and RPC credentials remain in
 Doppler.
 
-The non-broadcast deployment rehearsal at nonce 30 completed successfully with
+The non-broadcast deployment rehearsal at nonce 31 completed successfully with
 four simulated transactions: deploy, grant BANISHER, seed shell one, and seed
-shell two. The simulated address is not a deployed-address claim and must be
-recomputed if the deployer nonce changes.
+shell two. Its predicted address is
+`0x821ab043a94688aC22C5a1b0113fc33ed4Fb6843`. This is not a deployed-address
+claim and must be recomputed if the deployer nonce changes.
 
 ## Bounded smoke
 
