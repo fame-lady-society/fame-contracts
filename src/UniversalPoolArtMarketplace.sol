@@ -33,6 +33,19 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         BurnPool
     }
 
+    struct PoolPurchase {
+        address buyer;
+        address recipient;
+        address feeRecipient;
+        uint256 shellId;
+        uint256 sourceId;
+        uint256 premiumAmount;
+        uint256 inventoryBefore;
+        bytes32 artworkHash;
+        bytes32 displacedArtworkHash;
+        FulfillmentPath path;
+    }
+
     event PremiumUpdated(uint256 previousPremium, uint256 newPremium);
     event FeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
     event MarketPaused(address indexed account);
@@ -73,6 +86,10 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     error PaymentTransferFailed();
     error BuyerMirrorBalanceTooLow(uint256 minimum, uint256 actual);
     error InventoryInvariantBroken(uint256 beforeBalance, uint256 afterBalance);
+    error SourceEqualsShell(uint256 tokenId);
+    error ArtPoolSourceExcluded(uint256 sourceId);
+    error IneligiblePoolSource(uint256 sourceId);
+    error AmbiguousPoolSource(uint256 sourceId);
 
     modifier noActiveSettlement() {
         if (_settlementActive) revert SettlementInProgress();
@@ -214,6 +231,98 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         );
     }
 
+    function purchasePool(
+        uint256 shellId,
+        uint256 sourceId,
+        bytes32 expectedArtworkHash,
+        uint256 maxPremium,
+        uint256 minBuyerMirrorBalanceAfter,
+        address recipient
+    ) external nonReentrant returns (uint256 inventoryBefore, uint256 inventoryAfter) {
+        if (paused) revert PurchasesPaused();
+        if (recipient == address(0)) revert InvalidRecipient();
+        if (sourceId == shellId) revert SourceEqualsShell(sourceId);
+
+        PoolPurchase memory purchase;
+        purchase.premiumAmount = premium;
+        if (purchase.premiumAmount > maxPremium) {
+            revert PremiumExceedsMaximum(purchase.premiumAmount, maxPremium);
+        }
+
+        _requireStack();
+        _requireShell(shellId);
+        purchase.path = _requirePoolSource(sourceId);
+        _requireArtwork(sourceId, expectedArtworkHash);
+        purchase.buyer = msg.sender;
+        purchase.recipient = recipient;
+        purchase.feeRecipient = feeRecipient;
+        purchase.shellId = shellId;
+        purchase.sourceId = sourceId;
+        purchase.artworkHash = expectedArtworkHash;
+        purchase.displacedArtworkHash = artworkHash(shellId);
+        purchase.inventoryBefore = inventory();
+        _requireFeeRecipient(purchase.feeRecipient);
+
+        return _executePoolPurchase(purchase, minBuyerMirrorBalanceAfter);
+    }
+
+    function _executePoolPurchase(PoolPurchase memory purchase, uint256 minBuyerMirrorBalanceAfter)
+        internal
+        returns (uint256 inventoryBefore, uint256 inventoryAfter)
+    {
+        _enterSettlement();
+        _pullPremium(purchase.buyer, purchase.feeRecipient, purchase.premiumAmount);
+
+        _requireStack();
+        _requireShell(purchase.shellId);
+        if (_requirePoolSource(purchase.sourceId) != purchase.path) {
+            revert IneligiblePoolSource(purchase.sourceId);
+        }
+        _requireArtwork(purchase.sourceId, purchase.artworkHash);
+        _requireArtwork(purchase.shellId, purchase.displacedArtworkHash);
+
+        if (purchase.path == FulfillmentPath.MintPool) {
+            creatorMagic.banishToMintPool(purchase.shellId, purchase.sourceId);
+        } else {
+            creatorMagic.banishToBurnPool(purchase.shellId, purchase.sourceId);
+        }
+        _requireArtwork(purchase.shellId, purchase.artworkHash);
+        _requireArtwork(purchase.sourceId, purchase.displacedArtworkHash);
+
+        uint256 unitAmount = fame.unit();
+        _pullFame(purchase.buyer, address(this), unitAmount);
+
+        _requireStack();
+        _requireShellArtwork(purchase.shellId, purchase.artworkHash);
+        _requireArtwork(purchase.sourceId, purchase.displacedArtworkHash);
+        mirror.safeTransferFrom(address(this), purchase.recipient, purchase.shellId);
+
+        uint256 buyerMirrorBalance = mirror.balanceOf(purchase.buyer);
+        if (buyerMirrorBalance < minBuyerMirrorBalanceAfter) {
+            revert BuyerMirrorBalanceTooLow(minBuyerMirrorBalanceAfter, buyerMirrorBalance);
+        }
+
+        inventoryAfter = inventory();
+        if (inventoryAfter < purchase.inventoryBefore) {
+            revert InventoryInvariantBroken(purchase.inventoryBefore, inventoryAfter);
+        }
+        _exitSettlement();
+
+        emit ArtworkPurchased(
+            purchase.buyer,
+            purchase.recipient,
+            purchase.shellId,
+            purchase.path,
+            purchase.sourceId,
+            purchase.artworkHash,
+            unitAmount,
+            purchase.premiumAmount,
+            purchase.inventoryBefore,
+            inventoryAfter
+        );
+        inventoryBefore = purchase.inventoryBefore;
+    }
+
     function transferOwnership(address newOwner) public payable override onlyOwner noActiveSettlement {
         super.transferOwnership(newOwner);
     }
@@ -287,8 +396,12 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     }
 
     function _requireShellArtwork(uint256 shellId, bytes32 expectedArtworkHash) internal view {
-        if (mirror.ownerAt(shellId) != address(this)) revert UnavailableShell(shellId);
+        _requireShell(shellId);
         _requireArtwork(shellId, expectedArtworkHash);
+    }
+
+    function _requireShell(uint256 shellId) internal view {
+        if (mirror.ownerAt(shellId) != address(this)) revert UnavailableShell(shellId);
     }
 
     function _requireArtwork(uint256 tokenId, bytes32 expectedArtworkHash) internal view {
@@ -296,6 +409,19 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         if (actualArtworkHash != expectedArtworkHash) {
             revert ArtworkMismatch(tokenId, expectedArtworkHash, actualArtworkHash);
         }
+    }
+
+    function _requirePoolSource(uint256 sourceId) internal view returns (FulfillmentPath path) {
+        if (sourceId >= creatorMagic.artPoolStartIndex() && sourceId <= creatorMagic.artPoolEndIndex()) {
+            revert ArtPoolSourceExcluded(sourceId);
+        }
+
+        bool mintEligible = creatorMagic.isTokenInMintPool(sourceId);
+        bool burnEligible = creatorMagic.isTokenInBurnedPool(sourceId);
+        if (mintEligible && burnEligible) revert AmbiguousPoolSource(sourceId);
+        if (mintEligible) return FulfillmentPath.MintPool;
+        if (burnEligible) return FulfillmentPath.BurnPool;
+        revert IneligiblePoolSource(sourceId);
     }
 
     function _pullPremium(address buyer, address recipient, uint256 amount) internal {

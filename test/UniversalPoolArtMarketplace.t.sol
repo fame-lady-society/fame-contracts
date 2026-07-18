@@ -22,6 +22,7 @@ contract MarketplaceMockERC721 is ERC721 {
 contract UniversalPoolArtMarketplaceTest is Test {
     uint256 internal constant FAME_RENDERER_ROLE = 1;
     uint256 internal constant FAME_METADATA_ROLE = 2;
+    uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 4;
 
     address internal owner = address(this);
     address internal buyer = address(0x1002);
@@ -422,6 +423,128 @@ contract UniversalPoolArtMarketplaceTest is Test {
         market.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, recipient);
     }
 
+    function testPurchasePoolMaterializesMintArtworkAndPreservesDisplacedArt() public {
+        uint256 shellId = _seedShells(market, 2);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+        uint256 sourceId = _findMintPoolToken();
+        bytes32 selectedArtwork = market.artworkHash(sourceId);
+        bytes32 displacedArtwork = market.artworkHash(shellId);
+        _enablePoolPurchases(market);
+
+        uint256 inventoryBefore = market.inventory();
+        uint256 maxPremium = market.premium();
+        vm.prank(buyer);
+        market.purchasePool(shellId, sourceId, selectedArtwork, maxPremium, 0, recipient);
+
+        assertEq(mirror.ownerOf(shellId), recipient);
+        assertEq(market.artworkHash(shellId), selectedArtwork);
+        assertEq(market.artworkHash(sourceId), displacedArtwork);
+        assertGe(market.inventory(), inventoryBefore);
+    }
+
+    function testPurchasePoolMaterializesBurnArtwork() public {
+        (uint256 shellId, uint256 sourceId) = _prepareBurnPoolPurchase();
+        bytes32 selectedArtwork = market.artworkHash(sourceId);
+        bytes32 displacedArtwork = market.artworkHash(shellId);
+        _enablePoolPurchases(market);
+
+        uint256 maxPremium = market.premium();
+        vm.prank(buyer);
+        market.purchasePool(shellId, sourceId, selectedArtwork, maxPremium, 0, recipient);
+
+        assertEq(mirror.ownerOf(shellId), recipient);
+        assertEq(market.artworkHash(shellId), selectedArtwork);
+        assertEq(market.artworkHash(sourceId), displacedArtwork);
+    }
+
+    function testPurchasePoolRejectsArtPoolAndEndOfMintBeforePayment() public {
+        uint256 shellId = _seedShells(market, 2);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+        _enablePoolPurchases(market);
+        uint256 feeBefore = fame.balanceOf(feeRecipient);
+        uint256 maxPremium = market.premium();
+
+        uint256 artPoolSource = creatorMagic.artPoolStartIndex();
+        bytes32 artPoolArtwork = market.artworkHash(artPoolSource);
+        vm.expectRevert(
+            abi.encodeWithSelector(UniversalPoolArtMarketplace.ArtPoolSourceExcluded.selector, artPoolSource)
+        );
+        vm.prank(buyer);
+        market.purchasePool(shellId, artPoolSource, artPoolArtwork, maxPremium, 0, recipient);
+
+        uint256 endOfMintSource = creatorMagic.getMintPoolEnd();
+        bytes32 endOfMintArtwork = market.artworkHash(endOfMintSource);
+        vm.expectRevert(
+            abi.encodeWithSelector(UniversalPoolArtMarketplace.IneligiblePoolSource.selector, endOfMintSource)
+        );
+        vm.prank(buyer);
+        market.purchasePool(shellId, endOfMintSource, endOfMintArtwork, maxPremium, 0, recipient);
+
+        assertEq(fame.balanceOf(feeRecipient), feeBefore);
+    }
+
+    function testPurchasePoolRejectsShellAsSourceAndCollectorOwnedSource() public {
+        uint256 shellId = _seedShells(market, 2);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+        _enablePoolPurchases(market);
+        uint256 maxPremium = market.premium();
+
+        bytes32 shellArtwork = market.artworkHash(shellId);
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.SourceEqualsShell.selector, shellId));
+        vm.prank(buyer);
+        market.purchasePool(shellId, shellId, shellArtwork, maxPremium, 0, recipient);
+
+        uint256 collectorToken = _ownedTokenAt(buyer, 0);
+        bytes32 collectorArtwork = market.artworkHash(collectorToken);
+        vm.expectRevert(
+            abi.encodeWithSelector(UniversalPoolArtMarketplace.IneligiblePoolSource.selector, collectorToken)
+        );
+        vm.prank(buyer);
+        market.purchasePool(shellId, collectorToken, collectorArtwork, maxPremium, 0, recipient);
+    }
+
+    function testPurchasePoolStaleArtworkRollsBackWithoutPayment() public {
+        uint256 shellId = _seedShells(market, 2);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+        uint256 sourceId = _findMintPoolToken();
+        bytes32 actualArtwork = market.artworkHash(sourceId);
+        bytes32 staleArtwork = bytes32(uint256(actualArtwork) ^ 1);
+        _enablePoolPurchases(market);
+
+        uint256 feeBefore = fame.balanceOf(feeRecipient);
+        uint256 maxPremium = market.premium();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UniversalPoolArtMarketplace.ArtworkMismatch.selector, sourceId, staleArtwork, actualArtwork
+            )
+        );
+        vm.prank(buyer);
+        market.purchasePool(shellId, sourceId, staleArtwork, maxPremium, 0, recipient);
+
+        assertEq(fame.balanceOf(feeRecipient), feeBefore);
+        assertEq(mirror.ownerOf(shellId), address(market));
+    }
+
+    function testPurchasePoolSourceAcquiredBeforeCallMovesNoPayment() public {
+        uint256 shellId = _seedShells(market, 2);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+        uint256 sourceId = _findMintPoolToken();
+        bytes32 selectedArtwork = market.artworkHash(sourceId);
+        _enablePoolPurchases(market);
+
+        fame.transfer(recipient, fame.unit());
+        assertEq(mirror.ownerAt(sourceId), recipient);
+
+        uint256 feeBefore = fame.balanceOf(feeRecipient);
+        uint256 maxPremium = market.premium();
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.IneligiblePoolSource.selector, sourceId));
+        vm.prank(buyer);
+        market.purchasePool(shellId, sourceId, selectedArtwork, maxPremium, 0, recipient);
+
+        assertEq(fame.balanceOf(feeRecipient), feeBefore);
+        assertEq(mirror.ownerOf(shellId), address(market));
+    }
+
     function _deployMarket(uint256 premium_, address feeRecipient_, address owner_)
         internal
         returns (UniversalPoolArtMarketplace deployed)
@@ -434,6 +557,36 @@ contract UniversalPoolArtMarketplaceTest is Test {
     function _seedShells(UniversalPoolArtMarketplace target, uint256 count) internal returns (uint256 firstShellId) {
         fame.transfer(address(target), count * fame.unit());
         firstShellId = _ownedTokenAt(address(target), 0);
+    }
+
+    function _enablePoolPurchases(UniversalPoolArtMarketplace target) internal {
+        creatorMagic.grantRoles(address(target), CREATOR_MAGIC_BANISHER_ROLE);
+        target.unpause();
+    }
+
+    function _findMintPoolToken() internal view returns (uint256) {
+        uint256 start = creatorMagic.getMintPoolStart();
+        uint256 end = creatorMagic.getMintPoolEnd();
+        for (uint256 tokenId = start; tokenId < end; ++tokenId) {
+            if (creatorMagic.isTokenInMintPool(tokenId)) return tokenId;
+        }
+        revert("MINT_POOL_TOKEN_NOT_FOUND");
+    }
+
+    function _prepareBurnPoolPurchase() internal returns (uint256 shellId, uint256 sourceId) {
+        address burnHolder = address(0x4001);
+        fame.transfer(burnHolder, fame.unit());
+        sourceId = _ownedTokenAt(burnHolder, 0);
+        shellId = _seedShells(market, 2);
+
+        uint256 unit = fame.unit();
+        vm.prank(burnHolder);
+        fame.transfer(feeRecipient, unit);
+        assertTrue(creatorMagic.isTokenInBurnedPool(sourceId));
+
+        vm.prank(buyer);
+        fame.setSkipNFT(true);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
     }
 
     function _fundAndApprove(address account, UniversalPoolArtMarketplace target, uint256 amount) internal {
