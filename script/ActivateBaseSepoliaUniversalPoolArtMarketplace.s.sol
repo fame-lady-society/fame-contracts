@@ -5,6 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.sol";
 import {CreatorArtistMagic} from "../src/CreatorArtistMagic.sol";
 import {Fame} from "../src/Fame.sol";
+import {FameMirror} from "../src/FameMirror.sol";
 import {ValidateBaseSepoliaUniversalPoolArtMarketplace} from "./ValidateBaseSepoliaUniversalPoolArtMarketplace.s.sol";
 
 contract ActivateBaseSepoliaUniversalPoolArtMarketplace is Script {
@@ -18,9 +19,8 @@ contract ActivateBaseSepoliaUniversalPoolArtMarketplace is Script {
             revert ChainIdMismatch(BASE_SEPOLIA_CHAIN_ID, block.chainid);
         }
 
-        uint256 privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address signer = vm.addr(privateKey);
         Fame fame = Fame(payable(vm.envAddress("BASE_SEPOLIA_FAME_ADDRESS")));
+        FameMirror mirror = FameMirror(payable(vm.envAddress("BASE_SEPOLIA_FAME_NFT_ADDRESS")));
         CreatorArtistMagic creatorMagic = CreatorArtistMagic(vm.envAddress("BASE_SEPOLIA_CREATOR_ARTIST_MAGIC_ADDRESS"));
         UniversalPoolArtMarketplace market =
             UniversalPoolArtMarketplace(vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS"));
@@ -29,9 +29,13 @@ contract ActivateBaseSepoliaUniversalPoolArtMarketplace is Script {
         uint256 premium = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM");
         uint256 minimumInventory = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY");
 
+        ValidateBaseSepoliaUniversalPoolArtMarketplace validator = new ValidateBaseSepoliaUniversalPoolArtMarketplace();
+        validator.validateCanonicalAddresses(fame, mirror);
+
+        uint256 privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address signer = vm.addr(privateKey);
         if (signer != owner) revert UnexpectedOwnerSigner(owner, signer);
 
-        ValidateBaseSepoliaUniversalPoolArtMarketplace validator = new ValidateBaseSepoliaUniversalPoolArtMarketplace();
         ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations memory expected =
             ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
                 owner: owner,
@@ -41,11 +45,11 @@ contract ActivateBaseSepoliaUniversalPoolArtMarketplace is Script {
                 paused: market.paused()
             });
         if (!market.paused()) {
-            validator.validateMarketplace(fame, fame.fameMirror(), creatorMagic, market, expected);
+            validator.validateMarketplace(fame, mirror, creatorMagic, market, expected);
             return;
         }
 
-        validator.validateMarketplace(fame, fame.fameMirror(), creatorMagic, market, expected);
+        validator.validateMarketplace(fame, mirror, creatorMagic, market, expected);
 
         vm.startBroadcast(privateKey);
         market.unpause();

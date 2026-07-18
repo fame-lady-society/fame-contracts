@@ -17,6 +17,8 @@ contract MarketplaceMockERC721 is ERC721 {
 }
 
 contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase {
+    uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
+
     function testConstructorInitializesPausedCanonicalMarket() public view {
         assertEq(address(market.fame()), address(fame));
         assertEq(address(market.mirror()), address(mirror));
@@ -271,6 +273,36 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(mirror.ownerOf(shellId), address(market));
     }
 
+    function testPurchaseHeldInventoryBreakRollsBackEverything() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 expectedArtwork = market.artworkHash(shellId);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+        market.unpause();
+        fame.grantRoles(address(this), FAME_SKIP_MANAGER_ROLE);
+        fame.setSkipNftForAccount(address(market), true);
+
+        uint256 buyerBefore = fame.balanceOf(buyer);
+        uint256 feeBefore = fame.balanceOf(feeRecipient);
+        uint256 marketFameBefore = fame.balanceOf(address(market));
+        uint256 allowanceBefore = fame.allowance(buyer, address(market));
+        uint256 maxPremium = market.premium();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UniversalPoolArtMarketplace.InventoryInvariantBroken.selector, uint256(2), uint256(1)
+            )
+        );
+        vm.prank(buyer);
+        market.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, recipient);
+
+        assertEq(fame.balanceOf(buyer), buyerBefore);
+        assertEq(fame.balanceOf(feeRecipient), feeBefore);
+        assertEq(fame.balanceOf(address(market)), marketFameBefore);
+        assertEq(fame.allowance(buyer, address(market)), allowanceBefore);
+        assertEq(market.inventory(), 2);
+        assertEq(mirror.ownerOf(shellId), address(market));
+        assertEq(market.artworkHash(shellId), expectedArtwork);
+    }
+
     function testPurchaseHeldRejectsPausedUnavailableAndStaleArtwork() public {
         uint256 shellId = _seedShells(market, 2);
         bytes32 expectedArtwork = market.artworkHash(shellId);
@@ -441,6 +473,42 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(mirror.ownerOf(shellId), recipient);
         assertEq(market.artworkHash(shellId), selectedArtwork);
         assertEq(market.artworkHash(sourceId), displacedArtwork);
+    }
+
+    function testPurchasePoolInventoryBreakRollsBackPaymentMetadataAndCustody() public {
+        uint256 shellId = _seedShells(market, 2);
+        uint256 sourceId = _findMintPoolToken();
+        bytes32 selectedArtwork = market.artworkHash(sourceId);
+        bytes32 displacedArtwork = market.artworkHash(shellId);
+        vm.prank(buyer);
+        fame.setSkipNFT(true);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+        _enablePoolPurchases(market);
+        fame.grantRoles(address(this), FAME_SKIP_MANAGER_ROLE);
+        fame.setSkipNftForAccount(address(market), true);
+
+        uint256 buyerBefore = fame.balanceOf(buyer);
+        uint256 feeBefore = fame.balanceOf(feeRecipient);
+        uint256 marketFameBefore = fame.balanceOf(address(market));
+        uint256 allowanceBefore = fame.allowance(buyer, address(market));
+        uint256 maxPremium = market.premium();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UniversalPoolArtMarketplace.InventoryInvariantBroken.selector, uint256(2), uint256(1)
+            )
+        );
+        vm.prank(buyer);
+        market.purchasePool(shellId, sourceId, selectedArtwork, maxPremium, 0, recipient);
+
+        assertEq(fame.balanceOf(buyer), buyerBefore);
+        assertEq(fame.balanceOf(feeRecipient), feeBefore);
+        assertEq(fame.balanceOf(address(market)), marketFameBefore);
+        assertEq(fame.allowance(buyer, address(market)), allowanceBefore);
+        assertEq(market.inventory(), 2);
+        assertEq(mirror.ownerOf(shellId), address(market));
+        assertEq(market.artworkHash(shellId), displacedArtwork);
+        assertEq(market.artworkHash(sourceId), selectedArtwork);
+        assertTrue(creatorMagic.isTokenInMintPool(sourceId));
     }
 
     function testPurchasePoolRejectsArtPoolAndEndOfMintBeforePayment() public {

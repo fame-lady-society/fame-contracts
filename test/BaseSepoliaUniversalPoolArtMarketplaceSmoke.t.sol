@@ -75,6 +75,13 @@ contract BaseSepoliaUniversalPoolArtMarketplaceSmokeTest is UniversalPoolArtMark
         smoke.run();
     }
 
+    function testRunRejectsUnconfirmedSameChainBeforeSecrets() public {
+        vm.chainId(84532);
+        vm.setEnv("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_SMOKE_CONFIRMED", "false");
+        vm.expectRevert(SmokeBaseSepoliaUniversalPoolArtMarketplace.SmokeNotConfirmed.selector);
+        smoke.run();
+    }
+
     function testExecuteRunsExactlyThreeCommittedPathsAndValidatesResult() public {
         bytes32 commitment = smoke.hashPlan(plan);
         assertEq(commitment, keccak256(abi.encode(plan)));
@@ -123,6 +130,17 @@ contract BaseSepoliaUniversalPoolArtMarketplaceSmokeTest is UniversalPoolArtMark
         assertTrue(sawHeld);
         assertTrue(sawBurn);
         assertTrue(sawMint);
+        assertEq(fame.allowance(address(smoke), address(market)), 0);
+        resultValidator.validateResult(plan, fame, creatorMagic, market);
+    }
+
+    function testExecuteUsesOnlyThreeUnitsWhenBuyerIsFeeRecipient() public {
+        market.setFeeRecipient(address(smoke));
+        plan.totalSpend = 3 * plan.unit;
+        plan.feeBalanceBefore = fame.balanceOf(address(smoke));
+
+        smoke.execute(plan, fame, creatorMagic, market);
+
         assertEq(fame.allowance(address(smoke), address(market)), 0);
         resultValidator.validateResult(plan, fame, creatorMagic, market);
     }

@@ -60,8 +60,14 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplaceSmokeResult is Script {
         uint256 expectedFeeBalance = plan.feeBalanceBefore;
         if (plan.buyer != market.feeRecipient()) {
             expectedFeeBalance += 3 * plan.premium;
+        } else {
+            expectedFeeBalance -= 3 * plan.unit;
         }
+        if (plan.directRecipient == market.feeRecipient()) expectedFeeBalance += plan.unit;
+        if (plan.mintRecipient == market.feeRecipient()) expectedFeeBalance += plan.unit;
+        if (plan.burnRecipient == market.feeRecipient()) expectedFeeBalance += plan.unit;
         _checkValue("feeBalance", expectedFeeBalance, fame.balanceOf(market.feeRecipient()));
+        _checkValue("allowance", 0, fame.allowance(plan.buyer, address(market)));
         uint256 buyerMirrorBalance = market.mirror().balanceOf(plan.buyer);
         if (buyerMirrorBalance < plan.minimumBuyerMirrorBalanceAfter) {
             revert ResultValueMismatch("buyerMirror.minimum", plan.minimumBuyerMirrorBalanceAfter, buyerMirrorBalance);

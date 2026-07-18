@@ -21,7 +21,7 @@ deepened: 2026-07-17
 
 - **Objective:** Replace manual gallery rotation and listings with a Base Sepolia marketplace contract that makes every currently market-reachable Society artwork purchasable while preserving marketplace shell inventory.
 - **Product authority:** Current on-chain ownership, CreatorMagic eligibility, artwork identity, global pricing, and transaction execution are authoritative.
-- **Open blockers:** None for implementation planning. Deployment remains blocked until unit, fork, fuzz, and invariant tests prove atomic rollback, payment splitting, and shell-inventory preservation.
+- **Open blockers:** Contract implementation gates pass. Live deployment, explorer verification, activation, and shared-chain smoke remain pending explicit authorization.
 
 ---
 
@@ -395,6 +395,7 @@ Current Foundry guidance materially shapes the verification contract:
 
 - KTD11. **Use a single purchase event with an explicit fulfillment path.**
   The event records buyer, handoff recipient, delivered shell, path, optional pool source, committed artwork hash, unit, premium, and inventory before/after.
+  Path values are `0 = Held`, `1 = MintPool`, and `2 = BurnPool`; held purchases report `sourceId = 0`.
   It describes the marketplace's safe-transfer handoff and does not claim that recipient code retained the shell after its callback.
   Configuration changes and recovery actions emit dedicated events; each named failure maps to a distinct Product Contract error category.
   Covers R31-R33.
@@ -403,7 +404,7 @@ Current Foundry guidance materially shapes the verification contract:
   The deployment script reads the existing FAME, mirror, and CreatorMagic addresses, requires the configured fee recipient to be skip-enabled, deploys the marketplace paused, grants only CreatorMagic `BANISHER`, seeds two shells, and leaves activation to a separate owner action after validation.
   It must prove the marketplace lacks CreatorMagic `CREATOR`/`ART_POOL_MANAGER` and FAME `SKIP_MANAGER`.
   Deployment, role grant, each seed transfer, and activation are separately mined transaction prefixes; read-only validation and source verification are explicit recorded gates between those prefixes.
-  A retry may continue only from a recognized canonical prefix; otherwise the address stays paused, residual BANISHER is revoked when possible, and the run stops for explicit recovery or abandonment.
+  A retry may continue only from a recognized canonical prefix; otherwise the script stops without inventing an automated recovery or abandonment branch.
   Covers R24-R30, R34-R36 and F1.
 
 - KTD13. **Separate reproducible, fresh, and mined-state validation.**
@@ -486,13 +487,15 @@ The execution phases are intentionally explicit:
 | State | Canonical meaning | Allowed next action |
 |---|---|---|
 | Not deployed | No successor code at the predicted address | Refresh nonce/dependency facts and simulate |
-| Deployed paused | Code exists, owner/config match, but role or seed setup may be incomplete | Continue only the missing canonical prefix or abandon |
+| Deployed paused | Code exists, owner/config match, but role or seed setup may be incomplete | Continue only the missing canonical prefix or stop |
 | Ready paused | Code, BANISHER-only authority, non-skip posture, seed inventory, validator, strict fork, and explorer verification all match | Simulate and authorize activation |
 | Active | Owner unpause is mined and post-activation validation matches | Run bounded smoke or continue TEST operation |
-| Paused after failure | Emergency pause is mined after an activation/smoke discrepancy | Validate final state, revoke residual authority if abandoning, and do not auto-resume |
+| Unexpected state | Any prefix or post-activation state does not match | Stop automation; remediation or a replacement testnet deployment is an operator decision |
 
 No chain deployment is reversible.
-Rollback means preventing further purchases with a mined pause, not pretending already-mined role, custody, metadata, or purchase transactions disappeared.
+The release scripts do not implement an automated pause, revocation, recovery,
+or abandonment branch. The contract's owner pause remains available as an
+ordinary operator action.
 
 ### System-Wide Impact
 
@@ -532,8 +535,8 @@ Rollback means preventing further purchases with a mined pause, not pretending a
 | Premium or unit transfer changes DN404 NFT state | Source eligibility, ownership, or buyer mirror balance may change | Premium-first ordering, immediate source/art revalidation, buyer-supplied final mirror minimum, and complete rollback on failed limits |
 | Unit replenishment produces an unexpected token ID | Exact replacement assumptions could reject valid settlement | Promise only aggregate inventory; verify selected/displaced artwork immediately before handoff without requiring a particular replacement ID |
 | Contract recipient composes during safe delivery | Recipient may forward the shell or naturally consume the displaced source | Treat safe transfer as the handoff boundary; allow recipient-owned effects while blocking reentry and marketplace configuration mutation |
-| CreatorMagic roles drift | Pool purchase can fail or gain unintended mutation authority | Require BANISHER and absence of CREATOR/ART_POOL_MANAGER in deployment/current-head validators; pause on drift |
-| Partial deployment prefix mines | Contract may hold authority or shells without being ready | Keep paused, recognize exact mined prefix, resume only missing canonical steps, otherwise revoke/abandon |
+| CreatorMagic roles drift | Pool purchase can fail or gain unintended mutation authority | Require BANISHER and absence of CREATOR/ART_POOL_MANAGER in deployment/current-head validators; stop automation on drift and leave any owner pause to the operator |
+| Partial deployment prefix mines | Contract may hold authority or shells without being ready | Keep paused, recognize exact mined prefix, resume only missing canonical steps, otherwise stop and let the operator decide whether to redeploy |
 | Live TEST stack is mutable | Hardcoded token IDs or old state can invalidate rehearsals | Pinned regression plus fresh captured-block campaigns that discover candidates canonically |
 | Large on-chain `tokenURI` payloads increase gas | Exact-art checks may approach practical gas limits | Gas snapshots for direct/Mint/Burn TEST metadata; deployment smoke confirms the real renderer path remains executable |
 | Explorer verification mismatches local build | Published ABI/source may not describe deployed bytecode | Pin compiler profile; compare local runtime/ABI artifacts with mined code and explorer output before activation |
@@ -766,7 +769,7 @@ Rollback means preventing further purchases with a mined pause, not pretending a
   - Run the post-activation fork mode from U6 against the confirmed unpaused address.
 - **Test scenarios:**
   - Dry run and script tests reject wrong chain, unexpected signer/nonce, stale dependency identity, missing TEST, invalid owner/config, or an unrecognized or mismatched partial prior deployment.
-  - Every partial prefix has a tested classification: safe continuation, revoke-and-abandon, or emergency-pause stop.
+  - Every partial prefix has a tested classification: safe continuation or stop. No automated revoke, abandonment, or emergency-pause branch is added.
   - Mined-state validator proves paused readiness before activation and unpaused readiness afterward.
   - Explorer exposes verified source and ABI using the recorded exact build profile.
   - No new or modified `broadcast/` artifact is staged.
@@ -846,12 +849,15 @@ doppler run --config dev -- sh -c 'BASE_SEPOLIA_RPC="$RPC_URL" FOUNDRY_PROFILE=u
 ```
 
 The fork test must fail rather than skip when strict release inputs are requested.
-Run and record each campaign independently:
+Run and record each campaign independently. The strict deployed and
+post-activation modes are explicitly selected and mutually exclusive:
 
 1. Pinned integration at the public block number/hash in `config/fame-public.env`.
 2. Current-head ephemeral deployment at one captured block number/hash.
-3. Strict deployed-address fork after deployment confirmation.
-4. Post-activation fork after activation confirmation.
+3. Strict deployed-address fork after deployment confirmation with
+   `BASE_SEPOLIA_REQUIRE_UNIVERSAL_MARKETPLACE_DEPLOYED=true`.
+4. Post-activation fork after activation confirmation with
+   `BASE_SEPOLIA_REQUIRE_UNIVERSAL_MARKETPLACE_ACTIVATED=true`.
 
 Each campaign starts from a fresh fork, prohibits broadcast, records its own inputs/results, and cannot silently substitute state from a prior campaign.
 
@@ -878,15 +884,20 @@ doppler run --config dev -- sh -c 'BASE_SEPOLIA_RPC="$RPC_URL" FOUNDRY_PROFILE=u
 8. Simulate, then explicitly broadcast, the activation script.
 9. Run the post-activation fork.
 10. Run the bounded smoke and independent result validator.
-11. If post-activation or smoke validation disagrees with the intended state, submit the owner pause immediately, stop further purchases, validate the paused final state, and do not auto-resume.
+11. If post-activation or smoke validation disagrees with the intended state,
+    stop the automated workflow. Any pause, remediation, or replacement testnet
+    deployment is a separate operator decision.
 12. Inspect `git status` and do not stage generated `broadcast/` changes.
 
 Partial deployment is handled by mined state, not optimistic reruns:
 
 - If the exact predicted contract exists with matching owner/config and is paused, continue only the missing BANISHER/seed/validation prefix.
-- If any deployed field or prior transaction differs, leave it paused, revoke BANISHER when possible, document the prefix, and abandon or recover explicitly.
-- If activation succeeded but later checks fail, rollback is an emergency pause.
-  Already-mined metadata, custody, or purchase transactions are recorded rather than described as reverted.
+- If any deployed field or prior transaction differs, stop the script. Testnet
+  recovery or redeployment remains an explicit operator decision outside this
+  release script.
+- If activation succeeded but later checks fail, the scripts stop. Already-mined
+  metadata, custody, or purchase transactions remain real; the operator may use
+  the existing owner pause or deploy a replacement separately.
 
 ### Verification Evidence
 

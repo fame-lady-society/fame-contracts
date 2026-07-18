@@ -60,7 +60,7 @@ or authority mismatch stops the run.
 | 10,000-case fuzz campaign | Passed |
 | 512 x 128 invariant campaign | Passed |
 | Pinned Base Sepolia fork | Passed at block `44,267,553` |
-| Current-head fork | Passed during implementation |
+| Current-head fork | Passed at block `44,301,168` |
 | Deployment dry run | Passed at nonce 30 |
 | Mined address and transaction hashes | Pending |
 | Explorer source and ABI | Pending |
@@ -92,6 +92,9 @@ The smoke tooling freezes one plan hash containing:
   buyer mirror balance, and buyer post-purchase minimum.
 
 The script sets an exact allowance and executes Burn, Mint, then direct held.
+The allowance is three units plus three premiums, except when the buyer is the
+fee recipient, where premium self-transfers are skipped and the exact allowance
+is three units.
 That order is required because any unit deposited into the non-skip marketplace
 can remint a burned ID or advance supply into a Mint source. The result validator
 does not assume that DN404 replenishes inventory with either selected source ID.
@@ -100,9 +103,9 @@ The smoke requires both an explicit confirmation value and a secret buyer key in
 Doppler. No live smoke plan is configured until the marketplace is deployed,
 verified, and activated.
 
-The complete smoke script plus independent result validator passed against an
-ephemeral successor on Base Sepolia fork block `44,298,936`
-(`0x69d736946efb1bdb0dc7662888b48aa3525404cfec56967d822df7c8ab0ca76e`).
+The complete smoke script plus independent result validator passed again
+against an ephemeral successor on Base Sepolia fork block `44,301,168`
+(`0x533310aae1590e270bc202168830331982bdf2912bbf1b8c033aa429f21f4642`).
 
 ## WWW handoff
 
@@ -113,9 +116,11 @@ Buyer discovery and routing:
 
 1. If `mirror.ownerAt(targetId) == marketplace`, buy that held shell with
    `purchaseHeld`.
-2. Otherwise, if `isTokenInBurnedPool(targetId)` or
-   `isTokenInMintPool(targetId)` is true, select any canonically marketplace-owned
-   shell and call `purchasePool(shellId, targetId, ...)`.
+2. Otherwise, if exactly one of `isTokenInBurnedPool(targetId)` and
+   `isTokenInMintPool(targetId)` is true, select any canonically
+   marketplace-owned shell and call `purchasePool(shellId, targetId, ...)`.
+   Neither predicate means the artwork is unavailable; both predicates mean the
+   source is ambiguous and the contract rejects it.
 3. If the intended recipient already owns `targetId`, short-circuit to the owned
    result instead of purchasing.
 4. Art Pool IDs are excluded and must not be presented as marketplace inventory.
@@ -134,6 +139,8 @@ The frontend should re-read source eligibility, shell custody, artwork hash,
 premium, allowance, and recipient immediately before simulation. A successful
 `ArtworkPurchased` event reports buyer, recipient, delivered shell, fulfillment
 path, selected source, artwork hash, unit, premium, and before/after inventory.
+The path values are `0 = Held`, `1 = MintPool`, and `2 = BurnPool`; held
+purchases report `sourceId = 0`.
 
 Metadata remains a deployment-specific presentation concern. Base Sepolia TEST
 uses nested on-chain data URIs; production FAME uses URL metadata. Settlement

@@ -36,6 +36,7 @@ abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
     address internal admin;
 
     error MissingReleaseGateInput(string name);
+    error ConflictingReleaseGateModes();
     error PoolCandidateUnavailable(string pool);
     error BuyerPremintCandidateUnavailable(uint256 sourceId);
 
@@ -72,6 +73,7 @@ abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
         admin = vm.envAddress("BASE_SEPOLIA_FAME_EXPECTED_ADMIN");
         feeRecipient = vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT");
 
+        new ValidateBaseSepoliaUniversalPoolArtMarketplace().validateCanonicalAddresses(fame, mirror);
         assertEq(address(fame.fameMirror()), address(mirror), "mirror drift");
         assertEq(address(fame.renderer()), address(creatorMagic), "renderer drift");
         assertEq(address(creatorMagic.fame()), address(fame), "CreatorMagic FAME drift");
@@ -275,6 +277,13 @@ abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
         emit log_named_uint("fork block", forkBlock);
         emit log_named_bytes32("fork hash", forkHash);
     }
+
+    function _releaseGateSelected(bool expectedPaused) internal view returns (bool) {
+        bool requirePaused = vm.envOr("BASE_SEPOLIA_REQUIRE_UNIVERSAL_MARKETPLACE_DEPLOYED", false);
+        bool requireActivated = vm.envOr("BASE_SEPOLIA_REQUIRE_UNIVERSAL_MARKETPLACE_ACTIVATED", false);
+        if (requirePaused && requireActivated) revert ConflictingReleaseGateModes();
+        return expectedPaused ? requirePaused : requireActivated;
+    }
 }
 
 contract UniversalPoolArtMarketplacePinnedForkBaseSepoliaTest is UniversalPoolArtMarketplaceForkBaseSepoliaTestBase {
@@ -356,13 +365,13 @@ contract UniversalPoolArtMarketplaceCurrentHeadForkBaseSepoliaTest is
 
 contract UniversalPoolArtMarketplaceDeployedForkBaseSepoliaTest is UniversalPoolArtMarketplaceForkBaseSepoliaTestBase {
     function testStrictDeployedAddressFork() public {
-        address marketAddress = vm.envOr("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS", address(0));
-        if (marketAddress == address(0)) {
-            if (vm.envOr("BASE_SEPOLIA_REQUIRE_UNIVERSAL_MARKETPLACE_DEPLOYED", false)) {
-                revert MissingReleaseGateInput("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS");
-            }
+        if (!_releaseGateSelected(true)) {
             vm.skip(true);
             return;
+        }
+        address marketAddress = vm.envOr("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS", address(0));
+        if (marketAddress == address(0)) {
+            revert MissingReleaseGateInput("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS");
         }
 
         _selectCurrentFork();
@@ -370,13 +379,13 @@ contract UniversalPoolArtMarketplaceDeployedForkBaseSepoliaTest is UniversalPool
     }
 
     function testPostActivationFork() public {
-        address marketAddress = vm.envOr("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS", address(0));
-        if (marketAddress == address(0)) {
-            if (vm.envOr("BASE_SEPOLIA_REQUIRE_UNIVERSAL_MARKETPLACE_ACTIVATED", false)) {
-                revert MissingReleaseGateInput("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS");
-            }
+        if (!_releaseGateSelected(false)) {
             vm.skip(true);
             return;
+        }
+        address marketAddress = vm.envOr("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS", address(0));
+        if (marketAddress == address(0)) {
+            revert MissingReleaseGateInput("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS");
         }
 
         _selectCurrentFork();

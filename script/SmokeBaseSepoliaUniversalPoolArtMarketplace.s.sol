@@ -6,6 +6,7 @@ import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.so
 import {CreatorArtistMagic} from "../src/CreatorArtistMagic.sol";
 import {Fame} from "../src/Fame.sol";
 import {FameMirror} from "../src/FameMirror.sol";
+import {ValidateBaseSepoliaUniversalPoolArtMarketplace} from "./ValidateBaseSepoliaUniversalPoolArtMarketplace.s.sol";
 
 contract SmokeBaseSepoliaUniversalPoolArtMarketplace is Script {
     uint256 internal constant BASE_SEPOLIA_CHAIN_ID = 84532;
@@ -57,12 +58,15 @@ contract SmokeBaseSepoliaUniversalPoolArtMarketplace is Script {
             revert SmokeNotConfirmed();
         }
 
-        uint256 privateKey = vm.envUint("UNIVERSAL_MARKETPLACE_SMOKE_BUYER_PRIVATE_KEY");
-        address signer = vm.addr(privateKey);
         Fame fame = Fame(payable(vm.envAddress("BASE_SEPOLIA_FAME_ADDRESS")));
+        FameMirror mirror = FameMirror(payable(vm.envAddress("BASE_SEPOLIA_FAME_NFT_ADDRESS")));
         CreatorArtistMagic creatorMagic = CreatorArtistMagic(vm.envAddress("BASE_SEPOLIA_CREATOR_ARTIST_MAGIC_ADDRESS"));
         UniversalPoolArtMarketplace market =
             UniversalPoolArtMarketplace(vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS"));
+        new ValidateBaseSepoliaUniversalPoolArtMarketplace().validateCanonicalAddresses(fame, mirror);
+
+        uint256 privateKey = vm.envUint("UNIVERSAL_MARKETPLACE_SMOKE_BUYER_PRIVATE_KEY");
+        address signer = vm.addr(privateKey);
         SmokePlan memory plan = _loadPlan();
         bytes32 expectedCommitment = vm.envBytes32("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_SMOKE_PLAN_HASH");
         uint256 actualNonce = vm.getNonce(signer);
@@ -111,7 +115,9 @@ contract SmokeBaseSepoliaUniversalPoolArtMarketplace is Script {
 
         _checkValue("unit", plan.unit, fame.unit());
         _checkValue("premium", plan.premium, market.premium());
-        _checkValue("totalSpend", plan.totalSpend, 3 * (plan.unit + plan.premium));
+        uint256 expectedSpend = 3 * plan.unit;
+        if (plan.buyer != market.feeRecipient()) expectedSpend += 3 * plan.premium;
+        _checkValue("totalSpend", plan.totalSpend, expectedSpend);
         _checkValue("inventoryBefore", plan.inventoryBefore, market.inventory());
         _checkValue("feeBalanceBefore", plan.feeBalanceBefore, fame.balanceOf(market.feeRecipient()));
         _checkValue("buyerMirrorBalanceBefore", plan.buyerMirrorBalanceBefore, fame.fameMirror().balanceOf(plan.buyer));
