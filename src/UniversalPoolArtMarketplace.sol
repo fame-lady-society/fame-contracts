@@ -27,10 +27,28 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
 
     bool internal _settlementActive;
 
+    enum FulfillmentPath {
+        Held,
+        MintPool,
+        BurnPool
+    }
+
     event PremiumUpdated(uint256 previousPremium, uint256 newPremium);
     event FeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
     event MarketPaused(address indexed account);
     event MarketUnpaused(address indexed account);
+    event ArtworkPurchased(
+        address indexed buyer,
+        address indexed recipient,
+        uint256 indexed shellId,
+        FulfillmentPath path,
+        uint256 sourceId,
+        bytes32 artwork,
+        uint256 unitAmount,
+        uint256 premiumAmount,
+        uint256 inventoryBefore,
+        uint256 inventoryAfter
+    );
     event RescueERC20(address indexed token, address indexed to, uint256 amount);
     event RescueERC721(address indexed token, address indexed to, uint256 indexed tokenId);
 
@@ -48,6 +66,13 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     error OwnershipRenunciationDisabled();
     error UnsupportedNFT(address token);
     error CoreAssetRescueBlocked();
+    error InvalidRecipient();
+    error PremiumExceedsMaximum(uint256 currentPremium, uint256 maximumPremium);
+    error UnavailableShell(uint256 shellId);
+    error ArtworkMismatch(uint256 tokenId, bytes32 expected, bytes32 actual);
+    error PaymentTransferFailed();
+    error BuyerMirrorBalanceTooLow(uint256 minimum, uint256 actual);
+    error InventoryInvariantBroken(uint256 beforeBalance, uint256 afterBalance);
 
     modifier noActiveSettlement() {
         if (_settlementActive) revert SettlementInProgress();
@@ -130,6 +155,65 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         emit MarketUnpaused(msg.sender);
     }
 
+    function purchaseHeld(
+        uint256 shellId,
+        bytes32 expectedArtworkHash,
+        uint256 maxPremium,
+        uint256 minBuyerMirrorBalanceAfter,
+        address recipient
+    ) external nonReentrant returns (uint256 inventoryBefore, uint256 inventoryAfter) {
+        if (paused) revert PurchasesPaused();
+        if (recipient == address(0)) revert InvalidRecipient();
+
+        uint256 currentPremium = premium;
+        if (currentPremium > maxPremium) {
+            revert PremiumExceedsMaximum(currentPremium, maxPremium);
+        }
+
+        _requireStack();
+        _requireShellArtwork(shellId, expectedArtworkHash);
+        address currentFeeRecipient = feeRecipient;
+        _requireFeeRecipient(currentFeeRecipient);
+        inventoryBefore = inventory();
+
+        _enterSettlement();
+        _pullPremium(msg.sender, currentFeeRecipient, currentPremium);
+
+        _requireStack();
+        _requireShellArtwork(shellId, expectedArtworkHash);
+
+        uint256 unitAmount = fame.unit();
+        _pullFame(msg.sender, address(this), unitAmount);
+
+        _requireStack();
+        _requireShellArtwork(shellId, expectedArtworkHash);
+        mirror.safeTransferFrom(address(this), recipient, shellId);
+
+        uint256 buyerMirrorBalance = mirror.balanceOf(msg.sender);
+        if (buyerMirrorBalance < minBuyerMirrorBalanceAfter) {
+            revert BuyerMirrorBalanceTooLow(minBuyerMirrorBalanceAfter, buyerMirrorBalance);
+        }
+
+        inventoryAfter = inventory();
+        if (inventoryAfter < inventoryBefore) {
+            revert InventoryInvariantBroken(inventoryBefore, inventoryAfter);
+        }
+        _exitSettlement();
+
+        emit ArtworkPurchased(
+            msg.sender,
+            recipient,
+            shellId,
+            FulfillmentPath.Held,
+            0,
+            expectedArtworkHash,
+            unitAmount,
+            currentPremium,
+            inventoryBefore,
+            inventoryAfter
+        );
+    }
+
     function transferOwnership(address newOwner) public payable override onlyOwner noActiveSettlement {
         super.transferOwnership(newOwner);
     }
@@ -191,6 +275,46 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
             revert InvalidFeeRecipient(candidate);
         }
         if (!fame.getSkipNFT(candidate)) revert FeeRecipientNotSkippingNFT(candidate);
+    }
+
+    function _requireStack() internal view {
+        if (
+            address(creatorMagic.fame()) != address(fame) || address(fame.fameMirror()) != address(mirror)
+                || address(fame.renderer()) != address(creatorMagic)
+        ) {
+            revert StackMismatch();
+        }
+    }
+
+    function _requireShellArtwork(uint256 shellId, bytes32 expectedArtworkHash) internal view {
+        if (mirror.ownerAt(shellId) != address(this)) revert UnavailableShell(shellId);
+        _requireArtwork(shellId, expectedArtworkHash);
+    }
+
+    function _requireArtwork(uint256 tokenId, bytes32 expectedArtworkHash) internal view {
+        bytes32 actualArtworkHash = artworkHash(tokenId);
+        if (actualArtworkHash != expectedArtworkHash) {
+            revert ArtworkMismatch(tokenId, expectedArtworkHash, actualArtworkHash);
+        }
+    }
+
+    function _pullPremium(address buyer, address recipient, uint256 amount) internal {
+        if (buyer == recipient) return;
+        _requireFeeRecipient(recipient);
+        _pullFame(buyer, recipient, amount);
+    }
+
+    function _pullFame(address from, address to, uint256 amount) internal {
+        if (!fame.transferFrom(from, to, amount)) revert PaymentTransferFailed();
+    }
+
+    function _enterSettlement() internal {
+        if (_settlementActive) revert SettlementInProgress();
+        _settlementActive = true;
+    }
+
+    function _exitSettlement() internal {
+        _settlementActive = false;
     }
 
     function _requireContract(address dependency) private view {
