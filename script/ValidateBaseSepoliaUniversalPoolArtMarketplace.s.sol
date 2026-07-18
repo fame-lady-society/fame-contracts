@@ -17,6 +17,14 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
 
+    struct MarketplaceExpectations {
+        address owner;
+        address feeRecipient;
+        uint256 premium;
+        uint256 minimumInventory;
+        bool paused;
+    }
+
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error CanonicalAddressMismatch(string field, address expected, address actual);
     error CodeMissing(string field, address target);
@@ -41,16 +49,16 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
         CreatorArtistMagic creatorMagic = CreatorArtistMagic(vm.envAddress("BASE_SEPOLIA_CREATOR_ARTIST_MAGIC_ADDRESS"));
         UniversalPoolArtMarketplace market =
             UniversalPoolArtMarketplace(vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS"));
-        address owner = vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER");
-        address feeRecipient = vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT");
-        uint256 premium = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM");
-        uint256 minimumInventory = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY");
-        bool expectedPaused = vm.envOr("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED", true);
+        MarketplaceExpectations memory expected = MarketplaceExpectations({
+            owner: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER"),
+            feeRecipient: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
+            premium: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM"),
+            minimumInventory: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY"),
+            paused: vm.envOr("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED", true)
+        });
 
         validateCanonicalAddresses(fame, mirror);
-        validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, premium, minimumInventory, expectedPaused
-        );
+        validateMarketplace(fame, mirror, creatorMagic, market, expected);
     }
 
     function validateCanonicalAddresses(Fame fame, FameMirror mirror) public pure {
@@ -67,11 +75,7 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
         FameMirror mirror,
         CreatorArtistMagic creatorMagic,
         UniversalPoolArtMarketplace market,
-        address expectedOwner,
-        address expectedFeeRecipient,
-        uint256 expectedPremium,
-        uint256 minimumInventory,
-        bool expectedPaused
+        MarketplaceExpectations memory expected
     ) public view {
         _requireCode("fame", address(fame));
         _requireCode("mirror", address(mirror));
@@ -90,26 +94,26 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
         _checkAddress("marketplace.fame", address(fame), address(market.fame()));
         _checkAddress("marketplace.mirror", address(mirror), address(market.mirror()));
         _checkAddress("marketplace.creatorMagic", address(creatorMagic), address(market.creatorMagic()));
-        _checkAddress("marketplace.owner", expectedOwner, market.owner());
-        _checkAddress("marketplace.feeRecipient", expectedFeeRecipient, market.feeRecipient());
+        _checkAddress("marketplace.owner", expected.owner, market.owner());
+        _checkAddress("marketplace.feeRecipient", expected.feeRecipient, market.feeRecipient());
 
-        if (expectedPremium == 0 || expectedPremium > type(uint96).max) {
-            revert PremiumOutOfRange(expectedPremium);
+        if (expected.premium == 0 || expected.premium > type(uint96).max) {
+            revert PremiumOutOfRange(expected.premium);
         }
-        if (market.premium() != expectedPremium) {
-            revert ValueMismatch("marketplace.premium", expectedPremium, market.premium());
+        if (market.premium() != expected.premium) {
+            revert ValueMismatch("marketplace.premium", expected.premium, market.premium());
         }
-        if (market.paused() != expectedPaused) {
-            revert ValueMismatch("marketplace.paused", expectedPaused ? 1 : 0, market.paused() ? 1 : 0);
+        if (market.paused() != expected.paused) {
+            revert ValueMismatch("marketplace.paused", expected.paused ? 1 : 0, market.paused() ? 1 : 0);
         }
-        if (!fame.getSkipNFT(expectedFeeRecipient)) {
-            revert FeeRecipientNotSkippingNFT(expectedFeeRecipient);
+        if (!fame.getSkipNFT(expected.feeRecipient)) {
+            revert FeeRecipientNotSkippingNFT(expected.feeRecipient);
         }
         if (fame.getSkipNFT(address(market))) revert MarketplaceSkippingNFT();
 
         uint256 actualInventory = mirror.balanceOf(address(market));
-        if (actualInventory < minimumInventory) {
-            revert MarketplaceInventoryTooLow(minimumInventory, actualInventory);
+        if (actualInventory < expected.minimumInventory) {
+            revert MarketplaceInventoryTooLow(expected.minimumInventory, actualInventory);
         }
 
         if (!creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE)) {

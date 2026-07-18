@@ -46,21 +46,13 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     address[3] internal _buyers;
     address[2] internal _feeRecipients;
 
-    uint256 public fundingCalls;
     uint256 public fundingSuccesses;
-    uint256 public directCalls;
     uint256 public directSuccesses;
-    uint256 public mintCalls;
     uint256 public mintSuccesses;
-    uint256 public burnCalls;
     uint256 public burnSuccesses;
-    uint256 public forwardingCalls;
     uint256 public forwardingSuccesses;
-    uint256 public adminCalls;
     uint256 public adminSuccesses;
-    uint256 public adversarialCalls;
     uint256 public expectedFailures;
-    uint256 public totalPremiumPaid;
     uint256 public poolPlacementChecks;
     uint256 public callbackChecks;
     uint256 public buyerMinimumChecks;
@@ -95,7 +87,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     }
 
     function fundBuyer(uint256 buyerSeed, uint96 amountSeed) external {
-        ++fundingCalls;
         address selectedBuyer = _buyer(buyerSeed);
         uint256 amount = 1 + (uint256(amountSeed) % (fame.unit() * 4));
         if (fame.balanceOf(address(this)) < amount) return;
@@ -104,7 +95,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     }
 
     function purchaseHeld(uint256 buyerSeed, uint256 shellSeed, bool selfRecipient, bool useMinimum) external {
-        ++directCalls;
         PurchaseCase memory purchase;
         purchase.buyer = _buyer(buyerSeed);
         purchase.destination = selfRecipient ? purchase.buyer : _nextBuyer(buyerSeed);
@@ -126,7 +116,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     }
 
     function purchaseMint(uint256 buyerSeed, uint256 shellSeed, uint256 sourceSeed, bool selfRecipient) external {
-        ++mintCalls;
         PurchaseCase memory purchase;
         purchase.buyer = _buyer(buyerSeed);
         purchase.destination = selfRecipient ? purchase.buyer : _nextBuyer(buyerSeed);
@@ -152,7 +141,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     }
 
     function purchaseBurn(uint256 buyerSeed, uint256 shellSeed, bool selfRecipient) external {
-        ++burnCalls;
         PurchaseCase memory purchase;
         purchase.buyer = _buyer(buyerSeed);
         purchase.destination = selfRecipient ? purchase.buyer : _nextBuyer(buyerSeed);
@@ -178,7 +166,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     }
 
     function purchaseAndForward(uint256 buyerSeed, uint256 shellSeed) external {
-        ++forwardingCalls;
         PurchaseCase memory purchase;
         purchase.buyer = _buyer(buyerSeed);
         purchase.destination = _nextBuyer(buyerSeed);
@@ -205,7 +192,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     }
 
     function configureMarket(uint96 premiumSeed, uint256 feeSeed, bool shouldPause) external {
-        ++adminCalls;
         uint256 nextPremium = 1 + (uint256(premiumSeed) % (fame.unit() - 1));
         market.setPremium(nextPremium);
         address nextFeeRecipient = _feeRecipients[feeSeed % _feeRecipients.length];
@@ -219,7 +205,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     }
 
     function attemptInvalidPurchase(uint256 buyerSeed, uint256 shellSeed, uint8 failureSeed) external {
-        ++adversarialCalls;
         FailureCase memory failure;
         failure.buyer = _buyer(buyerSeed);
         failure.shellId = _marketShell(shellSeed);
@@ -314,7 +299,6 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         assertEq(market.artworkHash(purchase.shellId), purchase.artwork);
         assertGe(mirror.balanceOf(purchase.buyer), purchase.minimum);
 
-        totalPremiumPaid += purchase.premium;
         if (purchase.minimum != 0) ++buyerMinimumChecks;
         ++handoffChecks;
         if (inventoryAfter < minimumObservedInventory) minimumObservedInventory = inventoryAfter;

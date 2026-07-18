@@ -27,8 +27,7 @@ contract BaseSepoliaUniversalPoolArtMarketplaceSmokeTest is UniversalPoolArtMark
         resultValidator = new ValidateBaseSepoliaUniversalPoolArtMarketplaceSmokeResult();
 
         _seedShells(market, 5);
-        creatorMagic.grantRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE);
-        market.unpause();
+        _enablePoolPurchases(market);
 
         uint256 burnSource = _createBurnCandidate();
         uint256 mintSource = _findMintPoolToken();

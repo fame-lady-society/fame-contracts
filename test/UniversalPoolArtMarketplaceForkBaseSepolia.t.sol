@@ -95,7 +95,15 @@ abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
         vm.stopPrank();
 
         new ValidateBaseSepoliaUniversalPoolArtMarketplace()
-            .validateMarketplace(fame, mirror, creatorMagic, market, admin, feeRecipient, premium, SHELL_COUNT, true);
+            .validateMarketplace(
+                fame,
+                mirror,
+                creatorMagic,
+                market,
+                ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
+                owner: admin, feeRecipient: feeRecipient, premium: premium, minimumInventory: SHELL_COUNT, paused: true
+            })
+            );
 
         assertTrue(creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE));
         assertFalse(creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_CREATOR_ROLE));
@@ -382,11 +390,13 @@ contract UniversalPoolArtMarketplaceDeployedForkBaseSepoliaTest is UniversalPool
                 mirror,
                 creatorMagic,
                 market,
-                vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER"),
-                vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
-                vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM"),
-                vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY"),
-                expectedPaused
+                ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
+                owner: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER"),
+                feeRecipient: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
+                premium: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM"),
+                minimumInventory: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY"),
+                paused: expectedPaused
+            })
             );
     }
 }

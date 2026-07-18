@@ -32,16 +32,20 @@ contract ActivateBaseSepoliaUniversalPoolArtMarketplace is Script {
         if (signer != owner) revert UnexpectedOwnerSigner(owner, signer);
 
         ValidateBaseSepoliaUniversalPoolArtMarketplace validator = new ValidateBaseSepoliaUniversalPoolArtMarketplace();
+        ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations memory expected =
+            ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
+                owner: owner,
+                feeRecipient: feeRecipient,
+                premium: premium,
+                minimumInventory: minimumInventory,
+                paused: market.paused()
+            });
         if (!market.paused()) {
-            validator.validateMarketplace(
-                fame, fame.fameMirror(), creatorMagic, market, owner, feeRecipient, premium, minimumInventory, false
-            );
+            validator.validateMarketplace(fame, fame.fameMirror(), creatorMagic, market, expected);
             return;
         }
 
-        validator.validateMarketplace(
-            fame, fame.fameMirror(), creatorMagic, market, owner, feeRecipient, premium, minimumInventory, true
-        );
+        validator.validateMarketplace(fame, fame.fameMirror(), creatorMagic, market, expected);
 
         vm.startBroadcast(privateKey);
         market.unpause();

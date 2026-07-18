@@ -63,9 +63,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 owner
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, address(0xBEEF), feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, address(0xBEEF), feeRecipient, configuredPremium, 2, true);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -75,9 +73,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 feeRecipient
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, address(0xBEEF), configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, address(0xBEEF), configuredPremium, 2, true);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -87,9 +83,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 configuredPremium
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium + 1, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium + 1, 2, true);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -99,9 +93,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 uint256(1)
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, false
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, false);
     }
 
     function testValidationRejectsInvalidPremiumExpectation() public {
@@ -110,13 +102,13 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 ValidateBaseSepoliaUniversalPoolArtMarketplace.PremiumOutOfRange.selector, uint256(0)
             )
         );
-        validator.validateMarketplace(fame, mirror, creatorMagic, market, owner, feeRecipient, 0, 2, true);
+        _validateMarket(market, owner, feeRecipient, 0, 2, true);
 
         uint256 oversized = uint256(type(uint96).max) + 1;
         vm.expectRevert(
             abi.encodeWithSelector(ValidateBaseSepoliaUniversalPoolArtMarketplace.PremiumOutOfRange.selector, oversized)
         );
-        validator.validateMarketplace(fame, mirror, creatorMagic, market, owner, feeRecipient, oversized, 2, true);
+        _validateMarket(market, owner, feeRecipient, oversized, 2, true);
     }
 
     function testValidationRejectsFeeAndMarketplaceSkipDrift() public {
@@ -129,18 +121,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 ValidateBaseSepoliaUniversalPoolArtMarketplace.FeeRecipientNotSkippingNFT.selector, feeRecipient
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, true);
 
         vm.prank(feeRecipient);
         fame.setSkipNFT(true);
         fame.grantRoles(address(this), FAME_SKIP_MANAGER_ROLE);
         fame.setSkipNftForAccount(address(market), true);
         vm.expectRevert(ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceSkippingNFT.selector);
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, true);
     }
 
     function testValidationRejectsInsufficientInventory() public {
@@ -153,9 +141,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 uint256(2)
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 3, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 3, true);
     }
 
     function testValidationRejectsMissingOrBroadCreatorMagicRoles() public {
@@ -163,9 +149,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
 
         creatorMagic.revokeRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE);
         vm.expectRevert(ValidateBaseSepoliaUniversalPoolArtMarketplace.CreatorMagicBanisherRoleMissing.selector);
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, true);
 
         creatorMagic.grantRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE | CREATOR_MAGIC_CREATOR_ROLE);
         vm.expectRevert(
@@ -174,9 +158,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 CREATOR_MAGIC_CREATOR_ROLE
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, true);
 
         creatorMagic.revokeRoles(address(market), CREATOR_MAGIC_CREATOR_ROLE);
         creatorMagic.grantRoles(address(market), CREATOR_MAGIC_ART_POOL_MANAGER_ROLE);
@@ -186,9 +168,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 CREATOR_MAGIC_ART_POOL_MANAGER_ROLE
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, true);
     }
 
     function testValidationRejectsMarketplaceSkipManagerAuthority() public {
@@ -196,9 +176,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
 
         fame.grantRoles(address(market), FAME_SKIP_MANAGER_ROLE);
         vm.expectRevert(ValidateBaseSepoliaUniversalPoolArtMarketplace.FameSkipManagerRoleTooBroad.selector);
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, true);
     }
 
     function testValidationRejectsRendererAndDependencyDrift() public {
@@ -213,17 +191,13 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 address(childRenderer)
             )
         );
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, configuredPremium, 2, true
-        );
+        _validateMarket(market, owner, feeRecipient, configuredPremium, 2, true);
 
         fame.setRenderer(address(creatorMagic));
         UniversalPoolArtMarketplace otherMarket = _deployMarket(market.premium(), feeRecipient, owner);
         creatorMagic.grantRoles(address(otherMarket), CREATOR_MAGIC_BANISHER_ROLE);
         _seedShells(otherMarket, 2);
-        validator.validateMarketplace(
-            fame, mirror, creatorMagic, otherMarket, owner, feeRecipient, otherMarket.premium(), 2, true
-        );
+        _validateMarket(otherMarket, owner, feeRecipient, otherMarket.premium(), 2, true);
     }
 
     function testDeploymentPrefixClassifiesEverySafeContinuation() public {
@@ -261,6 +235,16 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
         assertEq(inventory, 2);
     }
 
+    function testDeploymentPrefixRejectsInventoryOtherThanTwoShells() public {
+        uint256 configuredPremium = market.premium();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployBaseSepoliaUniversalPoolArtMarketplace.InvalidMinimumInventory.selector, uint256(2), uint256(3)
+            )
+        );
+        deployer.deploymentPrefix(market, fame, creatorMagic, owner, feeRecipient, configuredPremium, 3);
+    }
+
     function testDeploymentPrefixRejectsActivationAndBroadAuthority() public {
         uint256 configuredPremium = market.premium();
         market.unpause();
@@ -283,8 +267,29 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
     }
 
     function _validate(bool expectedPaused) internal view {
+        _validateMarket(market, owner, feeRecipient, market.premium(), 2, expectedPaused);
+    }
+
+    function _validateMarket(
+        UniversalPoolArtMarketplace target,
+        address expectedOwner,
+        address expectedFeeRecipient,
+        uint256 expectedPremium,
+        uint256 minimumInventory,
+        bool expectedPaused
+    ) internal view {
         validator.validateMarketplace(
-            fame, mirror, creatorMagic, market, owner, feeRecipient, market.premium(), 2, expectedPaused
+            fame,
+            mirror,
+            creatorMagic,
+            target,
+            ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
+                owner: expectedOwner,
+                feeRecipient: expectedFeeRecipient,
+                premium: expectedPremium,
+                minimumInventory: minimumInventory,
+                paused: expectedPaused
+            })
         );
     }
 }

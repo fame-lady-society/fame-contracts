@@ -15,6 +15,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
+    uint256 internal constant REQUIRED_INITIAL_INVENTORY = 2;
 
     enum DeploymentPrefix {
         None,
@@ -43,6 +44,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     error CanonicalStackMismatch();
     error InvalidOwner(address owner);
     error InvalidPremium(uint256 premium);
+    error InvalidMinimumInventory(uint256 expected, uint256 actual);
     error FeeRecipientNotSkippingNFT(address recipient);
     error InsufficientSeedBalance(uint256 required, uint256 available);
     error ExistingDeploymentMismatch(string field);
@@ -100,7 +102,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         if (!inputs.creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE)) {
             inputs.creatorMagic.grantRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE);
         }
-        while (market.inventory() < inputs.minimumInventory) {
+        for (uint256 i; i < missingInventory; ++i) {
             inputs.fame.transfer(address(market), inputs.fame.unit());
         }
         vm.stopBroadcast();
@@ -121,6 +123,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         inputs.premium = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM");
         inputs.minimumInventory = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY");
         inputs.expectedNonce = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_EXPECTED_DEPLOYER_NONCE");
+        _validateMinimumInventory(inputs.minimumInventory);
 
         _validateInputs(
             inputs.fame, inputs.creatorMagic, inputs.deployer, inputs.owner, inputs.feeRecipient, inputs.premium
@@ -136,6 +139,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         uint256 expectedPremium,
         uint256 minimumInventory
     ) public view returns (DeploymentPrefix prefix, uint256 inventory) {
+        _validateMinimumInventory(minimumInventory);
         _validateExistingCore(market, fame, creatorMagic, expectedOwner, expectedFeeRecipient, expectedPremium);
 
         bool hasBanisher = creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE);
@@ -168,6 +172,12 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         if (premium == 0 || premium > type(uint96).max) revert InvalidPremium(premium);
         if (!fame.getSkipNFT(feeRecipient)) {
             revert FeeRecipientNotSkippingNFT(feeRecipient);
+        }
+    }
+
+    function _validateMinimumInventory(uint256 minimumInventory) internal pure {
+        if (minimumInventory != REQUIRED_INITIAL_INVENTORY) {
+            revert InvalidMinimumInventory(REQUIRED_INITIAL_INVENTORY, minimumInventory);
         }
     }
 
