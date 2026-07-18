@@ -26,7 +26,7 @@ abstract contract UniversalPoolArtMarketplaceTestBase is Test {
 
     function setUp() public virtual {
         childRenderer = new EchoMetadata();
-        fame = new Fame("Fame Lady Society", "FAME", address(0));
+        fame = new Fame(_fameName(), _fameSymbol(), address(0));
         mirror = fame.fameMirror();
         creatorMagic = new CreatorArtistMagic(address(childRenderer), payable(address(fame)), 500);
 
@@ -39,6 +39,14 @@ abstract contract UniversalPoolArtMarketplaceTestBase is Test {
         fame.setSkipNFT(true);
 
         market = _deployMarket(fame.unit() / 10, feeRecipient, owner);
+    }
+
+    function _fameName() internal pure virtual returns (string memory) {
+        return "Fame Lady Society";
+    }
+
+    function _fameSymbol() internal pure virtual returns (string memory) {
+        return "FAME";
     }
 
     function _deployMarket(uint256 premium_, address feeRecipient_, address owner_)
