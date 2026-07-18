@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import {IERC721Receiver} from "@openzeppelin5/contracts/token/ERC721/IERC721Receiver.sol";
 import {UniversalPoolArtMarketplace} from "../../src/UniversalPoolArtMarketplace.sol";
 import {FameMirror} from "../../src/FameMirror.sol";
 
 contract ReentrantUniversalPoolMarketplaceRecipient {
-    bytes4 private constant ERC721_RECEIVED = 0x150b7a02;
-
     enum Action {
         None,
         ReenterPurchase,
@@ -69,6 +68,6 @@ contract ReentrantUniversalPoolMarketplaceRecipient {
             return bytes4(0);
         }
 
-        return ERC721_RECEIVED;
+        return IERC721Receiver.onERC721Received.selector;
     }
 }

@@ -350,7 +350,7 @@ contract UniversalPoolArtMarketplaceTest is Test {
         assertEq(mirror.ownerOf(shellId), recipient);
     }
 
-    function testPurchaseHeldBlocksReentryAndOwnerMutationDuringCallback() public {
+    function testPurchaseHeldBlocksPremiumMutationDuringCallback() public {
         ReentrantUniversalPoolMarketplaceRecipient ownerRecipient = new ReentrantUniversalPoolMarketplaceRecipient();
         UniversalPoolArtMarketplace ownedMarket = _deployMarket(market.premium(), feeRecipient, address(ownerRecipient));
         uint256 shellId = _seedShells(ownedMarket, 2);
@@ -369,6 +369,27 @@ contract UniversalPoolArtMarketplaceTest is Test {
         assertFalse(ownerRecipient.attemptedActionSucceeded());
         assertGt(ownerRecipient.attemptedActionRevertData().length, 0);
         assertEq(ownedMarket.premium(), market.premium());
+    }
+
+    function testPurchaseHeldBlocksOwnershipTransferDuringCallback() public {
+        ReentrantUniversalPoolMarketplaceRecipient ownerRecipient = new ReentrantUniversalPoolMarketplaceRecipient();
+        UniversalPoolArtMarketplace ownedMarket = _deployMarket(market.premium(), feeRecipient, address(ownerRecipient));
+        uint256 shellId = _seedShells(ownedMarket, 2);
+        bytes32 expectedArtwork = ownedMarket.artworkHash(shellId);
+        ownerRecipient.configure(
+            ownedMarket, ReentrantUniversalPoolMarketplaceRecipient.Action.TransferOwnership, recipient, expectedArtwork
+        );
+        vm.prank(address(ownerRecipient));
+        ownedMarket.unpause();
+        _fundAndApprove(buyer, ownedMarket, fame.unit() + ownedMarket.premium());
+
+        uint256 maxPremium = ownedMarket.premium();
+        vm.prank(buyer);
+        ownedMarket.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, address(ownerRecipient));
+
+        assertFalse(ownerRecipient.attemptedActionSucceeded());
+        assertGt(ownerRecipient.attemptedActionRevertData().length, 0);
+        assertEq(ownedMarket.owner(), address(ownerRecipient));
     }
 
     function testPurchaseHeldBlocksPurchaseReentryDuringCallback() public {

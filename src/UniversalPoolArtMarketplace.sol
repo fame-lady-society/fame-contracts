@@ -4,18 +4,14 @@ pragma solidity ^0.8.24;
 import {Ownable} from "solady/auth/Ownable.sol";
 import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {IERC721} from "@openzeppelin5/contracts/token/ERC721/IERC721.sol";
+import {IERC721Receiver} from "@openzeppelin5/contracts/token/ERC721/IERC721Receiver.sol";
 import {CreatorArtistMagic} from "./CreatorArtistMagic.sol";
 import {Fame} from "./Fame.sol";
 import {FameMirror} from "./FameMirror.sol";
 
-interface IERC721MarketplaceRescue {
-    function safeTransferFrom(address from, address to, uint256 tokenId) external;
-}
-
 contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
-
-    bytes4 private constant ERC721_RECEIVED = 0x150b7a02;
 
     Fame public immutable fame;
     FameMirror public immutable mirror;
@@ -107,7 +103,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         uint256 initialPremium,
         address initialFeeRecipient,
         address initialOwner
-    ) payable {
+    ) {
         if (initialOwner == address(0)) revert ZeroAddress();
         _requireContract(fame_);
         _requireContract(creatorMagic_);
@@ -190,7 +186,6 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         _requireStack();
         _requireShellArtwork(shellId, expectedArtworkHash);
         address currentFeeRecipient = feeRecipient;
-        _requireFeeRecipient(currentFeeRecipient);
         inventoryBefore = inventory();
 
         _enterSettlement();
@@ -261,7 +256,6 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         purchase.artworkHash = expectedArtworkHash;
         purchase.displacedArtworkHash = artworkHash(shellId);
         purchase.inventoryBefore = inventory();
-        _requireFeeRecipient(purchase.feeRecipient);
 
         return _executePoolPurchase(purchase, minBuyerMirrorBalanceAfter);
     }
@@ -365,13 +359,13 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     {
         if (token == address(0) || to == address(0)) revert ZeroAddress();
         if (token == address(mirror)) revert CoreAssetRescueBlocked();
-        IERC721MarketplaceRescue(token).safeTransferFrom(address(this), to, tokenId);
+        IERC721(token).safeTransferFrom(address(this), to, tokenId);
         emit RescueERC721(token, to, tokenId);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external view returns (bytes4) {
         if (msg.sender != address(mirror)) revert UnsupportedNFT(msg.sender);
-        return ERC721_RECEIVED;
+        return IERC721Receiver.onERC721Received.selector;
     }
 
     function _requirePremium(uint256 candidate) internal pure {
@@ -425,8 +419,8 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     }
 
     function _pullPremium(address buyer, address recipient, uint256 amount) internal {
-        if (buyer == recipient) return;
         _requireFeeRecipient(recipient);
+        if (buyer == recipient) return;
         _pullFame(buyer, recipient, amount);
     }
 
