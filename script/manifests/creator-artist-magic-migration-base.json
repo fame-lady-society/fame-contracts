@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "status": "broadcast-complete",
+  "chainId": 8453,
+  "observedAtBlock": 48813216,
+  "expectedOperatorAndNewOwner": "0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9",
+  "roleEventScan": {
+    "fromBlock": 33660199,
+    "throughBlock": 48813216,
+    "ownerAttestedNoChangesSinceScan": true
+  },
+  "contracts": {
+    "fame": "0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418",
+    "legacyCreatorArtistMagic": "0x8091D00A25ebE87A2A1Ef19e1d33689FCAdC3fA5",
+    "legacyChildRenderer": "0xA50C9a918C110CA159fb187F4a55896A4d063878",
+    "newCreatorArtistMagic": "0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F",
+    "newChildRenderer": "0x8091D00A25ebE87A2A1Ef19e1d33689FCAdC3fA5"
+  },
+  "expectedState": {
+    "fameRenderer": "0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F",
+    "nextTokenId": 650,
+    "artPoolNext": 266
+  },
+  "confirmedRepairState": [
+    { "tokenId": 645, "metadataId": 42 },
+    { "tokenId": 646, "metadataId": 44 },
+    { "tokenId": 647, "metadataId": 46 },
+    { "tokenId": 648, "metadataId": 48 },
+    { "tokenId": 649, "metadataId": 50 }
+  ],
+  "creatorRoleAssignments": [
+    {
+      "address": "0xF11Ce547ff948a03570B20Eac4a4d7b648693324",
+      "legacyRoleMask": 3,
+      "newRoleMask": 2
+    },
+    {
+      "address": "0x750ea1c5ad297278665f2f8332a8876d6f95E19c",
+      "legacyRoleMask": 3,
+      "newRoleMask": 2
+    },
+    {
+      "address": "0xaE30c908C41407877fE764B5f864eb0F5e536A72",
+      "legacyRoleMask": 3,
+      "newRoleMask": 2
+    }
+  ],
+  "legacyRoleRevocations": [
+    {
+      "address": "0xA50C9a918C110CA159fb187F4a55896A4d063878",
+      "roleMask": 1
+    },
+    {
+      "address": "0xF11Ce547ff948a03570B20Eac4a4d7b648693324",
+      "roleMask": 3
+    },
+    {
+      "address": "0x750ea1c5ad297278665f2f8332a8876d6f95E19c",
+      "roleMask": 3
+    },
+    {
+      "address": "0xaE30c908C41407877fE764B5f864eb0F5e536A72",
+      "roleMask": 3
+    },
+    {
+      "address": "0x1De45d6811d6796178C0adE37516E510C1E07f77",
+      "roleMask": 1
+    }
+  ],
+  "expectedTransactions": [
+    "01 deploy new CreatorArtistMagic",
+    "02 grant CREATOR to 0xF11Ce547ff948a03570B20Eac4a4d7b648693324",
+    "03 grant CREATOR to 0x750ea1c5ad297278665f2f8332a8876d6f95E19c",
+    "04 grant CREATOR to 0xaE30c908C41407877fE764B5f864eb0F5e536A72",
+    "05 revoke mask 1 from 0xA50C9a918C110CA159fb187F4a55896A4d063878",
+    "06 revoke mask 3 from 0xF11Ce547ff948a03570B20Eac4a4d7b648693324",
+    "07 revoke mask 3 from 0x750ea1c5ad297278665f2f8332a8876d6f95E19c",
+    "08 revoke mask 3 from 0xaE30c908C41407877fE764B5f864eb0F5e536A72",
+    "09 revoke mask 1 from 0x1De45d6811d6796178C0adE37516E510C1E07f77",
+    "10 set FAME renderer to the new CreatorArtistMagic"
+  ],
+  "postMigrationChecks": {
+    "tokenUriParityRange": {
+      "first": 1,
+      "last": 888
+    },
+    "legacyRoleMasksMustBeZero": true,
+    "fameMustMoveRendererRole": true
+  },
+  "broadcastApproved": true,
+  "execution": {
+    "deploymentTransaction": "0xaf74bfd34e11ae47cc4e24ddc4cb76945e9c5d9bbcc79f03c4131ffb4eaa5252",
+    "cutoverTransaction": "0xfb828048907de65435d1671ca21a24382a09b48781d043f81af122b3d1a52cce",
+    "finalBlock": 48814905,
+    "receiptCount": 10,
+    "allReceiptStatuses": 1
+  }
+}
