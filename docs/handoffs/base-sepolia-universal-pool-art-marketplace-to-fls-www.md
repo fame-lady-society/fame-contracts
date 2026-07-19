@@ -3,6 +3,9 @@
 Status: **deployed paused; `fls-www` integration may be prepared but must not be
 presented as live**
 
+Production implementation is specified separately in
+`docs/handoffs/base-universal-pool-art-marketplace-production-implementation.md`.
+
 `UniversalPoolArtMarketplace` replaces manual per-token listing and rotation
 with a continuous exchange:
 
