@@ -1,14 +1,14 @@
 ---
 chain: base-sepolia
-status: predeployment
+status: deployed-paused
 contract: UniversalPoolArtMarketplace
 ---
 
 # Base Sepolia Universal Pool Art Marketplace
 
-The marketplace deployment is intentionally pending. The successor contract and
-its release tooling are implemented. Only the fee-recipient preparation
-transactions documented below have been authorized and broadcast.
+The marketplace was deployed to Base Sepolia on 2026-07-18 and remains paused.
+Deployment, narrow CreatorMagic authority, and three-shell seeding are complete.
+Activation and live smoke have not been authorized or broadcast.
 
 ## Intended configuration
 
@@ -23,9 +23,9 @@ transactions documented below have been authorized and broadcast.
 | Premium | `1,000 TEST` |
 | Seed inventory | 3 Society NFT shells |
 | Initial state | Paused |
-| Marketplace address | Pending |
-| Simulated nonce | 31 |
-| Simulated address | `0x821ab043a94688aC22C5a1b0113fc33ed4Fb6843` |
+| Marketplace address | `0x821ab043a94688aC22C5a1b0113fc33ed4Fb6843` |
+| Deployment nonce | 31 |
+| Deployment block | `44,329,992` |
 
 The marketplace receives only CreatorMagic `BANISHER`. It must not receive
 CreatorMagic `CREATOR`, CreatorMagic `ART_POOL_MANAGER`, or FAME `SKIP_MANAGER`.
@@ -44,6 +44,32 @@ Prepared on Base Sepolia on 2026-07-18:
 
 The private key is stored only as the masked Doppler `dev` secret
 `BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT_PRIVATE_KEY`.
+
+## Paused deployment
+
+All five deployment-prefix transactions mined successfully in Base Sepolia
+block `44,329,992` (`0x5cadeb5022de369a1daa71968a85749b1ed88d08096bc19d177cdb830148c352`):
+
+- Deploy paused marketplace:
+  `0xdd850984dea7107ba98e6ec77f66ff94c2bea9146c4759cfc3e15719ef7f2a97`
+- Grant CreatorMagic `BANISHER`:
+  `0x3f0ab967bee0fecb59c621e33d2f9853e03e580f88546d8b3b3d1903ff616e90`
+- Seed shell 4:
+  `0x33073de4cdd78c6e5fee2a0b886ee9d0ce9ef85e536ef0f13172b4b1fbd972d4`
+- Seed shell 5:
+  `0x8766a98d7e4b5b496a335422dca54ef0788a5cf65c2318d2a80ced9359ccab6f`
+- Seed shell 6:
+  `0x0e5ce6e08d429f47e55c523a8b608eaecd0c7ac61618e92bcd48377a6693dad2`
+
+Independent receipt and contract readback confirmed:
+
+- all five receipts have status `1`;
+- owner, dependencies, premium, and fee recipient match this document;
+- `paused == true`;
+- marketplace inventory is exactly three Society NFT shells;
+- the read-only validator and strict paused deployed-address fork pass; and
+- deployed runtime bytecode has the same length and every non-immutable byte as
+  the local `universal_marketplace` artifact.
 
 ## Release sequence
 
@@ -73,11 +99,13 @@ or authority mismatch stops the run.
 | 10,000-case fuzz campaign | Passed |
 | 512 x 128 invariant campaign | Passed |
 | Pinned Base Sepolia fork | Passed at block `44,267,553` |
-| Current-head fork | Passed again after fee-recipient setup on 2026-07-18 |
+| Current-head fork | Passed at block `44,330,085` after deployment |
 | Deployment dry run | Passed at nonce 31 |
-| Mined address and transaction hashes | Pending |
-| Explorer source and ABI | Pending |
-| Strict deployed-address fork | Pending |
+| Mined address and transaction hashes | Passed; recorded above |
+| Read-only deployed-state validator | Passed on 2026-07-18 |
+| Runtime bytecode attestation | Passed outside compiler-declared immutable slots |
+| Explorer source and ABI | Pending; initial broadcast submission mismatched |
+| Strict deployed-address fork | Passed on 2026-07-18 with no skips |
 | Activation transaction | Pending |
 | Post-activation fork | Pending |
 | Smoke script rehearsal | Passed locally and on current-head fork |
@@ -87,11 +115,9 @@ No `broadcast/` logs are committed. Mined public facts belong in this document
 and `config/fame-public.env`; signer material and RPC credentials remain in
 Doppler.
 
-The non-broadcast deployment rehearsal at nonce 31 completed successfully with
-five simulated transactions: deploy, grant BANISHER, and seed three shells. Its
-predicted address is
-`0x821ab043a94688aC22C5a1b0113fc33ed4Fb6843`. This is not a deployed-address
-claim and must be recomputed if the deployer nonce changes.
+The non-broadcast deployment rehearsal at nonce 31 predicted the address that
+subsequently mined. The public address is pinned in `config/fame-public.env`;
+generated Foundry `broadcast/` records remain uncommitted.
 
 ## Bounded smoke
 
@@ -123,8 +149,13 @@ against an ephemeral successor on Base Sepolia fork block `44,301,168`
 
 ## WWW handoff
 
-The future frontend integration should use the verified deployed address and ABI
-for `UniversalPoolArtMarketplace`. The address is currently pending.
+The implementation handoff is
+`docs/handoffs/base-sepolia-universal-pool-art-marketplace-to-fls-www.md`.
+
+The future frontend integration should use
+`0x821ab043a94688aC22C5a1b0113fc33ed4Fb6843` and the explorer-verified ABI for
+`UniversalPoolArtMarketplace`. WWW work remains deferred until explorer
+verification and marketplace activation are complete.
 
 Buyer discovery and routing:
 
