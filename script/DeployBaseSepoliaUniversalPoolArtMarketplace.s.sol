@@ -15,7 +15,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
-    uint256 internal constant REQUIRED_INITIAL_INVENTORY = 2;
+    uint256 internal constant REQUIRED_INITIAL_INVENTORY = 3;
 
     enum DeploymentPrefix {
         None,

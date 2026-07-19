@@ -401,7 +401,7 @@ Current Foundry guidance materially shapes the verification contract:
   Covers R31-R33.
 
 - KTD12. **Reuse the deployed Base Sepolia TEST stack and deploy only the successor.**
-  The deployment script reads the existing FAME, mirror, and CreatorMagic addresses, requires the configured fee recipient to be skip-enabled, deploys the marketplace paused, grants only CreatorMagic `BANISHER`, seeds two shells, and leaves activation to a separate owner action after validation.
+  The deployment script reads the existing FAME, mirror, and CreatorMagic addresses, requires the configured fee recipient to be skip-enabled, deploys the marketplace paused, grants only CreatorMagic `BANISHER`, seeds three shells, and leaves activation to a separate owner action after validation.
   It must prove the marketplace lacks CreatorMagic `CREATOR`/`ART_POOL_MANAGER` and FAME `SKIP_MANAGER`.
   Deployment, role grant, each seed transfer, and activation are separately mined transaction prefixes; read-only validation and source verification are explicit recorded gates between those prefixes.
   A retry may continue only from a recognized canonical prefix; otherwise the script stops without inventing an automated recovery or abandonment branch.
@@ -761,7 +761,7 @@ ordinary operator action.
   - Create `docs/gallery/base-sepolia-universal-pool-art-marketplace.md`.
 - **Approach:**
   - Validate chain, signer, nonce, existing stack identity, owner, skip-enabled fee recipient, bounded premium, balances, and required authority before broadcast.
-  - Deploy only the successor, grant BANISHER, seed two shells, and leave paused.
+  - Deploy only the successor, grant BANISHER, seed three shells, and leave paused.
   - Treat deploy, role grant, each seed transfer, and activation as explicit prefix states; a rerun inspects mined state and performs only the next missing canonical action.
   - Run the read-only validator and strict deployed fork against mined state.
   - Verify source and ABI with the pinned compiler profile and record address, transaction hashes, constructor values, source commit, and explorer URL in curated docs.

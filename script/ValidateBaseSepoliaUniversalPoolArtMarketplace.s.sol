@@ -16,6 +16,7 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
+    uint256 internal constant REQUIRED_INITIAL_INVENTORY = 3;
 
     struct MarketplaceExpectations {
         address owner;
@@ -34,6 +35,7 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
     error PremiumOutOfRange(uint256 premium);
     error FeeRecipientNotSkippingNFT(address recipient);
     error MarketplaceSkippingNFT();
+    error InvalidMinimumInventory(uint256 expected, uint256 actual);
     error MarketplaceInventoryTooLow(uint256 minimum, uint256 actual);
     error CreatorMagicBanisherRoleMissing();
     error CreatorMagicRoleTooBroad(uint256 role);
@@ -110,6 +112,9 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
             revert FeeRecipientNotSkippingNFT(expected.feeRecipient);
         }
         if (fame.getSkipNFT(address(market))) revert MarketplaceSkippingNFT();
+        if (expected.minimumInventory < REQUIRED_INITIAL_INVENTORY) {
+            revert InvalidMinimumInventory(REQUIRED_INITIAL_INVENTORY, expected.minimumInventory);
+        }
 
         uint256 actualInventory = mirror.balanceOf(address(market));
         if (actualInventory < expected.minimumInventory) {

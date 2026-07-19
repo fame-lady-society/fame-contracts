@@ -21,7 +21,7 @@ transactions documented below have been authorized and broadcast.
 | Owner | `0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9` |
 | Fee recipient | `0x0Bd54EcB903392B323bC2b3dA61023325f730241` |
 | Premium | `1,000 TEST` |
-| Seed inventory | 2 Society NFT shells |
+| Seed inventory | 3 Society NFT shells |
 | Initial state | Paused |
 | Marketplace address | Pending |
 | Simulated nonce | 31 |
@@ -88,8 +88,8 @@ and `config/fame-public.env`; signer material and RPC credentials remain in
 Doppler.
 
 The non-broadcast deployment rehearsal at nonce 31 completed successfully with
-four simulated transactions: deploy, grant BANISHER, seed shell one, and seed
-shell two. Its predicted address is
+five simulated transactions: deploy, grant BANISHER, and seed three shells. Its
+predicted address is
 `0x821ab043a94688aC22C5a1b0113fc33ed4Fb6843`. This is not a deployed-address
 claim and must be recomputed if the deployer nonce changes.
 
