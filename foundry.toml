@@ -3,7 +3,11 @@ src = "src"
 out = "out"
 libs = ["lib"]
 optimizer = true
-fs_permissions = [{ access = "read", path = "./test/router/fixtures" }]
+fs_permissions = [
+  { access = "read", path = "./test/router/fixtures" },
+  { access = "read", path = "./script/manifests" },
+  { access = "read", path = "./config/fame-public.env" },
+]
 remappings = [
   "forge-std=lib/forge-std/src",
   "solady=lib/solady/src",

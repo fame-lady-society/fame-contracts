@@ -32,7 +32,7 @@ import {FameMirror} from "./FameMirror.sol";
  *
  * **End of Mint Pool**:
  *   - Purpose: Unrevealed metadata slots that can be consumed to create new metadata
- *   - Criteria: tokenId >= nextTokenId + ownerOf(tokenId) reverts + not in art pool
+ *   - Boundary: nextTokenId identifies the next slot; live ownership is not checked
  *   - Operations: banishToEndOfMintPool() consumes by incrementing nextTokenId
  *
  * The contract uses ownerOf() revert patterns to detect token states without requiring
@@ -175,10 +175,10 @@ contract CreatorArtistMagic is
     /**
      * @notice Banish a token's metadata to the End of Mint Pool and assign new metadata
      * @dev Consumes an End of Mint Pool slot (tokenId >= nextTokenId) by incrementing nextTokenId
-     * @dev Original metadata is preserved in registry, new metadata assigned to token
-     * @dev End of Mint Pool contains unrevealed tokens that were never minted
+     * @dev Moves the token's active metadata to the consumed slot and assigns new metadata to the token
+     * @dev Consumption trusts the configured nextTokenId boundary and does not inspect that slot's live ownership
      * @param tokenIdToUpdate The token ID owned by CREATOR to update
-     * @param newMetadataUrl The new metadata URL to assign to the consumed slot
+     * @param newMetadataUrl The new metadata URL to assign to the owned token
      */
     function banishToEndOfMintPool(
         uint256 tokenIdToUpdate,
@@ -201,23 +201,25 @@ contract CreatorArtistMagic is
             revert MintPoolFull();
         }
 
-        // Get or create metadata ID for the token's current metadata (preserves it in registry)
+        uint256 consumedTokenId = nextTokenId;
+
+        // Get or create metadata ID for the token's current metadata
         uint16 originalMetadataId = _getOrCreateMetadataId(tokenIdToUpdate);
 
         // Create new metadata ID for the new metadata
         uint16 newMetadataId = nextMetadataId++;
         metadataRegistry[newMetadataId] = newMetadataUrl;
 
-        // Assign new metadata to the token
+        // Move the original metadata to the consumed slot and assign new metadata to the token
         tokenMetadata.set(tokenIdToUpdate, newMetadataId);
+        tokenMetadata.set(consumedTokenId, originalMetadataId);
 
         // Increment nextTokenId to mark this swap operation
         nextTokenId++;
 
-        // The originalMetadataId now holds the banished metadata and can be referenced by other tokens
-
-        // Emit metadata update for the token
+        // Emit metadata updates for both changed tokens
         fame.emitMetadataUpdate(tokenIdToUpdate);
+        fame.emitMetadataUpdate(consumedTokenId);
     }
 
     /**

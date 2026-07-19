@@ -9,6 +9,8 @@ import "../src/FameMirror.sol";
 import "../test/mocks/EchoMetadata.sol";
 
 contract CreatorArtistMagicTest is Test {
+    event MetadataUpdate(uint256 tokenId);
+
     CreatorArtistMagic public creatorMagic;
     Fame public fame;
     FameMirror public fameMirror;
@@ -942,31 +944,45 @@ contract CreatorArtistMagicTest is Test {
             !compareStrings(creatorMagic.tokenURI(tokenId), originalUri)
         );
 
+        // Verify the consumed boundary token receives the source token's old metadata
+        assertEq(creatorMagic.tokenURI(initialNextTokenId), originalUri);
+
         // Verify nextTokenId was incremented
         assertEq(creatorMagic.nextTokenId(), initialNextTokenId + 1);
 
         // Verify the metadata registry contains the custom metadata
         assertTokenHasMetadata(tokenId, customUri);
+        assertTokenHasMetadata(initialNextTokenId, originalUri);
 
         // Verify getMintPoolEnd returns updated nextTokenId
         assertEq(creatorMagic.getMintPoolEnd(), initialNextTokenId + 1);
+        assertTrue(creatorMagic.isTokenInMintPool(initialNextTokenId));
+        assertFalse(creatorMagic.isTokenInEndOfMintPool(initialNextTokenId));
+        assertTrue(
+            creatorMagic.isTokenInEndOfMintPool(initialNextTokenId + 1)
+        );
     }
 
     function testBanishToEndOfMintPoolMultiple() public {
         uint256 token1 = 16;
         uint256 token2 = 17;
         uint16 initialNextTokenId = creatorMagic.nextTokenId();
+        string memory originalUri1 = creatorMagic.tokenURI(token1);
+        string memory originalUri2 = creatorMagic.tokenURI(token2);
 
         // Banish first token
         creatorMagic.banishToEndOfMintPool(token1, "metadata_first");
         assertEq(creatorMagic.nextTokenId(), initialNextTokenId + 1);
         assertEq(creatorMagic.tokenURI(token1), "metadata_first");
+        assertEq(creatorMagic.tokenURI(initialNextTokenId), originalUri1);
         assertTokenHasMetadata(token1, "metadata_first");
 
         // Banish second token
         creatorMagic.banishToEndOfMintPool(token2, "metadata_second");
         assertEq(creatorMagic.nextTokenId(), initialNextTokenId + 2);
         assertEq(creatorMagic.tokenURI(token2), "metadata_second");
+        assertEq(creatorMagic.tokenURI(initialNextTokenId), originalUri1);
+        assertEq(creatorMagic.tokenURI(initialNextTokenId + 1), originalUri2);
         assertTokenHasMetadata(token2, "metadata_second");
 
         // Both tokens should have different metadata
@@ -976,6 +992,48 @@ contract CreatorArtistMagicTest is Test {
                 creatorMagic.tokenURI(token2)
             )
         );
+    }
+
+    function testBanishToEndOfMintPoolMovesActiveOverride() public {
+        uint256 tokenId = 16;
+        uint16 initialNextTokenId = creatorMagic.nextTokenId();
+        string memory overriddenUri = "metadata_override";
+
+        creatorMagic.updateMetadata(tokenId, overriddenUri);
+        assertEq(creatorMagic.tokenURI(tokenId), overriddenUri);
+
+        creatorMagic.banishToEndOfMintPool(tokenId, "metadata_replacement");
+
+        assertEq(creatorMagic.tokenURI(tokenId), "metadata_replacement");
+        assertEq(creatorMagic.tokenURI(initialNextTokenId), overriddenUri);
+
+        uint16 secondBoundaryTokenId = creatorMagic.nextTokenId();
+        creatorMagic.banishToEndOfMintPool(
+            tokenId,
+            "metadata_second_replacement"
+        );
+
+        assertEq(
+            creatorMagic.tokenURI(tokenId),
+            "metadata_second_replacement"
+        );
+        assertEq(creatorMagic.tokenURI(initialNextTokenId), overriddenUri);
+        assertEq(
+            creatorMagic.tokenURI(secondBoundaryTokenId),
+            "metadata_replacement"
+        );
+    }
+
+    function testBanishToEndOfMintPoolEmitsUpdatesForBothTokens() public {
+        uint256 tokenId = 16;
+        uint16 initialNextTokenId = creatorMagic.nextTokenId();
+
+        vm.expectEmit(false, false, false, true, address(fameMirror));
+        emit MetadataUpdate(tokenId);
+        vm.expectEmit(false, false, false, true, address(fameMirror));
+        emit MetadataUpdate(initialNextTokenId);
+
+        creatorMagic.banishToEndOfMintPool(tokenId, "metadata_replacement");
     }
 
     function testBanishToEndOfMintPoolNotOwner() public {
@@ -994,21 +1052,58 @@ contract CreatorArtistMagicTest is Test {
 
     function testBanishToEndOfMintPoolFullPool() public {
         uint256 tokenId = 16;
+        CreatorArtistMagic fullPoolMagic = new CreatorArtistMagic(
+            address(childRenderer),
+            payable(address(fame)),
+            888
+        );
+        fullPoolMagic.grantRoles(creator, 3);
 
-        // Set nextTokenId close to the limit (888)
-        // We can't directly set it, so let's test the boundary condition
-        uint16 currentNextTokenId = creatorMagic.nextTokenId();
-        console.log("Current nextTokenId:", currentNextTokenId);
+        vm.expectRevert(CreatorArtistMagic.MintPoolFull.selector);
+        fullPoolMagic.banishToEndOfMintPool(tokenId, "test_metadata");
+    }
 
-        // If we're close to the limit, this test is meaningful
-        if (currentNextTokenId >= 887) {
-            vm.expectRevert(CreatorArtistMagic.MintPoolFull.selector);
-            creatorMagic.banishToEndOfMintPool(tokenId, "test_metadata");
-        } else {
-            // Otherwise, just verify normal operation
-            creatorMagic.banishToEndOfMintPool(tokenId, "test_metadata");
-            assertEq(creatorMagic.nextTokenId(), currentNextTokenId + 1);
-        }
+    function testBanishToEndOfMintPoolAcceptsBurnedBoundary() public {
+        vm.stopPrank();
+
+        address skipNftRecipient = address(0xBEEF);
+        vm.prank(skipNftRecipient);
+        fame.setSkipNFT(true);
+        vm.prank(user1);
+        fame.transfer(skipNftRecipient, 1_000_000 ether);
+
+        uint16 burnedBoundaryTokenId = 10;
+        uint256 totalNftSupply = creatorMagic.getTotalNFTSupply();
+        assertTrue(creatorMagic.isTokenInBurnedPool(burnedBoundaryTokenId));
+        assertLe(burnedBoundaryTokenId, totalNftSupply);
+
+        CreatorArtistMagic burnedBoundaryMagic = new CreatorArtistMagic(
+            address(childRenderer),
+            payable(address(fame)),
+            burnedBoundaryTokenId
+        );
+        burnedBoundaryMagic.grantRoles(creator, 3);
+        fame.grantRoles(address(burnedBoundaryMagic), 1);
+
+        vm.startPrank(creator);
+        string memory originalMetadata = burnedBoundaryMagic.tokenURI(16);
+        burnedBoundaryMagic.banishToEndOfMintPool(
+            16,
+            "replacement_metadata"
+        );
+
+        assertEq(
+            burnedBoundaryMagic.tokenURI(16),
+            "replacement_metadata"
+        );
+        assertEq(
+            burnedBoundaryMagic.tokenURI(burnedBoundaryTokenId),
+            originalMetadata
+        );
+        assertEq(
+            burnedBoundaryMagic.nextTokenId(),
+            burnedBoundaryTokenId + 1
+        );
     }
 
     function testBanishToEndOfMintPoolUsesArtPool() public {
