@@ -11,6 +11,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     uint256 internal constant BASE_CHAIN_ID = 8453;
     uint256 internal constant PREMIUM = 30_000 ether;
     uint256 internal constant REQUIRED_INVENTORY = 1;
+    uint256 internal constant CREATOR_MAGIC_RENDERER_ROLE = 1;
     address internal constant DEPLOYER = 0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9;
     address internal constant SAFE = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;
 
@@ -78,6 +79,34 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             address(childRenderer),
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
                 owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: false
+            })
+        );
+    }
+
+    function testValidationRejectsRendererAuthorityInAdditionToBanisher() public {
+        UniversalPoolArtMarketplace deployed =
+            deployer.deployMarketplace(fame, creatorMagic, PREMIUM, SAFE, DEPLOYER, DEPLOYER);
+
+        vm.startPrank(DEPLOYER);
+        creatorMagic.grantRoles(address(deployed), CREATOR_MAGIC_BANISHER_ROLE | CREATOR_MAGIC_RENDERER_ROLE);
+        vm.stopPrank();
+
+        vm.prank(SAFE);
+        fame.transfer(address(deployed), fame.unit());
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.CreatorMagicRoleTooBroad.selector, CREATOR_MAGIC_RENDERER_ROLE
+            )
+        );
+        validator.validateMarketplace(
+            fame,
+            mirror,
+            creatorMagic,
+            deployed,
+            address(childRenderer),
+            ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
+                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: true
             })
         );
     }

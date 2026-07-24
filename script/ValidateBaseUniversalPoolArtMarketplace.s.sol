@@ -14,9 +14,7 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
     address internal constant BASE_CREATOR_MAGIC = 0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F;
     address internal constant BASE_CHILD_RENDERER = 0x8091D00A25ebE87A2A1Ef19e1d33689FCAdC3fA5;
     uint256 internal constant EXPECTED_UNIT = 1_000_000 ether;
-    uint256 internal constant CREATOR_MAGIC_CREATOR_ROLE = 1 << 1;
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
-    uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
 
     struct MarketplaceExpectations {
@@ -107,14 +105,12 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
             revert FeeRecipientNotSkippingNFT(expected.feeRecipient);
         }
         if (fame.getSkipNFT(address(market))) revert MarketplaceSkippingNFT();
-        if (!creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE)) {
+        uint256 creatorMagicRoles = creatorMagic.rolesOf(address(market));
+        if (creatorMagicRoles & CREATOR_MAGIC_BANISHER_ROLE == 0) {
             revert CreatorMagicBanisherRoleMissing();
         }
-        if (creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_CREATOR_ROLE)) {
-            revert CreatorMagicRoleTooBroad(CREATOR_MAGIC_CREATOR_ROLE);
-        }
-        if (creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_ART_POOL_MANAGER_ROLE)) {
-            revert CreatorMagicRoleTooBroad(CREATOR_MAGIC_ART_POOL_MANAGER_ROLE);
+        if (creatorMagicRoles != CREATOR_MAGIC_BANISHER_ROLE) {
+            revert CreatorMagicRoleTooBroad(creatorMagicRoles & ~CREATOR_MAGIC_BANISHER_ROLE);
         }
         if (fame.hasAnyRole(address(market), FAME_SKIP_MANAGER_ROLE)) revert FameSkipManagerRoleTooBroad();
     }
