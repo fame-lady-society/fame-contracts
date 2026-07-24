@@ -203,23 +203,25 @@ deployment manifest, or authorization for production.
 
 | Evidence | Result |
 |---|---|
-| `fame-contracts` revision | Pending |
-| `fls-www` revision | Pending |
-| Fork block number | Pending |
-| Fork block hash | Pending |
-| Safe-to-deployer one-unit transfer | Pending |
-| Paused marketplace deployment | Pending |
-| BANISHER grant | Pending |
-| One-unit shell seed | Pending |
-| Paused validation | Pending |
-| Activation transaction | Pending |
-| Active validation | Pending |
-| Temporary marketplace address | Pending; local run only |
+| `fame-contracts` revision | `f1b8a09` |
+| `fls-www` revision | `dd6fe40` |
+| Fork block number | `49036128` |
+| Fork block hash | `0x026d26767901eb3de48a30791d75325138851c184bd71224e10c66c7d3f88b83` |
+| Safe-to-deployer one-unit transfer | `0x32be8730ecd8ce828d2ecfa300e3a9bb3653e81bba8731e027cc0441831dd657` |
+| Paused marketplace deployment | `0xb6f140784b239e238dfb0736311f03d40c7cbd56f0ed6cb61f0190e05423127b` |
+| BANISHER grant | `0xcf6bd66c10350f8dbc0e87e740bfd4784c978f295a58e7a9e2509d58d3b20a94` |
+| One-unit shell seed | `0x6ab71fc3cb5a0b7545bc16a89cb4eac1af99e390e3ae5a18b5cb280b618230d7` |
+| Paused validation | Passed |
+| Activation transaction | `0xacf778282674a62f789745803f8b79a26be7738ed060caa7793e96326e6bd13a` |
+| Active validation | Passed, including exact BANISHER-only role bitmap after review |
+| Temporary marketplace address | `0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e`; localhost fork only |
+| Browser route and metadata | 92 purchasable artworks; 0 unavailable cards; direct browser metadata |
+| Local quote preview | Indexed helper bypassed; local optimizer timed out before producing a safe executable quote |
 | Direct-FAME browser campaign | Not run |
 | ETH acquisition and purchase | Not run |
 | USDC acquisition and purchase | Not run |
 | Fork-visible WETH route | Not evaluated |
-| One-shell contention | Not run |
+| One-shell contention | Passed in the latest-state Base fork suite: one winner, one losing buyer |
 | Teardown and wallet reset | Pending |
 
 When the run ends—or immediately after a reload, uncertain transaction, or
