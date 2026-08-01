@@ -78,6 +78,10 @@ abstract contract UniversalPoolArtMarketplaceForkBaseTestBase is Test {
             payable(address(fame)), address(creatorMagic), EXPECTED_PREMIUM, SAFE, DEPLOYER
         );
 
+        _seedOneShellMarket(market);
+    }
+
+    function _seedOneShellMarket(UniversalPoolArtMarketplace market) internal {
         uint256 unit = fame.unit();
         uint256 safeBefore = fame.balanceOf(SAFE);
         uint256 deployerBefore = fame.balanceOf(DEPLOYER);
