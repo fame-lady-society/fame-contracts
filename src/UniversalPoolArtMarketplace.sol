@@ -19,6 +19,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
 
     uint96 public premium;
     address public feeRecipient;
+    address public authorizedCheckout;
     bool public paused = true;
 
     bool internal _settlementActive;
@@ -30,6 +31,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     }
 
     struct PoolPurchase {
+        address payer;
         address buyer;
         address recipient;
         address feeRecipient;
@@ -44,6 +46,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
 
     event PremiumUpdated(uint256 previousPremium, uint256 newPremium);
     event FeeRecipientUpdated(address indexed previousRecipient, address indexed newRecipient);
+    event AuthorizedCheckoutChanged(address indexed previousCheckout, address indexed newCheckout);
     event MarketPaused(address indexed account);
     event MarketUnpaused(address indexed account);
     event ArtworkPurchased(
@@ -76,6 +79,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     error UnsupportedNFT(address token);
     error CoreAssetRescueBlocked();
     error InvalidRecipient();
+    error UnauthorizedCheckout(address caller);
     error PremiumExceedsMaximum(uint256 currentPremium, uint256 maximumPremium);
     error UnavailableShell(uint256 shellId);
     error ArtworkMismatch(uint256 tokenId, bytes32 expected, bytes32 actual);
@@ -94,6 +98,11 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
 
     modifier onlyPaused() {
         if (!paused) revert MarketNotPaused();
+        _;
+    }
+
+    modifier onlyAuthorizedCheckout() {
+        if (msg.sender != authorizedCheckout) revert UnauthorizedCheckout(msg.sender);
         _;
     }
 
@@ -156,6 +165,13 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         emit FeeRecipientUpdated(previousRecipient, newFeeRecipient);
     }
 
+    function setAuthorizedCheckout(address newCheckout) external onlyOwner noActiveSettlement onlyPaused {
+        if (newCheckout != address(0)) _requireContract(newCheckout);
+        address previousCheckout = authorizedCheckout;
+        authorizedCheckout = newCheckout;
+        emit AuthorizedCheckoutChanged(previousCheckout, newCheckout);
+    }
+
     function pause() external onlyOwner noActiveSettlement {
         if (paused) revert MarketAlreadyPaused();
         paused = true;
@@ -175,8 +191,35 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         uint256 minBuyerMirrorBalanceAfter,
         address recipient
     ) external nonReentrant returns (uint256 inventoryBefore, uint256 inventoryAfter) {
+        return _purchaseHeld(
+            msg.sender, msg.sender, recipient, shellId, expectedArtworkHash, maxPremium, minBuyerMirrorBalanceAfter
+        );
+    }
+
+    function purchaseHeldFor(
+        address buyer,
+        uint256 shellId,
+        bytes32 expectedArtworkHash,
+        uint256 maxPremium,
+        uint256 minBuyerMirrorBalanceAfter
+    ) external onlyAuthorizedCheckout nonReentrant returns (uint256 inventoryBefore, uint256 inventoryAfter) {
+        return
+            _purchaseHeld(
+                msg.sender, buyer, buyer, shellId, expectedArtworkHash, maxPremium, minBuyerMirrorBalanceAfter
+            );
+    }
+
+    function _purchaseHeld(
+        address payer,
+        address buyer,
+        address recipient,
+        uint256 shellId,
+        bytes32 expectedArtworkHash,
+        uint256 maxPremium,
+        uint256 minBuyerMirrorBalanceAfter
+    ) internal returns (uint256 inventoryBefore, uint256 inventoryAfter) {
         if (paused) revert PurchasesPaused();
-        if (recipient == address(0)) revert InvalidRecipient();
+        if (buyer == address(0) || recipient == address(0)) revert InvalidRecipient();
 
         uint256 currentPremium = premium;
         if (currentPremium > maxPremium) {
@@ -189,19 +232,19 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         inventoryBefore = inventory();
 
         _enterSettlement();
-        _pullPremium(msg.sender, currentFeeRecipient, currentPremium);
+        _pullPremium(payer, buyer, currentFeeRecipient, currentPremium);
 
         _requireStack();
         _requireShellArtwork(shellId, expectedArtworkHash);
 
         uint256 unitAmount = fame.unit();
-        _pullFame(msg.sender, address(this), unitAmount);
+        _pullFame(payer, address(this), unitAmount);
 
         _requireStack();
         _requireShellArtwork(shellId, expectedArtworkHash);
         mirror.safeTransferFrom(address(this), recipient, shellId);
 
-        uint256 buyerMirrorBalance = mirror.balanceOf(msg.sender);
+        uint256 buyerMirrorBalance = mirror.balanceOf(buyer);
         if (buyerMirrorBalance < minBuyerMirrorBalanceAfter) {
             revert BuyerMirrorBalanceTooLow(minBuyerMirrorBalanceAfter, buyerMirrorBalance);
         }
@@ -213,7 +256,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         _exitSettlement();
 
         emit ArtworkPurchased(
-            msg.sender,
+            buyer,
             recipient,
             shellId,
             FulfillmentPath.Held,
@@ -234,8 +277,43 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         uint256 minBuyerMirrorBalanceAfter,
         address recipient
     ) external nonReentrant returns (uint256 inventoryBefore, uint256 inventoryAfter) {
+        return _purchasePool(
+            msg.sender,
+            msg.sender,
+            recipient,
+            shellId,
+            sourceId,
+            expectedArtworkHash,
+            maxPremium,
+            minBuyerMirrorBalanceAfter
+        );
+    }
+
+    function purchasePoolFor(
+        address buyer,
+        uint256 shellId,
+        uint256 sourceId,
+        bytes32 expectedArtworkHash,
+        uint256 maxPremium,
+        uint256 minBuyerMirrorBalanceAfter
+    ) external onlyAuthorizedCheckout nonReentrant returns (uint256 inventoryBefore, uint256 inventoryAfter) {
+        return _purchasePool(
+            msg.sender, buyer, buyer, shellId, sourceId, expectedArtworkHash, maxPremium, minBuyerMirrorBalanceAfter
+        );
+    }
+
+    function _purchasePool(
+        address payer,
+        address buyer,
+        address recipient,
+        uint256 shellId,
+        uint256 sourceId,
+        bytes32 expectedArtworkHash,
+        uint256 maxPremium,
+        uint256 minBuyerMirrorBalanceAfter
+    ) internal returns (uint256 inventoryBefore, uint256 inventoryAfter) {
         if (paused) revert PurchasesPaused();
-        if (recipient == address(0)) revert InvalidRecipient();
+        if (buyer == address(0) || recipient == address(0)) revert InvalidRecipient();
         if (sourceId == shellId) revert SourceEqualsShell(sourceId);
 
         PoolPurchase memory purchase;
@@ -248,7 +326,8 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         _requireShell(shellId);
         purchase.path = _requirePoolSource(sourceId);
         _requireArtwork(sourceId, expectedArtworkHash);
-        purchase.buyer = msg.sender;
+        purchase.payer = payer;
+        purchase.buyer = buyer;
         purchase.recipient = recipient;
         purchase.feeRecipient = feeRecipient;
         purchase.shellId = shellId;
@@ -265,7 +344,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         returns (uint256 inventoryBefore, uint256 inventoryAfter)
     {
         _enterSettlement();
-        _pullPremium(purchase.buyer, purchase.feeRecipient, purchase.premiumAmount);
+        _pullPremium(purchase.payer, purchase.buyer, purchase.feeRecipient, purchase.premiumAmount);
 
         _requireStack();
         _requireShell(purchase.shellId);
@@ -284,7 +363,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         _requireArtwork(purchase.sourceId, purchase.displacedArtworkHash);
 
         uint256 unitAmount = fame.unit();
-        _pullFame(purchase.buyer, address(this), unitAmount);
+        _pullFame(purchase.payer, address(this), unitAmount);
 
         _requireStack();
         _requireShellArtwork(purchase.shellId, purchase.artworkHash);
@@ -418,10 +497,10 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         revert IneligiblePoolSource(sourceId);
     }
 
-    function _pullPremium(address buyer, address recipient, uint256 amount) internal {
+    function _pullPremium(address payer, address buyer, address recipient, uint256 amount) internal {
         _requireFeeRecipient(recipient);
         if (buyer == recipient) return;
-        _pullFame(buyer, recipient, amount);
+        _pullFame(payer, recipient, amount);
     }
 
     function _pullFame(address from, address to, uint256 amount) internal {

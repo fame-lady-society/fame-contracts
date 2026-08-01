@@ -10,6 +10,7 @@ contract ReentrantUniversalPoolMarketplaceRecipient {
         None,
         ReenterPurchase,
         SetPremium,
+        SetAuthorizedCheckout,
         TransferOwnership,
         Forward,
         Reject
@@ -52,6 +53,12 @@ contract ReentrantUniversalPoolMarketplaceRecipient {
             }
         } else if (action == Action.SetPremium) {
             try market.setPremium(1) {
+                attemptedActionSucceeded = true;
+            } catch (bytes memory reason) {
+                attemptedActionRevertData = reason;
+            }
+        } else if (action == Action.SetAuthorizedCheckout) {
+            try market.setAuthorizedCheckout(forwardTo) {
                 attemptedActionSucceeded = true;
             } catch (bytes memory reason) {
                 attemptedActionRevertData = reason;

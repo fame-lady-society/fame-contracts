@@ -19,6 +19,20 @@ contract MarketplaceMockERC721 is ERC721 {
 contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase {
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
 
+    event AuthorizedCheckoutChanged(address indexed previousCheckout, address indexed newCheckout);
+    event ArtworkPurchased(
+        address indexed buyer,
+        address indexed recipient,
+        uint256 indexed shellId,
+        UniversalPoolArtMarketplace.FulfillmentPath path,
+        uint256 sourceId,
+        bytes32 artwork,
+        uint256 unitAmount,
+        uint256 premiumAmount,
+        uint256 inventoryBefore,
+        uint256 inventoryAfter
+    );
+
     function testConstructorInitializesPausedCanonicalMarket() public view {
         assertEq(address(market.fame()), address(fame));
         assertEq(address(market.mirror()), address(mirror));
@@ -105,6 +119,32 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         market.setFeeRecipient(address(market));
     }
 
+    function testOwnerConfiguresAuthorizedCheckoutOnlyWhilePaused() public {
+        vm.expectEmit(true, true, false, true, address(market));
+        emit AuthorizedCheckoutChanged(address(0), address(this));
+        market.setAuthorizedCheckout(address(this));
+        assertEq(market.authorizedCheckout(), address(this));
+
+        vm.expectEmit(true, true, false, true, address(market));
+        emit AuthorizedCheckoutChanged(address(this), address(creatorMagic));
+        market.setAuthorizedCheckout(address(creatorMagic));
+        assertEq(market.authorizedCheckout(), address(creatorMagic));
+
+        market.setAuthorizedCheckout(address(0));
+        assertEq(market.authorizedCheckout(), address(0));
+
+        vm.prank(buyer);
+        vm.expectRevert();
+        market.setAuthorizedCheckout(address(this));
+
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.InvalidDependency.selector, buyer));
+        market.setAuthorizedCheckout(buyer);
+
+        market.unpause();
+        vm.expectRevert(UniversalPoolArtMarketplace.MarketNotPaused.selector);
+        market.setAuthorizedCheckout(address(this));
+    }
+
     function testOwnershipTransferAndHandoverWorkButRenunciationIsDisabled() public {
         address nextOwner = address(0x3001);
         market.transferOwnership(nextOwner);
@@ -179,6 +219,88 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(fame.balanceOf(address(market)), marketFameBefore);
         assertEq(mirror.ownerOf(shellId), recipient);
         assertEq(market.artworkHash(shellId), expectedArtwork);
+    }
+
+    function testAuthorizedCheckoutPurchaseHeldPullsFromCheckoutAndAttributesBuyer() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 expectedArtwork = market.artworkHash(shellId);
+        uint256 currentPremium = market.premium();
+        uint256 checkoutBefore = fame.balanceOf(address(this));
+        uint256 buyerBefore = fame.balanceOf(buyer);
+        uint256 feeBefore = fame.balanceOf(feeRecipient);
+
+        market.setAuthorizedCheckout(address(this));
+        fame.approve(address(market), fame.unit() + currentPremium);
+        market.unpause();
+
+        vm.expectEmit(true, true, true, true, address(market));
+        emit ArtworkPurchased(
+            buyer,
+            buyer,
+            shellId,
+            UniversalPoolArtMarketplace.FulfillmentPath.Held,
+            0,
+            expectedArtwork,
+            fame.unit(),
+            currentPremium,
+            2,
+            2
+        );
+        market.purchaseHeldFor(buyer, shellId, expectedArtwork, currentPremium, 1);
+
+        assertEq(mirror.ownerOf(shellId), buyer);
+        assertEq(fame.balanceOf(address(this)), checkoutBefore - fame.unit() - currentPremium);
+        assertEq(fame.balanceOf(buyer), buyerBefore + fame.unit());
+        assertEq(fame.balanceOf(feeRecipient), feeBefore + currentPremium);
+        assertEq(fame.allowance(address(this), address(market)), 0);
+    }
+
+    function testAuthorizedCheckoutPurchaseHeldPreservesBuyerPremiumWaiver() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 expectedArtwork = market.artworkHash(shellId);
+        uint256 currentPremium = market.premium();
+
+        vm.prank(buyer);
+        fame.setSkipNFT(true);
+        market.setFeeRecipient(buyer);
+        market.setAuthorizedCheckout(address(this));
+        fame.approve(address(market), fame.unit());
+        market.unpause();
+
+        market.purchaseHeldFor(buyer, shellId, expectedArtwork, currentPremium, 1);
+
+        assertEq(mirror.ownerOf(shellId), buyer);
+        assertEq(fame.balanceOf(buyer), fame.unit());
+        assertEq(fame.allowance(address(this), address(market)), 0);
+    }
+
+    function testAuthorizedCheckoutRejectsUnauthorizedCallerBeforePayment() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 expectedArtwork = market.artworkHash(shellId);
+        uint256 currentPremium = market.premium();
+        market.setAuthorizedCheckout(address(this));
+        market.unpause();
+
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.UnauthorizedCheckout.selector, buyer));
+        vm.prank(buyer);
+        market.purchaseHeldFor(buyer, shellId, expectedArtwork, currentPremium, 1);
+
+        assertEq(mirror.ownerOf(shellId), address(market));
+        assertEq(fame.balanceOf(feeRecipient), 0);
+    }
+
+    function testAuthorizedCheckoutRejectsZeroBuyerBeforePayment() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 expectedArtwork = market.artworkHash(shellId);
+        market.setAuthorizedCheckout(address(this));
+        market.unpause();
+        uint256 currentPremium = market.premium();
+
+        vm.expectRevert(UniversalPoolArtMarketplace.InvalidRecipient.selector);
+        market.purchaseHeldFor(address(0), shellId, expectedArtwork, currentPremium, 0);
+
+        assertEq(mirror.ownerOf(shellId), address(market));
+        assertEq(fame.balanceOf(feeRecipient), 0);
     }
 
     function testPurchaseHeldAcceptsLargerAllowanceAndLowerCurrentPremium() public {
@@ -368,6 +490,32 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(ownedMarket.premium(), market.premium());
     }
 
+    function testPurchaseHeldBlocksAuthorizedCheckoutMutationDuringCallback() public {
+        ReentrantUniversalPoolMarketplaceRecipient ownerRecipient = new ReentrantUniversalPoolMarketplaceRecipient();
+        UniversalPoolArtMarketplace ownedMarket = _deployMarket(market.premium(), feeRecipient, address(ownerRecipient));
+        uint256 shellId = _seedShells(ownedMarket, 2);
+        bytes32 expectedArtwork = ownedMarket.artworkHash(shellId);
+        ownerRecipient.configure(
+            ownedMarket,
+            ReentrantUniversalPoolMarketplaceRecipient.Action.SetAuthorizedCheckout,
+            address(creatorMagic),
+            expectedArtwork
+        );
+        vm.prank(address(ownerRecipient));
+        ownedMarket.setAuthorizedCheckout(address(this));
+        vm.prank(address(ownerRecipient));
+        ownedMarket.unpause();
+        _fundAndApprove(buyer, ownedMarket, fame.unit() + ownedMarket.premium());
+        uint256 currentPremium = ownedMarket.premium();
+
+        vm.prank(buyer);
+        ownedMarket.purchaseHeld(shellId, expectedArtwork, currentPremium, 0, address(ownerRecipient));
+
+        assertFalse(ownerRecipient.attemptedActionSucceeded());
+        assertGt(ownerRecipient.attemptedActionRevertData().length, 0);
+        assertEq(ownedMarket.authorizedCheckout(), address(this));
+    }
+
     function testPurchaseHeldBlocksOwnershipTransferDuringCallback() public {
         ReentrantUniversalPoolMarketplaceRecipient ownerRecipient = new ReentrantUniversalPoolMarketplaceRecipient();
         UniversalPoolArtMarketplace ownedMarket = _deployMarket(market.premium(), feeRecipient, address(ownerRecipient));
@@ -458,6 +606,25 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(market.artworkHash(shellId), selectedArtwork);
         assertEq(market.artworkHash(sourceId), displacedArtwork);
         assertGe(market.inventory(), inventoryBefore);
+    }
+
+    function testAuthorizedCheckoutPurchasePoolUsesTypedPoolPath() public {
+        uint256 shellId = _seedShells(market, 2);
+        uint256 sourceId = _findMintPoolToken();
+        bytes32 selectedArtwork = market.artworkHash(sourceId);
+        bytes32 displacedArtwork = market.artworkHash(shellId);
+        uint256 currentPremium = market.premium();
+
+        market.setAuthorizedCheckout(address(this));
+        fame.approve(address(market), fame.unit() + currentPremium);
+        _enablePoolPurchases(market);
+
+        market.purchasePoolFor(buyer, shellId, sourceId, selectedArtwork, currentPremium, 1);
+
+        assertEq(mirror.ownerOf(shellId), buyer);
+        assertEq(market.artworkHash(shellId), selectedArtwork);
+        assertEq(market.artworkHash(sourceId), displacedArtwork);
+        assertEq(fame.allowance(address(this), address(market)), 0);
     }
 
     function testPurchasePoolMaterializesBurnArtwork() public {
