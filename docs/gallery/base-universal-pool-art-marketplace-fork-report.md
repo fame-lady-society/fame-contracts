@@ -15,13 +15,15 @@ commit the temporary marketplace or checkout address, or preserve Foundry
 Run Anvil, the Forge lifecycle, optional wagmi generation, and `fls-www` as
 independent commands. If the page reloads while a transaction is pending, a
 receipt is uncertain, or the local node is lost, stop. Discard the fork, reset
-the disposable wallet, and start a new run. There is no recovery journal.
+the operator test wallet's fork connection, and start a new run. There is no
+recovery journal.
 
 ## 1. Start a latest-state Base fork
 
-From `fame-contracts`, load public configuration before Doppler. This maps the
-existing Doppler `RPC_URL` fallback to the `base` Foundry alias without printing
-the secret RPC:
+From `fame-contracts`, load public configuration before Doppler. The `prd`
+config supplies the Base mainnet `RPC_URL`; the Doppler subshell maps it to the
+`BASE_RPC` variable used by the `base` Foundry alias without printing the
+secret RPC:
 
 ```sh
 set -a
@@ -29,7 +31,7 @@ source config/fame-public.env
 set +a
 
 doppler run --config prd -- zsh -c '
-  export BASE_RPC="${BASE_RPC:-${RPC_URL:?Doppler must provide BASE_RPC or RPC_URL}}"
+  export BASE_RPC="$RPC_URL"
   exec anvil --fork-url base --host 127.0.0.1 --port 8545 --chain-id "$BASE_CHAIN_ID" --quiet
 '
 ```
@@ -195,21 +197,26 @@ export LOCAL_BASE_RPC=http://127.0.0.1:8545
 export BASE_RPC_URL="$LOCAL_BASE_RPC"
 export NEXT_PUBLIC_BASE_RPC_URL_1="$LOCAL_BASE_RPC"
 export NEXT_PUBLIC_FAME_FORK_MODE=1
-export NEXT_PUBLIC_FAME_FORK_ACCOUNT="<disposable impersonated address>"
-export NEXT_PUBLIC_FAME_FORK_METADATA_FALLBACK=1
 export NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS="<temporary address from the Forge terminal>"
 export NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS="<temporary checkout address from the Forge terminal>"
 
-yarn dev
+doppler run \
+  --preserve-env="BASE_RPC_URL,NEXT_PUBLIC_BASE_RPC_URL_1,NEXT_PUBLIC_FAME_FORK_MODE,NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS,NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS" \
+  -- yarn dev
 ```
 
-Connect only a disposable wallet configured for chain ID `8453` and RPC
-`http://127.0.0.1:8545`. Open `/fame/gallery` directly; the route is
-intentionally absent from the app menus. The fork-only app mode must reject
-non-loopback RPCs, disable public Base fallbacks, and bypass the external
-indexed quote service. The mock connector and local metadata fallback are both
-explicit fork-test aids; leave their environment variables unset everywhere
-else.
+The explicit `--preserve-env` list lets Doppler supply the rest of WWW's local
+configuration without replacing the five fork overrides exported above. Do not
+use `--preserve-env=true`; preserve only these public, fork-scoped values.
+
+Connect an operator-owned test account through the normal injected wallet
+connector. Configure that wallet's Base RPC as `http://127.0.0.1:8545` before
+connecting. Because both the fork and Base mainnet use chain ID `8453`, confirm
+the wallet's active RPC endpoint before signing; chain ID alone cannot
+distinguish them. Open `/fame/gallery` directly; the route is intentionally
+absent from the app menus. The fork-only app mode must reject non-loopback RPCs,
+disable public Base fallbacks, and bypass the external indexed quote service.
+Artwork metadata must use the normal token URI loading path during the campaign.
 
 Do not begin the browser campaign until the route and fork-only quote mode are
 implemented and their focused checks pass.
@@ -251,10 +258,10 @@ This is contract-level fork evidence; it is not the browser campaign and does
 not create reusable deployment addresses.
 
 When the run ends—or immediately after a reload, uncertain transaction, or
-local-node failure—stop `fls-www`, stop Anvil, remove the localhost network from
-or reset the disposable wallet, and close the shells containing the temporary
-address. Do not copy the address or Foundry `broadcast/` output into tracked
-configuration.
+local-node failure—stop `fls-www`, stop Anvil, restore the operator test
+wallet's normal Base RPC configuration, and close the shells containing the
+temporary address. Do not copy the address or Foundry `broadcast/` output into
+tracked configuration.
 
 Production inventory funding, the three-unit production transfer, live
 marketplace/checkout deployment, live activation and testing, and the later
