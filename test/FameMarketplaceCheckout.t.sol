@@ -354,6 +354,84 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
     }
 
+    function testMalformedRoutesRevertBeforeFunding() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 artwork = market.artworkHash(shellId);
+        uint256 maxPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, _marketCharge());
+        FameRouterTypes.Leg memory validLeg = route.legs[0];
+        market.unpause();
+
+        route.version = FameRouterTypes.SCHEMA_VERSION + 1;
+        _assertRouteRejectedBeforeFunding(
+            route,
+            shellId,
+            artwork,
+            maxPremium,
+            abi.encodeWithSelector(FameMarketplaceCheckout.BadRouteVersion.selector, route.version),
+            0
+        );
+
+        route.version = FameRouterTypes.SCHEMA_VERSION;
+        route.amountIn = 0;
+        _assertRouteRejectedBeforeFunding(
+            route,
+            shellId,
+            artwork,
+            maxPremium,
+            abi.encodeWithSelector(FameMarketplaceCheckout.ZeroInputAmount.selector),
+            0
+        );
+
+        route.amountIn = 100e6;
+        route.legs = new FameRouterTypes.Leg[](0);
+        _assertRouteRejectedBeforeFunding(
+            route, shellId, artwork, maxPremium, abi.encodeWithSelector(FameMarketplaceCheckout.EmptyRoute.selector), 0
+        );
+
+        route.legs = new FameRouterTypes.Leg[](FameRouterTypes.MAX_ROUTE_LEGS + 1);
+        route.legs[0] = validLeg;
+        _assertRouteRejectedBeforeFunding(
+            route,
+            shellId,
+            artwork,
+            maxPremium,
+            abi.encodeWithSelector(FameMarketplaceCheckout.TooManyRouteLegs.selector, route.legs.length),
+            0
+        );
+
+        route.legs = new FameRouterTypes.Leg[](1);
+        route.legs[0] = validLeg;
+        route.tokenIn = FameRouterTypes.NATIVE_ETH;
+        route.amountIn = 1 ether;
+        _assertRouteRejectedBeforeFunding(
+            route,
+            shellId,
+            artwork,
+            maxPremium,
+            abi.encodeWithSelector(FameMarketplaceCheckout.NativeValueMismatch.selector, route.amountIn, 0),
+            0
+        );
+    }
+
+    function testRouterFeeRecipientConfigurationRevertsBeforeFunding() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 artwork = market.artworkHash(shellId);
+        uint256 maxPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, _marketCharge());
+        router.setFeeRecipient(address(checkout));
+        market.unpause();
+
+        _assertRouteRejectedBeforeFunding(
+            route,
+            shellId,
+            artwork,
+            maxPremium,
+            abi.encodeWithSelector(FameMarketplaceCheckout.RouterFeeRecipientIsCheckout.selector),
+            0
+        );
+    }
+
     function testUnsupportedInputAndWrongNativeValueRevertBeforeFunding() public {
         MockERC20 other = new MockERC20("Other", "OTHER", 18);
         uint256 shellId = _seedShells(market, 2);
@@ -441,5 +519,28 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
 
         assertFalse(ownerSuccess);
         assertFalse(rescueSuccess);
+    }
+
+    function _assertRouteRejectedBeforeFunding(
+        FameRouterTypes.Route memory route,
+        uint256 shellId,
+        bytes32 artwork,
+        uint256 maxPremium,
+        bytes memory expectedError,
+        uint256 value
+    ) private {
+        uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
+        uint256 buyerEthBefore = buyer.balance;
+
+        vm.expectRevert(expectedError);
+        vm.prank(buyer);
+        checkout.checkoutHeld{value: value}(route, shellId, artwork, maxPremium, 1);
+
+        assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
+        assertEq(buyer.balance, buyerEthBefore);
+        assertEq(address(checkout).balance, 0);
+        assertEq(usdc.balanceOf(address(checkout)), 0);
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(venue.nextOutputIndex(), 0);
     }
 }

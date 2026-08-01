@@ -231,6 +231,38 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         _validatePausedStack(deployed, checkout);
     }
 
+    function testValidationRejectsCheckoutAsRouterFeeRecipient() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
+            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
+        );
+        _grantRoleAndSeed(deployed);
+        router.setFeeRecipient(address(checkout));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.RouterFeeRecipientIsCheckout.selector, address(checkout)
+            )
+        );
+        validator.validateMarketplaceStack(
+            fame,
+            mirror,
+            creatorMagic,
+            deployed,
+            checkout,
+            address(childRenderer),
+            ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
+                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: true
+            }),
+            ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
+                router: address(router),
+                usdc: address(usdc),
+                weth: address(weth),
+                routerFeeRecipient: address(checkout),
+                routerFeePpm: FameRouterTypes.DEFAULT_FEE_PPM
+            })
+        );
+    }
+
     function testActivationRejectsMarketplacePointingAtAnotherCheckout() public {
         (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
             fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER

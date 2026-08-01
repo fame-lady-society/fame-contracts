@@ -195,8 +195,10 @@ export LOCAL_BASE_RPC=http://127.0.0.1:8545
 export BASE_RPC_URL="$LOCAL_BASE_RPC"
 export NEXT_PUBLIC_BASE_RPC_URL_1="$LOCAL_BASE_RPC"
 export NEXT_PUBLIC_FAME_FORK_MODE=1
+export NEXT_PUBLIC_FAME_FORK_ACCOUNT="<disposable impersonated address>"
+export NEXT_PUBLIC_FAME_FORK_METADATA_FALLBACK=1
 export NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS="<temporary address from the Forge terminal>"
-export NEXT_PUBLIC_BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS="<temporary checkout address from the Forge terminal>"
+export NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS="<temporary checkout address from the Forge terminal>"
 
 yarn dev
 ```
@@ -205,7 +207,9 @@ Connect only a disposable wallet configured for chain ID `8453` and RPC
 `http://127.0.0.1:8545`. Open `/fame/gallery` directly; the route is
 intentionally absent from the app menus. The fork-only app mode must reject
 non-loopback RPCs, disable public Base fallbacks, and bypass the external
-indexed quote service.
+indexed quote service. The mock connector and local metadata fallback are both
+explicit fork-test aids; leave their environment variables unset everywhere
+else.
 
 Do not begin the browser campaign until the route and fork-only quote mode are
 implemented and their focused checks pass.
@@ -217,34 +221,34 @@ deployment manifest, or authorization for production.
 
 | Evidence | Result |
 |---|---|
-| `fame-contracts` revision | `f1b8a09` |
-| `fls-www` revision | `dd6fe40` |
-| Fork block number | `49036128` |
-| Fork block hash | `0x026d26767901eb3de48a30791d75325138851c184bd71224e10c66c7d3f88b83` |
-| Safe-to-deployer one-unit transfer | `0x32be8730ecd8ce828d2ecfa300e3a9bb3653e81bba8731e027cc0441831dd657` |
-| Paused marketplace deployment | `0xb6f140784b239e238dfb0736311f03d40c7cbd56f0ed6cb61f0190e05423127b` |
-| Paused checkout deployment and authorization | Not recorded in the earlier direct-FAME run |
-| BANISHER grant | `0xcf6bd66c10350f8dbc0e87e740bfd4784c978f295a58e7a9e2509d58d3b20a94` |
-| One-unit shell seed | `0x6ab71fc3cb5a0b7545bc16a89cb4eac1af99e390e3ae5a18b5cb280b618230d7` |
+| `fame-contracts` checkout baseline | `bae7c1f` |
+| `fls-www` gallery baseline | `fbd2a88`, plus the fork harness and browser fixes recorded by the campaign |
+| Fork block number | `49392666` |
+| Fork block hash | `0x1637485978b2c48bf27782e8e1dc585851a76fc61ff14d125d998bdc41ec7d5d` |
+| Paused deployment and checkout authorization | Passed on the disposable fork |
 | Paused validation | Passed |
-| Activation transaction | `0xacf778282674a62f789745803f8b79a26be7738ed060caa7793e96326e6bd13a` |
-| Active validation | Passed, including exact BANISHER-only role bitmap after review |
-| Temporary marketplace address | `0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e`; localhost fork only |
-| Temporary checkout address | Not deployed in the earlier direct-FAME run |
-| Browser route and metadata | 92 purchasable artworks; 0 unavailable cards; direct browser metadata |
-| Local quote preview | Indexed helper bypassed; local optimizer timed out before producing a safe executable quote |
-| Direct-FAME browser campaign | Not run |
-| ETH acquisition and purchase | Not run |
-| USDC acquisition and purchase | Not run |
-| Fork-visible WETH route | Not evaluated |
-| One-shell contention | Passed in the latest-state Base fork suite: one winner, one losing buyer |
-| Teardown and wallet reset | Pending |
+| Active validation | Passed |
+| Temporary addresses | Intentionally omitted; localhost fork only |
+| Direct FAME held purchase | Passed in the browser |
+| Native ETH pool checkout | Passed atomically; zero retained checkout balance |
+| USDC pool checkout | Passed atomically; zero retained checkout balance |
+| WETH held checkout | Passed atomically; zero retained checkout balance |
+| Direct FAME purchase | `0xcb1cf62cdad15177c7828c35757a412db633e645cf84d3398e22ae55f150b572` |
+| ETH checkout / route | `0x8fe371095f496e528fd3dbf95fb546a0706c1a51e3d91bd9d33913f0329b663e` / `0x941a35a1a857158ae525d3cb08120682d8b81d2ab88d5cd98ff789167f6448be` |
+| USDC checkout / route | `0x0473c7922105197ad0b247d031d831ea7a49b0f8088422b256437b27802da921` / `0x1fdbb62f0ad3e0e13c9d9ae8f947f1a4b8493676de056422fa98cb2ba153c742` |
+| WETH checkout / route | `0x0c612ba1a7c356f5ed053d6f034062758dd70f76d4b9fa08c0063eb41bfb0550` / `0x2b80d0a7738f992a1fd2c73089b77ba638c557bd132be07803884aa9cac71593` |
+| Buyer refund accounting | Each checkout returned excess FAME; selected routes had zero input residue |
+| Checkout mirror custody | Zero after the campaign |
+| One-shell contention | Passed in the contract fork suite: one winner, one losing buyer |
+| Teardown and wallet reset | Required after the local campaign |
 
 The automated checkout gate ran against the deployed router and latest Base
 state on 2026-08-01. ETH-held, USDC-Mint-pool, WETH-Burn-pool, premium-race,
-expired-quote, and same-shell-contention cases passed across fork blocks
-`49391151` and `49391188`. This is contract-level fork evidence; it is not the
-browser campaign and does not create reusable deployment addresses.
+expired-quote, and same-shell-contention cases passed at fork head `49392705`,
+hash
+`0x6891ce9282e1a979c4f274524c56bf5e8e2fd3c73d19b85b0af7385cdb622a8c`.
+This is contract-level fork evidence; it is not the browser campaign and does
+not create reusable deployment addresses.
 
 When the run ends—or immediately after a reload, uncertain transaction, or
 local-node failure—stop `fls-www`, stop Anvil, remove the localhost network from

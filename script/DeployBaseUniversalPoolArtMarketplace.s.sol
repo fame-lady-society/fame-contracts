@@ -14,9 +14,6 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
     address internal constant BASE_MIRROR = 0xBB5ED04dD7B207592429eb8d599d103CCad646c4;
     address internal constant BASE_CREATOR_MAGIC = 0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F;
     address internal constant BASE_CHILD_RENDERER = 0x8091D00A25ebE87A2A1Ef19e1d33689FCAdC3fA5;
-    address internal constant BASE_FAME_ROUTER = 0xAdefa5860389E8936ebf2977e1Fb4a365aA39636;
-    address internal constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address internal constant BASE_WETH = 0x4200000000000000000000000000000000000006;
     address internal constant EXPECTED_DEPLOYER = 0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9;
     address internal constant EXPECTED_SAFE = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;
     uint256 internal constant EXPECTED_UNIT = 1_000_000 ether;
@@ -47,9 +44,6 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
         _checkAddress("mirror", BASE_MIRROR, address(fame.fameMirror()));
         _checkAddress("creatorMagic", BASE_CREATOR_MAGIC, address(creatorMagic));
         _checkAddress("childRenderer", BASE_CHILD_RENDERER, address(creatorMagic.childRenderer()));
-        _checkAddress("router", BASE_FAME_ROUTER, router);
-        _checkAddress("usdc", BASE_USDC, usdc);
-        _checkAddress("weth", BASE_WETH, weth);
         _checkAddress("deployer", EXPECTED_DEPLOYER, deployer);
         _checkAddress("owner", EXPECTED_DEPLOYER, owner);
         _checkAddress("feeRecipient", EXPECTED_SAFE, feeRecipient);

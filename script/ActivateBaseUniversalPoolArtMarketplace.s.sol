@@ -31,7 +31,12 @@ contract ActivateBaseUniversalPoolArtMarketplace is Script {
         address owner = vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_OWNER");
         ValidateBaseUniversalPoolArtMarketplace validator = new ValidateBaseUniversalPoolArtMarketplace();
         new ValidateFameRouterBase().run();
-        validator.validateBaseCheckoutDependencies(checkout);
+        validator.validateBaseCheckoutDependencies(
+            checkout,
+            vm.envAddress("BASE_FAME_ROUTER_ADDRESS"),
+            vm.envAddress("BASE_USDC_ADDRESS"),
+            vm.envAddress("BASE_WETH_ADDRESS")
+        );
         ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations memory expected =
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
                 owner: owner,

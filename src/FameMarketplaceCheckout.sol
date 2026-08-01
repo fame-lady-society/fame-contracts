@@ -10,6 +10,7 @@ import {UniversalPoolArtMarketplace} from "./UniversalPoolArtMarketplace.sol";
 import {FameRouterTypes} from "./router/FameRouterTypes.sol";
 
 interface IFameCheckoutRouter {
+    function feeRecipient() external view returns (address);
     function executeRoute(FameRouterTypes.Route calldata route) external payable returns (uint256 netAmountOut);
 }
 
@@ -75,6 +76,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     error MarketPaused();
     error CheckoutNotAuthorized(address configuredCheckout);
     error CheckoutIsFeeRecipient();
+    error RouterFeeRecipientIsCheckout();
     error PremiumExceedsMaximum(uint256 currentPremium, uint256 maximumPremium);
     error UnavailableShell(uint256 shellId);
     error ArtworkMismatch(uint256 tokenId, bytes32 expected, bytes32 actual);
@@ -343,6 +345,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     }
 
     function _validateRoute(FameRouterTypes.Route calldata route, uint256 maxPremium) private view {
+        if (IFameCheckoutRouter(router).feeRecipient() == address(this)) revert RouterFeeRecipientIsCheckout();
         if (route.version != FameRouterTypes.SCHEMA_VERSION) revert BadRouteVersion(route.version);
         if (route.amountIn == 0) revert ZeroInputAmount();
         if (route.legs.length == 0) revert EmptyRoute();

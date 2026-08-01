@@ -18,9 +18,6 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
     address internal constant BASE_MIRROR = 0xBB5ED04dD7B207592429eb8d599d103CCad646c4;
     address internal constant BASE_CREATOR_MAGIC = 0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F;
     address internal constant BASE_CHILD_RENDERER = 0x8091D00A25ebE87A2A1Ef19e1d33689FCAdC3fA5;
-    address internal constant BASE_FAME_ROUTER = 0xAdefa5860389E8936ebf2977e1Fb4a365aA39636;
-    address internal constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    address internal constant BASE_WETH = 0x4200000000000000000000000000000000000006;
     uint256 internal constant EXPECTED_UNIT = 1_000_000 ether;
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
@@ -50,6 +47,7 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
     error CheckoutNotSkippingNFT(address checkout);
     error RouterNotSkippingNFT(address router);
     error CheckoutIsFeeRecipient(address checkout);
+    error RouterFeeRecipientIsCheckout(address checkout);
     error RouterVenueFamilyDisabled(FameRouterTypes.VenueFamily family);
     error RouterVenueTargetDisabled(FameRouterTypes.VenueFamily family, address target);
     error MarketplaceSkippingNFT();
@@ -71,7 +69,12 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         _checkAddress("fame", BASE_FAME, address(fame));
         _checkAddress("mirror", BASE_MIRROR, address(mirror));
         _checkAddress("creatorMagic", BASE_CREATOR_MAGIC, address(creatorMagic));
-        validateBaseCheckoutDependencies(checkout);
+        validateBaseCheckoutDependencies(
+            checkout,
+            vm.envAddress("BASE_FAME_ROUTER_ADDRESS"),
+            vm.envAddress("BASE_USDC_ADDRESS"),
+            vm.envAddress("BASE_WETH_ADDRESS")
+        );
 
         new ValidateFameRouterBase().run();
 
@@ -99,11 +102,16 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         );
     }
 
-    function validateBaseCheckoutDependencies(FameMarketplaceCheckout checkout) public view {
+    function validateBaseCheckoutDependencies(
+        FameMarketplaceCheckout checkout,
+        address expectedRouter,
+        address expectedUsdc,
+        address expectedWeth
+    ) public view {
         _requireBase();
-        _checkAddress("router", BASE_FAME_ROUTER, checkout.router());
-        _checkAddress("usdc", BASE_USDC, checkout.usdc());
-        _checkAddress("weth", BASE_WETH, checkout.weth());
+        _checkAddress("router", expectedRouter, checkout.router());
+        _checkAddress("usdc", expectedUsdc, checkout.usdc());
+        _checkAddress("weth", expectedWeth, checkout.weth());
     }
 
     function validateMarketplaceStack(
@@ -135,6 +143,9 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         if (!fame.getSkipNFT(checkoutExpected.router)) revert RouterNotSkippingNFT(checkoutExpected.router);
 
         FameRouter router = FameRouter(payable(checkoutExpected.router));
+        if (router.feeRecipient() == address(checkout)) {
+            revert RouterFeeRecipientIsCheckout(address(checkout));
+        }
         _checkAddress("router.feeRecipient", checkoutExpected.routerFeeRecipient, router.feeRecipient());
         _checkValue("router.feePpm", checkoutExpected.routerFeePpm, router.feePpm());
         for (uint256 i; i < FameRouterFixtureManifest.requiredVenueTargetCount(); ++i) {
