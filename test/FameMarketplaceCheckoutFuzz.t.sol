@@ -5,6 +5,26 @@ import {FameRouterTypes} from "../src/router/FameRouterTypes.sol";
 import {FameMarketplaceCheckoutTestBase} from "./helpers/FameMarketplaceCheckoutTestBase.sol";
 
 contract FameMarketplaceCheckoutFuzzTest is FameMarketplaceCheckoutTestBase {
+    function testFuzzRedemptionBatchConsumesMeasuredFameAndClearsInventory(uint8 rawCount, uint96 rawAmbientFame)
+        public
+    {
+        uint256 tokenCount = bound(uint256(rawCount), 1, 32);
+        uint256 ambientFame = bound(uint256(rawAmbientFame), 0, fame.unit() - 1);
+        uint256[] memory tokenIds = _mintSocietyTokens(buyer, tokenCount);
+        _approveSocietyTokens(buyer);
+        if (ambientFame != 0) fame.transfer(address(checkout), ambientFame);
+        FameRouterTypes.Route memory route = _redemptionRoute(address(weth), tokenCount * fame.unit(), 1 ether);
+
+        vm.prank(buyer);
+        (uint256 actualFameInput, uint256 netAmountOut) = checkout.redeemSociety(route, tokenIds);
+
+        assertEq(actualFameInput, tokenCount * fame.unit() + ambientFame);
+        assertEq(netAmountOut, 1 ether);
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(mirror.balanceOf(address(checkout)), 0);
+        assertEq(fame.allowance(address(checkout), address(router)), 0);
+    }
+
     function testFuzzUsdcFundingOutputAndAmbientBalancesReconcile(
         uint64 rawAmountIn,
         uint64 rawSpend,

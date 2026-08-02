@@ -48,6 +48,7 @@ contract FameMarketplaceCheckoutHandler is Test {
     uint256 public usdcSuccesses;
     uint256 public wethSuccesses;
     uint256 public nativeSuccesses;
+    uint256 public redemptionSuccesses;
     uint256 public donationActions;
 
     constructor(
@@ -79,6 +80,8 @@ contract FameMarketplaceCheckoutHandler is Test {
             usdc_.approve(address(checkout_), type(uint256).max);
             vm.prank(buyers_[i]);
             weth_.approve(address(checkout_), type(uint256).max);
+            vm.prank(buyers_[i]);
+            mirror_.setApprovalForAll(address(checkout_), true);
         }
         fame_.setSkipNFT(true);
         vm.deal(address(this), 1_000_000 ether);
@@ -141,6 +144,27 @@ contract FameMarketplaceCheckoutHandler is Test {
         expectedFame += fameAmount;
         expectedNative += nativeAmount;
         ++donationActions;
+    }
+
+    function redeemWeth(uint256 buyerSeed, uint96 outputSeed) external {
+        address selectedBuyer = _buyers[buyerSeed % _buyers.length];
+        fame.transfer(selectedBuyer, fame.unit());
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = _ownedToken(selectedBuyer);
+        uint256 output = 1 + (uint256(outputSeed) % 1 ether);
+        venue.queueOutput(output);
+        FameRouterTypes.Route memory route = _redemptionRoute(selectedBuyer, output);
+
+        vm.prank(selectedBuyer);
+        (uint256 actualFameInput, uint256 netAmountOut) = checkout.redeemSociety(route, tokenIds);
+
+        assertEq(actualFameInput, fame.unit() + expectedFame);
+        assertEq(netAmountOut, output);
+        expectedFame = 0;
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(mirror.balanceOf(address(checkout)), 0);
+        assertEq(fame.allowance(address(checkout), address(router)), 0);
+        ++redemptionSuccesses;
     }
 
     function _checkoutHeld(CheckoutCase memory purchase) private {
@@ -243,6 +267,34 @@ contract FameMarketplaceCheckoutHandler is Test {
         });
     }
 
+    function _redemptionRoute(address selectedBuyer, uint256 output)
+        private
+        view
+        returns (FameRouterTypes.Route memory route)
+    {
+        route.version = FameRouterTypes.SCHEMA_VERSION;
+        route.tokenIn = address(fame);
+        route.tokenOut = address(weth);
+        route.amountIn = fame.unit();
+        route.minAmountOutAfterFee = output;
+        route.recipient = selectedBuyer;
+        route.deadline = block.timestamp + 1 hours;
+        route.legs = new FameRouterTypes.Leg[](1);
+        address[] memory path = new address[](2);
+        path[0] = address(fame);
+        path[1] = address(weth);
+        route.legs[0] = FameRouterTypes.Leg({
+            tokenIn: address(fame),
+            tokenOut: address(weth),
+            venue: FameRouterTypes.VenueFamily.UniswapV2,
+            amountMode: FameRouterTypes.AmountMode.All,
+            amount: 0,
+            minAmountOut: output,
+            target: address(venue),
+            data: abi.encode(UniswapV2Adapter.Payload({path: path, deadline: block.timestamp + 1 hours}))
+        });
+    }
+
     function _marketShell(uint256 seed) private view returns (uint256 shellId) {
         uint256 inventory = mirror.balanceOf(address(market));
         uint256 selected = seed % inventory;
@@ -254,6 +306,13 @@ contract FameMarketplaceCheckoutHandler is Test {
             }
         }
         revert("MARKET_SHELL_NOT_FOUND");
+    }
+
+    function _ownedToken(address account) private view returns (uint256 tokenId) {
+        for (tokenId = 1; tokenId <= 888; ++tokenId) {
+            if (mirror.ownerAt(tokenId) == account) return tokenId;
+        }
+        revert("OWNED_TOKEN_NOT_FOUND");
     }
 
     function _balanceOf(address token, address account) private view returns (uint256 balance) {
@@ -280,13 +339,14 @@ contract FameMarketplaceCheckoutInvariantTest is StdInvariant, FameMarketplaceCh
 
         address[3] memory buyers = [address(0x5101), address(0x5102), address(0x5103)];
         handler = new FameMarketplaceCheckoutHandler(checkout, router, market, fame, mirror, usdc, weth, venue, buyers);
-        fame.transfer(address(handler), 16 * fame.unit());
+        fame.transfer(address(handler), 128 * fame.unit());
 
-        bytes4[] memory selectors = new bytes4[](4);
+        bytes4[] memory selectors = new bytes4[](5);
         selectors[0] = handler.checkoutUsdc.selector;
         selectors[1] = handler.checkoutWeth.selector;
         selectors[2] = handler.checkoutNative.selector;
         selectors[3] = handler.donateAmbient.selector;
+        selectors[4] = handler.redeemWeth.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
     }
@@ -316,10 +376,12 @@ contract FameMarketplaceCheckoutInvariantTest is StdInvariant, FameMarketplaceCh
         handler.checkoutWeth(1, 1 ether, 0.5 ether, 2, 1);
         handler.checkoutNative(2, 2 ether, 1 ether, 3, 2);
         handler.donateAmbient(1e6, 1e15, 1e18, 1e15);
+        handler.redeemWeth(0, 1 ether);
 
         assertEq(handler.usdcSuccesses(), 1);
         assertEq(handler.wethSuccesses(), 1);
         assertEq(handler.nativeSuccesses(), 1);
         assertEq(handler.donationActions(), 1);
+        assertEq(handler.redemptionSuccesses(), 1);
     }
 }

@@ -57,6 +57,16 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         uint256 marketplaceFameCharge,
         uint256 fameRefund
     );
+    event SocietyRedeemed(
+        address indexed caller,
+        address indexed outputAsset,
+        bytes32 indexed tokenIdsHash,
+        uint256 tokenCount,
+        uint256 quotedFameInput,
+        uint256 actualFameInput,
+        bytes32 executedRouteHash,
+        uint256 netAmountOut
+    );
 
     error InvalidDependency(address dependency);
     error InvalidAssetConfiguration();
@@ -90,6 +100,18 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     error RefundBalanceMismatch(address asset, uint256 expected, uint256 actual);
     error FameAccountingMismatch(uint256 routerOutput, uint256 marketplaceCharge, uint256 fameRefund);
     error MirrorBalanceChanged(uint256 baseline, uint256 current);
+    error ZeroSocietyOwner();
+    error InvalidSocietyTokenRange(uint256 startTokenId, uint256 endExclusive);
+    error InvalidSocietyTokenCount(uint256 tokenCount);
+    error InvalidSocietyTokenId(uint256 tokenId);
+    error SocietyTokenIdsNotStrictlyAscending(uint256 previousTokenId, uint256 currentTokenId);
+    error WrongRedemptionInputAsset(address actual, address expected);
+    error UnsupportedRedemptionOutputAsset(address asset);
+    error InvalidRedemptionFameLeg(uint256 fameInputLegCount, uint256 fameInputLegIndex);
+    error RedemptionQuoteBelowTokenBasis(uint256 quotedAmountIn, uint256 tokenBasis);
+    error RedemptionActualInputBelowQuote(uint256 actualAmountIn, uint256 quotedAmountIn);
+    error RedemptionFameBalanceNotZero(uint256 balance);
+    error RedemptionMirrorBalanceNotZero(uint256 balance);
 
     constructor(address router_, address market_, address payable fame_, address usdc_, address weth_) {
         _requireContract(router_);
@@ -124,6 +146,47 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     }
 
     receive() external payable {}
+
+    function ownedSocietyTokenIds(address owner, uint256 startTokenId, uint256 endExclusive)
+        external
+        view
+        returns (uint256[] memory tokenIds)
+    {
+        if (owner == address(0)) revert ZeroSocietyOwner();
+        if (startTokenId < 1 || startTokenId >= endExclusive || endExclusive > 889) {
+            revert InvalidSocietyTokenRange(startTokenId, endExclusive);
+        }
+
+        FameMirror mirror = market.mirror();
+        tokenIds = new uint256[](endExclusive - startTokenId);
+        uint256 count;
+        for (uint256 tokenId = startTokenId; tokenId < endExclusive; ++tokenId) {
+            if (mirror.ownerAt(tokenId) == owner) tokenIds[count++] = tokenId;
+        }
+        assembly {
+            mstore(tokenIds, count)
+        }
+    }
+
+    function redeemSociety(FameRouterTypes.Route calldata route, uint256[] calldata tokenIds)
+        external
+        nonReentrant
+        returns (uint256 actualFameInput, uint256 netAmountOut)
+    {
+        address caller = msg.sender;
+        _validateRedemptionTokenIds(tokenIds);
+        _validateRedemptionRoute(route, caller, tokenIds.length);
+
+        (AssetSnapshot[] memory snapshots, uint256 snapshotCount) = _snapshotRouteAssets(route);
+        actualFameInput = _pullSocietyTokens(tokenIds, caller, route.amountIn);
+        bytes32 executedRouteHash;
+        (netAmountOut, executedRouteHash) = _executeRedemptionRoute(route, actualFameInput);
+
+        _refundRedemptionAssets(snapshots, snapshotCount, caller);
+        _requireEmptyRedemptionInventory();
+
+        _emitSocietyRedemption(route, tokenIds, caller, actualFameInput, executedRouteHash, netAmountOut);
+    }
 
     function checkoutHeld(
         FameRouterTypes.Route calldata route,
@@ -240,6 +303,61 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         );
     }
 
+    function _emitSocietyRedemption(
+        FameRouterTypes.Route calldata route,
+        uint256[] calldata tokenIds,
+        address caller,
+        uint256 actualFameInput,
+        bytes32 executedRouteHash,
+        uint256 netAmountOut
+    ) private {
+        emit SocietyRedeemed(
+            caller,
+            route.tokenOut,
+            keccak256(abi.encode(tokenIds)),
+            tokenIds.length,
+            route.amountIn,
+            actualFameInput,
+            executedRouteHash,
+            netAmountOut
+        );
+    }
+
+    function _pullSocietyTokens(uint256[] calldata tokenIds, address caller, uint256 quotedFameInput)
+        private
+        returns (uint256 actualFameInput)
+    {
+        FameMirror mirror = market.mirror();
+        for (uint256 i; i < tokenIds.length; ++i) {
+            mirror.transferFrom(caller, address(this), tokenIds[i]);
+        }
+
+        actualFameInput = fame.balanceOf(address(this));
+        if (actualFameInput < quotedFameInput) {
+            revert RedemptionActualInputBelowQuote(actualFameInput, quotedFameInput);
+        }
+    }
+
+    function _executeRedemptionRoute(FameRouterTypes.Route calldata route, uint256 actualFameInput)
+        private
+        returns (uint256 netAmountOut, bytes32 executedRouteHash)
+    {
+        FameRouterTypes.Route memory executedRoute = route;
+        executedRoute.amountIn = actualFameInput;
+        executedRouteHash = keccak256(abi.encode(executedRoute));
+        address(fame).safeApproveWithRetry(router, actualFameInput);
+        netAmountOut = IFameCheckoutRouter(router).executeRoute(executedRoute);
+        address(fame).safeApproveWithRetry(router, 0);
+    }
+
+    function _requireEmptyRedemptionInventory() private view {
+        uint256 fameAfter = fame.balanceOf(address(this));
+        if (fameAfter != 0) revert RedemptionFameBalanceNotZero(fameAfter);
+        uint256 mirrorAfter = market.mirror().balanceOf(address(this));
+        if (mirrorAfter != 0) revert RedemptionMirrorBalanceNotZero(mirrorAfter);
+        _requireSkipNFT();
+    }
+
     function _executeRoute(
         FameRouterTypes.Route calldata route,
         AssetSnapshot[] memory snapshots,
@@ -341,6 +459,74 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
             if (refundAmounts[i] != 0) {
                 emit AssetRefunded(buyer, snapshots[i].asset, refundAmounts[i]);
             }
+        }
+    }
+
+    function _refundRedemptionAssets(AssetSnapshot[] memory snapshots, uint256 snapshotCount, address caller) private {
+        for (uint256 i; i < snapshotCount; ++i) {
+            AssetSnapshot memory snapshot = snapshots[i];
+            if (snapshot.asset == address(fame)) continue;
+            uint256 current = _assetBalance(snapshot.asset);
+            if (current < snapshot.baseline) {
+                revert AmbientBalanceConsumed(snapshot.asset, snapshot.baseline, current);
+            }
+            _transferAsset(snapshot.asset, caller, current - snapshot.baseline);
+        }
+
+        for (uint256 i; i < snapshotCount; ++i) {
+            AssetSnapshot memory snapshot = snapshots[i];
+            if (snapshot.asset == address(fame)) continue;
+            uint256 current = _assetBalance(snapshot.asset);
+            if (current != snapshot.baseline) {
+                revert RefundBalanceMismatch(snapshot.asset, snapshot.baseline, current);
+            }
+        }
+    }
+
+    function _validateRedemptionTokenIds(uint256[] calldata tokenIds) private pure {
+        uint256 tokenCount = tokenIds.length;
+        if (tokenCount == 0 || tokenCount > 32) revert InvalidSocietyTokenCount(tokenCount);
+        if (tokenIds[0] < 1 || tokenIds[0] > 888) revert InvalidSocietyTokenId(tokenIds[0]);
+        for (uint256 i = 1; i < tokenCount; ++i) {
+            uint256 previous = tokenIds[i - 1];
+            uint256 current = tokenIds[i];
+            if (current > 888) revert InvalidSocietyTokenId(current);
+            if (current <= previous) revert SocietyTokenIdsNotStrictlyAscending(previous, current);
+        }
+    }
+
+    function _validateRedemptionRoute(FameRouterTypes.Route calldata route, address caller, uint256 tokenCount)
+        private
+        view
+    {
+        if (IFameCheckoutRouter(router).feeRecipient() == address(this)) revert RouterFeeRecipientIsCheckout();
+        if (route.version != FameRouterTypes.SCHEMA_VERSION) revert BadRouteVersion(route.version);
+        if (route.amountIn == 0) revert ZeroInputAmount();
+        if (route.legs.length == 0) revert EmptyRoute();
+        if (route.legs.length > FameRouterTypes.MAX_ROUTE_LEGS) revert TooManyRouteLegs(route.legs.length);
+        if (route.tokenIn != address(fame)) revert WrongRedemptionInputAsset(route.tokenIn, address(fame));
+        if (route.tokenOut != FameRouterTypes.NATIVE_ETH && route.tokenOut != weth && route.tokenOut != usdc) {
+            revert UnsupportedRedemptionOutputAsset(route.tokenOut);
+        }
+        if (route.recipient != caller) revert WrongRouteRecipient(route.recipient, caller);
+        if (block.timestamp > route.deadline) revert DeadlineExpired(route.deadline, block.timestamp);
+
+        uint256 tokenBasis = tokenCount * fame.unit();
+        if (route.amountIn < tokenBasis) revert RedemptionQuoteBelowTokenBasis(route.amountIn, tokenBasis);
+
+        uint256 allFameInputLegCount;
+        uint256 allFameInputLegIndex = type(uint256).max;
+        uint256 lastFameInputLegIndex = type(uint256).max;
+        for (uint256 i; i < route.legs.length; ++i) {
+            if (route.legs[i].tokenIn != address(fame)) continue;
+            lastFameInputLegIndex = i;
+            if (route.legs[i].amountMode == FameRouterTypes.AmountMode.All) {
+                ++allFameInputLegCount;
+                allFameInputLegIndex = i;
+            }
+        }
+        if (allFameInputLegCount != 1 || allFameInputLegIndex != lastFameInputLegIndex) {
+            revert InvalidRedemptionFameLeg(allFameInputLegCount, allFameInputLegIndex);
         }
     }
 
