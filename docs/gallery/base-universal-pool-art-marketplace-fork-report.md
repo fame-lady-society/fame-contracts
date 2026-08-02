@@ -185,7 +185,7 @@ Run wagmi generation only when the ABI bindings need refreshing:
 
 ```sh
 cd /Users/user/Development/fls-www
-yarn wagmi generate
+doppler run --config prd -- yarn wagmi generate
 ```
 
 Then start the app in another `fls-www` terminal. Supply the same literal
@@ -200,7 +200,7 @@ export NEXT_PUBLIC_FAME_FORK_MODE=1
 export NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS="<temporary address from the Forge terminal>"
 export NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS="<temporary checkout address from the Forge terminal>"
 
-doppler run \
+doppler run --config prd \
   --preserve-env="BASE_RPC_URL,NEXT_PUBLIC_BASE_RPC_URL_1,NEXT_PUBLIC_FAME_FORK_MODE,NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS,NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS" \
   -- yarn dev
 ```
@@ -213,15 +213,124 @@ Connect an operator-owned test account through the normal injected wallet
 connector. Configure that wallet's Base RPC as `http://127.0.0.1:8545` before
 connecting. Because both the fork and Base mainnet use chain ID `8453`, confirm
 the wallet's active RPC endpoint before signing; chain ID alone cannot
-distinguish them. Open `/fame/gallery` directly; the route is intentionally
-absent from the app menus. The fork-only app mode must reject non-loopback RPCs,
-disable public Base fallbacks, and bypass the external indexed quote service.
+distinguish them. Open `/fame/gallery` directly or use the `FAME Marketplace`
+menu item. The fork-only app mode must reject non-loopback RPCs, disable public
+Base fallbacks, and bypass the external indexed quote service.
 Artwork metadata must use the normal token URI loading path during the campaign.
 
 Do not begin the browser campaign until the route and fork-only quote mode are
 implemented and their focused checks pass.
 
-## 7. Evidence and teardown
+## 7. Seed the operator wallet and run Society redemption
+
+Use the same normal wallet account that will sign in the browser. The address
+needs ETH only on Anvil; no private key or mock connector belongs in WWW:
+
+```sh
+export FORK_BUYER="<operator-owned wallet address>"
+
+cast rpc anvil_setBalance "$FORK_BUYER" 0x56BC75E2D63100000 --rpc-url "$LOCAL_BASE_RPC"
+cast rpc anvil_impersonateAccount "$FORK_BUYER" --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_FAME_ADDRESS" \
+  "setSkipNFT(bool)" \
+  false \
+  --from "$FORK_BUYER" \
+  --unlocked \
+  --rpc-url "$LOCAL_BASE_RPC"
+cast rpc anvil_stopImpersonatingAccount "$FORK_BUYER" --rpc-url "$LOCAL_BASE_RPC"
+```
+
+If the wallet does not already own enough Society NFTs at the forked block,
+seed it from real fork holders. Choose an ID whose `ownerAt` result is neither
+zero nor the temporary marketplace, then repeat this block for every required
+ID. These are fork-only setup transfers; approval and redemption remain normal
+wallet-signed browser transactions:
+
+```sh
+export SOCIETY_TOKEN_ID="<1 through 888>"
+export SOCIETY_OWNER="$(
+  cast call "$BASE_FAME_NFT_ADDRESS" \
+    "ownerAt(uint256)(address)" \
+    "$SOCIETY_TOKEN_ID" \
+    --rpc-url "$LOCAL_BASE_RPC"
+)"
+
+cast rpc anvil_setBalance "$SOCIETY_OWNER" 0xDE0B6B3A7640000 --rpc-url "$LOCAL_BASE_RPC"
+cast rpc anvil_impersonateAccount "$SOCIETY_OWNER" --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_FAME_NFT_ADDRESS" \
+  "transferFrom(address,address,uint256)" \
+  "$SOCIETY_OWNER" \
+  "$FORK_BUYER" \
+  "$SOCIETY_TOKEN_ID" \
+  --from "$SOCIETY_OWNER" \
+  --unlocked \
+  --rpc-url "$LOCAL_BASE_RPC"
+cast rpc anvil_stopImpersonatingAccount "$SOCIETY_OWNER" --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Seed 42 transferable IDs to execute the complete matrix below without reusing
+an NFT: three one-ID runs, three two-ID runs, one 32-ID run, and one direct
+checkout donation. To create the pre-funded bonus, transfer the extra ID to
+`BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS` instead of `FORK_BUYER`. Because the
+checkout is in skip-NFT mode, that ID becomes one unit of checkout FAME and is
+included in the next successful redemption.
+
+Reload `/fame/gallery` with the wallet connected to the literal loopback Base
+RPC. Ownership discovery starts while `Your Society NFTs` is collapsed. Open
+the accordion and confirm its ascending ID list matches both the checkout read
+and the mirror balance:
+
+```sh
+cast call "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" \
+  "ownedSocietyTokenIds(address,uint256,uint256)(uint256[])" \
+  "$FORK_BUYER" \
+  1 \
+  889 \
+  --rpc-url "$LOCAL_BASE_RPC"
+
+cast call "$BASE_FAME_NFT_ADDRESS" \
+  "balanceOf(address)(uint256)" \
+  "$FORK_BUYER" \
+  --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Run this browser matrix. The first run should show `Approve NFT redemption`,
+wait for one confirmation, and stop without submitting redemption. Review the
+selected IDs, estimate, minimum output, and irreversible-burn copy, then click
+`Burn N NFTs` yourself. Later rows should reuse the operator approval.
+
+| Selection | Receive | Bonus expectation |
+|---|---|---|
+| 1 ID | ETH | Shows and consumes the pre-funded checkout bonus |
+| 1 ID | WETH | No bonus row after the first success |
+| 1 ID | USDC | No bonus row after the first success |
+| 2 IDs | ETH | Exact selected IDs only |
+| 2 IDs | WETH | Exact selected IDs only |
+| 2 IDs | USDC | Exact selected IDs only |
+| 32 IDs | WETH | Record receipt gas and compare with the fork block gas limit |
+
+After every success, wait for one confirmation and verify the selected IDs are
+gone, the wallet output balance increased, and both checkout inventories are
+zero. Record the transaction hash, selected IDs, quote-basis and actual FAME,
+route hash, output, and receipt gas from the standard transaction modal and
+receipt. The decisive post-state reads are:
+
+```sh
+cast call "$BASE_FAME_ADDRESS" \
+  "balanceOf(address)(uint256)" \
+  "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" \
+  --rpc-url "$LOCAL_BASE_RPC"
+
+cast call "$BASE_FAME_NFT_ADDRESS" \
+  "balanceOf(address)(uint256)" \
+  "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" \
+  --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Both must return zero. Wallet rejection, simulation failure, or mined revert is
+recorded once; do not retry automatically or invent a recovery flow.
+
+## 8. Evidence and teardown
 
 This template records concise run facts. It is not a persisted session journal,
 deployment manifest, or authorization for production.
@@ -244,9 +353,13 @@ deployment manifest, or authorization for production.
 | ETH checkout / route | `0x8fe371095f496e528fd3dbf95fb546a0706c1a51e3d91bd9d33913f0329b663e` / `0x941a35a1a857158ae525d3cb08120682d8b81d2ab88d5cd98ff789167f6448be` |
 | USDC checkout / route | `0x0473c7922105197ad0b247d031d831ea7a49b0f8088422b256437b27802da921` / `0x1fdbb62f0ad3e0e13c9d9ae8f947f1a4b8493676de056422fa98cb2ba153c742` |
 | WETH checkout / route | `0x0c612ba1a7c356f5ed053d6f034062758dd70f76d4b9fa08c0063eb41bfb0550` / `0x2b80d0a7738f992a1fd2c73089b77ba638c557bd132be07803884aa9cac71593` |
-| Buyer refund accounting | Each checkout returned excess FAME; selected routes had zero input residue |
+| Buyer refund accounting | Each checkout returned excess FAME |
 | Checkout mirror custody | Zero after the campaign |
 | One-shell contention | Passed in the contract fork suite: one winner, one losing buyer |
+| One-ID ETH/WETH/USDC redemption | Automated Base-fork gate passed; browser wallet matrix not executed yet |
+| Multi-ID bonus redemption | Automated Base-fork gate passed with a direct NFT donation; browser wallet matrix not executed yet |
+| 32-ID redemption | Automated Base-fork gate passed at 1,192,182 execution gas against a 400,000,000 block gas limit; browser wallet matrix not executed yet |
+| Final redemption inventory | Automated Base-fork gate passed with zero checkout FAME, Society NFTs, and router allowance |
 | Teardown and wallet reset | Required after the local campaign |
 
 The automated checkout gate ran against the deployed router and latest Base
@@ -256,6 +369,15 @@ hash
 `0x6891ce9282e1a979c4f274524c56bf5e8e2fd3c73d19b85b0af7385cdb622a8c`.
 This is contract-level fork evidence; it is not the browser campaign and does
 not create reusable deployment addresses.
+
+The automated redemption gate ran against the deployed router and latest Base
+state on 2026-08-01. One-ID ETH, WETH, and USDC routes, a three-ID USDC route
+with a directly donated NFT bonus, the 32-ID WETH route, meaningful protected
+output floors, and an over-floor rollback case passed at fork head `49426944`,
+hash
+`0xdcfcca14511ac20036e2335581407cede2842544c55eacd180f0ddfad28bb1d4`.
+The browser wallet matrix remains `not executed`; the contract proof does not
+pretend to be wallet or rendered-UX evidence.
 
 When the run ends—or immediately after a reload, uncertain transaction, or
 local-node failure—stop `fls-www`, stop Anvil, restore the operator test

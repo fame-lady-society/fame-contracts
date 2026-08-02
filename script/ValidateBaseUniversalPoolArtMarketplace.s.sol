@@ -140,6 +140,7 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
 
         if (marketExpected.feeRecipient == address(checkout)) revert CheckoutIsFeeRecipient(address(checkout));
         if (!fame.getSkipNFT(address(checkout))) revert CheckoutNotSkippingNFT(address(checkout));
+        _checkValue("checkout.ownedSocietyTokenIds", 0, checkout.ownedSocietyTokenIds(address(checkout), 1, 889).length);
         if (!fame.getSkipNFT(checkoutExpected.router)) revert RouterNotSkippingNFT(checkoutExpected.router);
 
         FameRouter router = FameRouter(payable(checkoutExpected.router));

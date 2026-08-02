@@ -17,6 +17,10 @@ interface IFameCheckoutRouter {
 contract FameMarketplaceCheckout is ReentrancyGuard {
     using SafeTransferLib for address;
 
+    uint256 private constant SOCIETY_TOKEN_ID_START = 1;
+    uint256 private constant SOCIETY_TOKEN_ID_END_EXCLUSIVE = 889;
+    uint256 private constant MAX_REDEMPTION_TOKEN_COUNT = 32;
+
     address public immutable router;
     UniversalPoolArtMarketplace public immutable market;
     Fame public immutable fame;
@@ -153,7 +157,10 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         returns (uint256[] memory tokenIds)
     {
         if (owner == address(0)) revert ZeroSocietyOwner();
-        if (startTokenId < 1 || startTokenId >= endExclusive || endExclusive > 889) {
+        if (
+            startTokenId < SOCIETY_TOKEN_ID_START || startTokenId >= endExclusive
+                || endExclusive > SOCIETY_TOKEN_ID_END_EXCLUSIVE
+        ) {
             revert InvalidSocietyTokenRange(startTokenId, endExclusive);
         }
 
@@ -485,12 +492,16 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
 
     function _validateRedemptionTokenIds(uint256[] calldata tokenIds) private pure {
         uint256 tokenCount = tokenIds.length;
-        if (tokenCount == 0 || tokenCount > 32) revert InvalidSocietyTokenCount(tokenCount);
-        if (tokenIds[0] < 1 || tokenIds[0] > 888) revert InvalidSocietyTokenId(tokenIds[0]);
+        if (tokenCount == 0 || tokenCount > MAX_REDEMPTION_TOKEN_COUNT) {
+            revert InvalidSocietyTokenCount(tokenCount);
+        }
+        if (tokenIds[0] < SOCIETY_TOKEN_ID_START || tokenIds[0] >= SOCIETY_TOKEN_ID_END_EXCLUSIVE) {
+            revert InvalidSocietyTokenId(tokenIds[0]);
+        }
         for (uint256 i = 1; i < tokenCount; ++i) {
             uint256 previous = tokenIds[i - 1];
             uint256 current = tokenIds[i];
-            if (current > 888) revert InvalidSocietyTokenId(current);
+            if (current >= SOCIETY_TOKEN_ID_END_EXCLUSIVE) revert InvalidSocietyTokenId(current);
             if (current <= previous) revert SocietyTokenIdsNotStrictlyAscending(previous, current);
         }
     }

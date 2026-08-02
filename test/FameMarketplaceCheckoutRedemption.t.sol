@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {FameMarketplaceCheckout} from "../src/FameMarketplaceCheckout.sol";
+import {DN404} from "../src/DN404.sol";
+import {FameRouter} from "../src/FameRouter.sol";
 import {FameRouterTypes} from "../src/router/FameRouterTypes.sol";
 import {FameMarketplaceCheckoutTestBase} from "./helpers/FameMarketplaceCheckoutTestBase.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -61,10 +63,40 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         assertEq(actualFameInput, fame.unit());
         assertEq(netAmountOut, output);
         assertEq(weth.balanceOf(buyer), buyerWethBefore + output);
-        assertEq(fame.balanceOf(address(checkout)), 0);
-        assertEq(mirror.balanceOf(address(checkout)), 0);
-        assertEq(fame.allowance(address(checkout), address(router)), 0);
+        _assertRedemptionInventoryCleared();
         assertEq(fame.allowance(address(router), address(venue)), 0);
+    }
+
+    function testRedeemOneSocietyTokenForEth() public {
+        uint256[] memory tokenIds = _mintSocietyTokens(buyer, 1);
+        _approveSocietyTokens(buyer);
+        uint256 output = 2 ether;
+        FameRouterTypes.Route memory route = _redemptionRoute(FameRouterTypes.NATIVE_ETH, fame.unit(), output);
+        uint256 buyerEthBefore = buyer.balance;
+
+        vm.prank(buyer);
+        (uint256 actualFameInput, uint256 netAmountOut) = checkout.redeemSociety(route, tokenIds);
+
+        assertEq(actualFameInput, fame.unit());
+        assertEq(netAmountOut, output);
+        assertEq(buyer.balance, buyerEthBefore + output);
+        _assertRedemptionInventoryCleared();
+    }
+
+    function testRedeemOneSocietyTokenForUsdc() public {
+        uint256[] memory tokenIds = _mintSocietyTokens(buyer, 1);
+        _approveSocietyTokens(buyer);
+        uint256 output = 2_000e6;
+        FameRouterTypes.Route memory route = _redemptionRoute(address(usdc), fame.unit(), output);
+        uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
+
+        vm.prank(buyer);
+        (uint256 actualFameInput, uint256 netAmountOut) = checkout.redeemSociety(route, tokenIds);
+
+        assertEq(actualFameInput, fame.unit());
+        assertEq(netAmountOut, output);
+        assertEq(usdc.balanceOf(buyer), buyerUsdcBefore + output);
+        _assertRedemptionInventoryCleared();
     }
 
     function testRedeemBoundaryBatchOfThirtyTwoForUsdc() public {
@@ -78,9 +110,35 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         checkout.redeemSociety(route, tokenIds);
 
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore + output);
-        assertEq(fame.balanceOf(address(checkout)), 0);
-        assertEq(mirror.balanceOf(address(checkout)), 0);
-        assertEq(fame.allowance(address(checkout), address(router)), 0);
+        _assertRedemptionInventoryCleared();
+    }
+
+    function testRedeemBoundaryBatchOfThirtyTwoForWeth() public {
+        uint256[] memory tokenIds = _mintSocietyTokens(buyer, 32);
+        _approveSocietyTokens(buyer);
+        uint256 output = 64 ether;
+        FameRouterTypes.Route memory route = _redemptionRoute(address(weth), 32 * fame.unit(), output);
+        uint256 buyerWethBefore = weth.balanceOf(buyer);
+
+        vm.prank(buyer);
+        checkout.redeemSociety(route, tokenIds);
+
+        assertEq(weth.balanceOf(buyer), buyerWethBefore + output);
+        _assertRedemptionInventoryCleared();
+    }
+
+    function testRedeemBoundaryBatchOfThirtyTwoForEth() public {
+        uint256[] memory tokenIds = _mintSocietyTokens(buyer, 32);
+        _approveSocietyTokens(buyer);
+        uint256 output = 64 ether;
+        FameRouterTypes.Route memory route = _redemptionRoute(FameRouterTypes.NATIVE_ETH, 32 * fame.unit(), output);
+        uint256 buyerEthBefore = buyer.balance;
+
+        vm.prank(buyer);
+        checkout.redeemSociety(route, tokenIds);
+
+        assertEq(buyer.balance, buyerEthBefore + output);
+        _assertRedemptionInventoryCleared();
     }
 
     function testRedeemConsumesOnlySelectedCallerToken() public {
@@ -226,7 +284,7 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         mirror.setApprovalForAll(address(checkout), true);
         FameRouterTypes.Route memory route = _redemptionRoute(address(weth), fame.unit(), 1 ether);
 
-        vm.expectRevert();
+        vm.expectRevert(DN404.TransferFromIncorrectOwner.selector);
         vm.prank(buyer);
         checkout.redeemSociety(route, victimIds);
 
@@ -240,6 +298,31 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         uint256[] memory tokenIds = _mintSocietyTokens(buyer, 1);
         _approveSocietyTokens(buyer);
         FameRouterTypes.Route memory route = _redemptionRoute(address(weth), fame.unit(), 1 ether);
+
+        route.amountIn = 0;
+        _assertRedemptionRejected(
+            route, tokenIds, abi.encodeWithSelector(FameMarketplaceCheckout.ZeroInputAmount.selector)
+        );
+        route.amountIn = fame.unit();
+
+        FameRouterTypes.Leg memory finalFameLeg = route.legs[0];
+        route.legs = new FameRouterTypes.Leg[](0);
+        _assertRedemptionRejected(route, tokenIds, abi.encodeWithSelector(FameMarketplaceCheckout.EmptyRoute.selector));
+
+        route.legs = new FameRouterTypes.Leg[](FameRouterTypes.MAX_ROUTE_LEGS + 1);
+        _assertRedemptionRejected(
+            route,
+            tokenIds,
+            abi.encodeWithSelector(FameMarketplaceCheckout.TooManyRouteLegs.selector, route.legs.length)
+        );
+
+        route.legs = new FameRouterTypes.Leg[](1);
+        route.legs[0] = finalFameLeg;
+        router.setFeeRecipient(address(checkout));
+        _assertRedemptionRejected(
+            route, tokenIds, abi.encodeWithSelector(FameMarketplaceCheckout.RouterFeeRecipientIsCheckout.selector)
+        );
+        router.setFeeRecipient(feeRecipient);
 
         route.tokenIn = address(usdc);
         _assertRedemptionRejected(
@@ -289,7 +372,6 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         );
         route.legs[0].amountMode = FameRouterTypes.AmountMode.All;
 
-        FameRouterTypes.Leg memory finalFameLeg = route.legs[0];
         route.legs = new FameRouterTypes.Leg[](2);
         route.legs[0] = finalFameLeg;
         route.legs[1] = finalFameLeg;
@@ -340,7 +422,7 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         FameRouterTypes.Route memory route = _redemptionRoute(address(weth), fame.unit(), 1 ether);
         route.minAmountOutAfterFee = 2 ether;
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(FameRouter.FinalOutputTooLow.selector, 1 ether, 2 ether));
         vm.prank(buyer);
         checkout.redeemSociety(route, tokenIds);
 
@@ -349,6 +431,18 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         assertEq(fame.balanceOf(address(checkout)), 0);
         assertEq(mirror.balanceOf(address(checkout)), 0);
         assertEq(fame.allowance(address(checkout), address(router)), 0);
+    }
+
+    function testFirstNftPullFailureRollsBackEntireRedemption() public {
+        _assertNftPullFailureRollsBackEntireRedemption(0);
+    }
+
+    function testMiddleNftPullFailureRollsBackEntireRedemption() public {
+        _assertNftPullFailureRollsBackEntireRedemption(1);
+    }
+
+    function testFinalNftPullFailureRollsBackEntireRedemption() public {
+        _assertNftPullFailureRollsBackEntireRedemption(2);
     }
 
     function testPurchaseStillPreservesAmbientFameAfterRedemptionFeature() public {
@@ -377,6 +471,30 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         checkout.redeemSociety(route, tokenIds);
         assertEq(mirror.ownerOf(tokenIds[0]), buyer);
         assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(fame.allowance(address(checkout), address(router)), 0);
+    }
+
+    function _assertNftPullFailureRollsBackEntireRedemption(uint256 failureIndex) private {
+        uint256[] memory tokenIds = _mintSocietyTokens(buyer, 3);
+        vm.prank(buyer);
+        mirror.transferFrom(buyer, recipient, tokenIds[failureIndex]);
+        _approveSocietyTokens(buyer);
+        FameRouterTypes.Route memory route = _redemptionRoute(address(weth), 3 * fame.unit(), 1 ether);
+
+        vm.expectRevert(DN404.TransferFromIncorrectOwner.selector);
+        vm.prank(buyer);
+        checkout.redeemSociety(route, tokenIds);
+
+        for (uint256 i; i < tokenIds.length; ++i) {
+            assertEq(mirror.ownerOf(tokenIds[i]), i == failureIndex ? recipient : buyer);
+        }
+        assertEq(venue.nextOutputIndex(), 0);
+        _assertRedemptionInventoryCleared();
+    }
+
+    function _assertRedemptionInventoryCleared() private view {
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(mirror.balanceOf(address(checkout)), 0);
         assertEq(fame.allowance(address(checkout), address(router)), 0);
     }
 

@@ -31,6 +31,19 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         Weth
     }
 
+    enum OutputKind {
+        Eth,
+        Usdc,
+        Weth
+    }
+
+    struct RedemptionContext {
+        FameMarketplaceCheckout checkout;
+        uint256[] selectedIds;
+        uint256 donatedId;
+        uint256 fundingCount;
+    }
+
     address internal constant EXPECTED_ROUTER = 0xAdefa5860389E8936ebf2977e1Fb4a365aA39636;
     address internal constant EXPECTED_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address internal constant EXPECTED_WETH = 0x4200000000000000000000000000000000000006;
@@ -41,12 +54,54 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         keccak256("RouteExecuted(address,address,address,bytes32,uint16,address,uint256,uint256,uint256,uint256)");
     bytes32 internal constant CHECKOUT_SETTLED_TOPIC =
         keccak256("CheckoutSettled(address,address,uint256,bytes32,uint8,uint256,uint256,uint256,uint256,uint256)");
+    bytes32 internal constant SOCIETY_REDEEMED_TOPIC =
+        keccak256("SocietyRedeemed(address,address,bytes32,uint256,uint256,uint256,bytes32,uint256)");
 
     FameRouter internal router;
     IERC20CheckoutFork internal usdc;
     IWETHCheckoutFork internal weth;
 
     error NoSufficientUpperWitness(InputKind kind, uint256 lastAmountIn, uint256 lastAmountOut);
+
+    function testLatestBaseRedeemsOneSocietyForEth() public {
+        _assertLatestBaseRedemption(OutputKind.Eth, 1, false);
+    }
+
+    function testLatestBaseRedeemsOneSocietyForWeth() public {
+        _assertLatestBaseRedemption(OutputKind.Weth, 1, false);
+    }
+
+    function testLatestBaseRedeemsOneSocietyForUsdc() public {
+        _assertLatestBaseRedemption(OutputKind.Usdc, 1, false);
+    }
+
+    function testLatestBaseRedeemsMultipleSocietyAndDirectDonationBonus() public {
+        _assertLatestBaseRedemption(OutputKind.Usdc, 3, true);
+    }
+
+    function testLatestBaseRedeemsThirtyTwoSocietyWithinGasLimit() public {
+        uint256 gasUsed = _assertLatestBaseRedemption(OutputKind.Weth, 32, false);
+        emit log_named_uint("32-ID redemption gas", gasUsed);
+        emit log_named_uint("Base block gas limit", block.gaslimit);
+        assertLt(gasUsed, (block.gaslimit * 8) / 10, "32-ID redemption lacks Base gas headroom");
+    }
+
+    function testLatestBaseRedemptionOverFloorRestoresSelectedNft() public {
+        RedemptionContext memory context = _prepareLatestBaseRedemption(1, false);
+        FameRouterTypes.Route memory route = _buildRedemptionRoute(OutputKind.Weth, fame.unit(), BUYER_ONE);
+        uint256 quotedOutput;
+        (route, quotedOutput) = _protectRedemptionRoute(context, OutputKind.Weth, route);
+        route.minAmountOutAfterFee = quotedOutput + 1;
+
+        vm.expectRevert(abi.encodeWithSelector(FameRouter.FinalOutputTooLow.selector, quotedOutput, quotedOutput + 1));
+        vm.prank(BUYER_ONE);
+        context.checkout.redeemSociety(route, context.selectedIds);
+
+        assertEq(mirror.ownerAt(context.selectedIds[0]), BUYER_ONE, "failed redemption did not restore selected NFT");
+        assertEq(fame.balanceOf(address(context.checkout)), 0, "failed redemption retained FAME");
+        assertEq(mirror.balanceOf(address(context.checkout)), 0, "failed redemption retained Society NFT");
+        assertEq(fame.allowance(address(context.checkout), address(router)), 0, "failed redemption retained allowance");
+    }
 
     function testLatestBaseEthHeldCheckoutUsesDeployedRouterAndRefundsFame() public {
         (UniversalPoolArtMarketplace market, FameMarketplaceCheckout checkout) = _deployCheckoutStack();
@@ -256,6 +311,187 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
             amountIn *= 2;
         }
         revert NoSufficientUpperWitness(kind, amountIn / 2, lastOutput);
+    }
+
+    function _assertLatestBaseRedemption(OutputKind kind, uint256 tokenCount, bool donateBonus)
+        private
+        returns (uint256 gasUsed)
+    {
+        RedemptionContext memory context = _prepareLatestBaseRedemption(tokenCount, donateBonus);
+        uint256 quotedInput = tokenCount * fame.unit();
+        FameRouterTypes.Route memory route = _buildRedemptionRoute(kind, quotedInput, BUYER_ONE);
+        (route,) = _protectRedemptionRoute(context, kind, route);
+        uint256 outputBefore = _redemptionOutputBalance(kind, BUYER_ONE);
+        vm.recordLogs();
+        uint256 gasBefore = gasleft();
+        vm.prank(BUYER_ONE);
+        (uint256 actualInput, uint256 netOutput) = context.checkout.redeemSociety(route, context.selectedIds);
+        gasUsed = gasBefore - gasleft();
+        _assertLatestBaseRedemptionSettlement(context, kind, outputBefore, actualInput, netOutput, vm.getRecordedLogs());
+    }
+
+    function _protectRedemptionRoute(
+        RedemptionContext memory context,
+        OutputKind kind,
+        FameRouterTypes.Route memory route
+    ) private returns (FameRouterTypes.Route memory protectedRoute, uint256 quotedOutput) {
+        uint256 snapshot = vm.snapshot();
+        vm.prank(BUYER_ONE);
+        (, quotedOutput) = context.checkout.redeemSociety(route, context.selectedIds);
+        assertTrue(vm.revertToAndDelete(snapshot), "redemption quote state restore failed");
+
+        uint256 protectedOutput = (quotedOutput * 99) / 100;
+        if (protectedOutput == 0) protectedOutput = 1;
+        route.minAmountOutAfterFee = protectedOutput;
+        uint256 protectedLegIndex = kind == OutputKind.Eth ? 0 : route.legs.length - 1;
+        route.legs[protectedLegIndex].minAmountOut = protectedOutput;
+        return (route, quotedOutput);
+    }
+
+    function _prepareLatestBaseRedemption(uint256 tokenCount, bool donateBonus)
+        private
+        returns (RedemptionContext memory context)
+    {
+        (, context.checkout) = _deployCheckoutStack();
+        context.fundingCount = tokenCount + (donateBonus ? 1 : 0);
+        uint256[] memory fundedIds = _fundSocietyTokens(BUYER_ONE, context.fundingCount, context.checkout);
+        assertEq(context.checkout.ownedSocietyTokenIds(BUYER_ONE, 1, 889), fundedIds, "full owner projection mismatch");
+
+        context.selectedIds = new uint256[](tokenCount);
+        for (uint256 i; i < tokenCount; ++i) {
+            context.selectedIds[i] = fundedIds[i];
+        }
+
+        if (donateBonus) {
+            context.donatedId = fundedIds[context.fundingCount - 1];
+            vm.prank(BUYER_ONE);
+            mirror.transferFrom(BUYER_ONE, address(context.checkout), context.donatedId);
+            assertEq(
+                fame.balanceOf(address(context.checkout)), fame.unit(), "direct donation did not become bonus FAME"
+            );
+        }
+
+        vm.prank(BUYER_ONE);
+        mirror.setApprovalForAll(address(context.checkout), true);
+    }
+
+    function _assertLatestBaseRedemptionSettlement(
+        RedemptionContext memory context,
+        OutputKind kind,
+        uint256 outputBefore,
+        uint256 actualInput,
+        uint256 netOutput,
+        Vm.Log[] memory logs
+    ) private view {
+        assertEq(actualInput, context.fundingCount * fame.unit(), "redemption did not consume complete FAME inventory");
+        assertGt(netOutput, 0, "redemption output missing");
+        assertEq(_redemptionOutputBalance(kind, BUYER_ONE) - outputBefore, netOutput, "recipient output mismatch");
+        assertEq(fame.balanceOf(address(context.checkout)), 0, "checkout retained redemption FAME");
+        assertEq(mirror.balanceOf(address(context.checkout)), 0, "checkout retained Society NFTs");
+        assertEq(fame.allowance(address(context.checkout), address(router)), 0, "router FAME allowance not cleared");
+        assertEq(context.checkout.ownedSocietyTokenIds(BUYER_ONE, 1, 889).length, 0, "redeemed IDs remained owned");
+        for (uint256 i; i < context.selectedIds.length; ++i) {
+            assertEq(mirror.ownerAt(context.selectedIds[i]), address(0));
+        }
+        if (context.donatedId != 0) assertEq(mirror.ownerAt(context.donatedId), address(0));
+        assertEq(_eventCount(logs, address(router), ROUTE_EXECUTED_TOPIC), 1, "RouteExecuted event mismatch");
+        assertEq(
+            _eventCount(logs, address(context.checkout), SOCIETY_REDEEMED_TOPIC), 1, "SocietyRedeemed event mismatch"
+        );
+    }
+
+    function _fundSocietyTokens(address account, uint256 tokenCount, FameMarketplaceCheckout checkout)
+        private
+        returns (uint256[] memory tokenIds)
+    {
+        assertFalse(fame.getSkipNFT(account), "redemption fixture account unexpectedly skips NFTs");
+        tokenIds = new uint256[](tokenCount);
+        uint256 found;
+        for (uint256 tokenId = 1; tokenId <= 888 && found < tokenCount; ++tokenId) {
+            address owner = mirror.ownerAt(tokenId);
+            if (owner == address(0) || owner == account || owner == address(checkout.market())) continue;
+            vm.prank(owner);
+            mirror.transferFrom(owner, account, tokenId);
+            tokenIds[found++] = tokenId;
+        }
+        assertEq(found, tokenCount, "redemption fixture did not find enough transferable Society NFTs");
+    }
+
+    function _buildRedemptionRoute(OutputKind kind, uint256 amountIn, address recipient)
+        private
+        view
+        returns (FameRouterTypes.Route memory route)
+    {
+        route.version = FameRouterTypes.SCHEMA_VERSION;
+        route.tokenIn = address(fame);
+        route.tokenOut = kind == OutputKind.Eth
+            ? FameRouterTypes.NATIVE_ETH
+            : kind == OutputKind.Usdc ? address(usdc) : address(weth);
+        route.amountIn = amountIn;
+        route.minAmountOutAfterFee = 1;
+        route.recipient = recipient;
+        route.deadline = block.timestamp + 20 minutes;
+
+        if (kind == OutputKind.Weth) {
+            route.legs = new FameRouterTypes.Leg[](1);
+            route.legs[0] = _solidlyFameToWethLeg();
+            return route;
+        }
+
+        route.legs = new FameRouterTypes.Leg[](2);
+        route.legs[0] = _solidlyFameToWethLeg();
+        route.legs[1] = kind == OutputKind.Eth ? _nativeWethToEthLeg() : _aerodromeWethToUsdcLeg();
+    }
+
+    function _redemptionOutputBalance(OutputKind kind, address account) private view returns (uint256) {
+        if (kind == OutputKind.Eth) return account.balance;
+        if (kind == OutputKind.Usdc) return usdc.balanceOf(account);
+        return weth.balanceOf(account);
+    }
+
+    function _solidlyFameToWethLeg() private view returns (FameRouterTypes.Leg memory leg) {
+        ISolidlyRouter.Route[] memory routes = new ISolidlyRouter.Route[](1);
+        routes[0] = ISolidlyRouter.Route({from: address(fame), to: address(weth), stable: false});
+        leg = FameRouterTypes.Leg({
+            tokenIn: address(fame),
+            tokenOut: address(weth),
+            venue: FameRouterTypes.VenueFamily.Solidly,
+            amountMode: FameRouterTypes.AmountMode.All,
+            amount: 0,
+            minAmountOut: 1,
+            target: SOLIDLY_ROUTER,
+            data: abi.encode(SolidlyRouterAdapter.Payload({routes: routes, deadline: block.timestamp + 20 minutes}))
+        });
+    }
+
+    function _aerodromeWethToUsdcLeg() private view returns (FameRouterTypes.Leg memory leg) {
+        IAerodromeV2Router.AerodromeRoute[] memory routes = new IAerodromeV2Router.AerodromeRoute[](1);
+        routes[0] = IAerodromeV2Router.AerodromeRoute({
+            from: address(weth), to: address(usdc), stable: false, factory: AERODROME_V2_FACTORY
+        });
+        leg = FameRouterTypes.Leg({
+            tokenIn: address(weth),
+            tokenOut: address(usdc),
+            venue: FameRouterTypes.VenueFamily.AerodromeV2,
+            amountMode: FameRouterTypes.AmountMode.All,
+            amount: 0,
+            minAmountOut: 1,
+            target: AERODROME_V2_ROUTER,
+            data: abi.encode(AerodromeV2RouterAdapter.Payload({routes: routes, deadline: block.timestamp + 20 minutes}))
+        });
+    }
+
+    function _nativeWethToEthLeg() private view returns (FameRouterTypes.Leg memory leg) {
+        leg = FameRouterTypes.Leg({
+            tokenIn: address(weth),
+            tokenOut: FameRouterTypes.NATIVE_ETH,
+            venue: FameRouterTypes.VenueFamily.NativeWrap,
+            amountMode: FameRouterTypes.AmountMode.All,
+            amount: 0,
+            minAmountOut: 0,
+            target: address(weth),
+            data: ""
+        });
     }
 
     function _buildRoute(InputKind kind, uint256 amountIn, address recipient, uint256 minimumOutput)
