@@ -42,9 +42,12 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     ReentrantUniversalPoolMarketplaceRecipient public immutable forwardingRecipient;
     uint256 public immutable initialInventory;
     uint256 public immutable initialMarketFame;
+    uint256 public immutable campaignInventoryFloor;
+    uint256 public immutable campaignFameFloor;
 
     address[3] internal _buyers;
     address[2] internal _feeRecipients;
+    address[4] internal _providers;
 
     uint256 public fundingSuccesses;
     uint256 public directSuccesses;
@@ -57,6 +60,10 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     uint256 public callbackChecks;
     uint256 public buyerMinimumChecks;
     uint256 public handoffChecks;
+    uint256 public providerDeposits;
+    uint256 public providerBatchDeposits;
+    uint256 public freeWithdrawals;
+    uint256 public selectedWithdrawals;
     uint256 public minimumObservedInventory;
 
     constructor(
@@ -73,9 +80,12 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         market = market_;
         _buyers = buyers_;
         _feeRecipients = feeRecipients_;
+        _providers = [address(0xC001), address(0xC002), address(0xC003), address(0xC004)];
         forwardingRecipient = new ReentrantUniversalPoolMarketplaceRecipient();
         initialInventory = mirror_.balanceOf(address(market_));
         initialMarketFame = fame_.balanceOf(address(market_));
+        campaignInventoryFloor = initialInventory - market_.totalProviderUnits();
+        campaignFameFloor = initialMarketFame - market_.totalProviderUnits() * fame_.unit();
         minimumObservedInventory = initialInventory;
 
         for (uint256 i; i < buyers_.length; ++i) {
@@ -106,12 +116,12 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
 
         uint256 inventoryBefore = market.inventory();
         uint256 marketFameBefore = fame.balanceOf(address(market));
-        uint256 feeBefore = fame.balanceOf(market.feeRecipient());
+        uint256 payoutRecipientsBefore = _payoutRecipientBalances();
         vm.prank(purchase.buyer);
         (, uint256 inventoryAfter) = market.purchaseHeld(
             purchase.shellId, purchase.artwork, purchase.premium, purchase.minimum, purchase.destination
         );
-        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, feeBefore);
+        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, payoutRecipientsBefore);
         ++directSuccesses;
     }
 
@@ -128,7 +138,7 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
 
         uint256 inventoryBefore = market.inventory();
         uint256 marketFameBefore = fame.balanceOf(address(market));
-        uint256 feeBefore = fame.balanceOf(market.feeRecipient());
+        uint256 payoutRecipientsBefore = _payoutRecipientBalances();
         vm.prank(purchase.buyer);
         (, uint256 inventoryAfter) = market.purchasePool(
             purchase.shellId, purchase.sourceId, purchase.artwork, purchase.premium, 0, purchase.destination
@@ -136,7 +146,7 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
 
         assertEq(market.artworkHash(purchase.sourceId), purchase.displacedArtwork);
         ++poolPlacementChecks;
-        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, feeBefore);
+        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, payoutRecipientsBefore);
         ++mintSuccesses;
     }
 
@@ -153,7 +163,7 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
 
         uint256 inventoryBefore = market.inventory();
         uint256 marketFameBefore = fame.balanceOf(address(market));
-        uint256 feeBefore = fame.balanceOf(market.feeRecipient());
+        uint256 payoutRecipientsBefore = _payoutRecipientBalances();
         vm.prank(purchase.buyer);
         (, uint256 inventoryAfter) = market.purchasePool(
             purchase.shellId, purchase.sourceId, purchase.artwork, purchase.premium, 0, purchase.destination
@@ -161,7 +171,7 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
 
         assertEq(market.artworkHash(purchase.sourceId), purchase.displacedArtwork);
         ++poolPlacementChecks;
-        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, feeBefore);
+        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, payoutRecipientsBefore);
         ++burnSuccesses;
     }
 
@@ -179,7 +189,7 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
 
         uint256 inventoryBefore = market.inventory();
         uint256 marketFameBefore = fame.balanceOf(address(market));
-        uint256 feeBefore = fame.balanceOf(market.feeRecipient());
+        uint256 payoutRecipientsBefore = _payoutRecipientBalances();
         vm.prank(purchase.buyer);
         (, uint256 inventoryAfter) =
             market.purchaseHeld(purchase.shellId, purchase.artwork, purchase.premium, 0, address(forwardingRecipient));
@@ -187,13 +197,14 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         assertEq(forwardingRecipient.observedTokenId(), purchase.shellId);
         assertEq(forwardingRecipient.observedArtworkHash(), purchase.artwork);
         ++callbackChecks;
-        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, feeBefore);
+        _checkSuccessfulPurchase(purchase, inventoryBefore, inventoryAfter, marketFameBefore, payoutRecipientsBefore);
         ++forwardingSuccesses;
     }
 
     function configureMarket(uint96 premiumSeed, uint256 feeSeed, bool shouldPause) external {
-        uint256 nextPremium = 1 + (uint256(premiumSeed) % (fame.unit() - 1));
-        market.setPremium(nextPremium);
+        uint256 nextPremium = uint256(premiumSeed) % (fame.unit() / 10 + 1);
+        market.setCommunityFee(nextPremium);
+        market.setProviderFee(uint256(keccak256(abi.encode(premiumSeed))) % (fame.unit() / 10 + 1));
         address nextFeeRecipient = _feeRecipients[feeSeed % _feeRecipients.length];
         if (market.feeRecipient() != nextFeeRecipient) market.setFeeRecipient(nextFeeRecipient);
         if (shouldPause && !market.paused()) {
@@ -202,6 +213,80 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
             market.unpause();
         }
         ++adminSuccesses;
+    }
+
+    function depositProvider(uint256 providerSeed) external {
+        address provider = _provider(providerSeed);
+        uint256 tokenId = _firstOwnedToken(provider);
+        if (tokenId == 0) {
+            uint256 unit = fame.unit();
+            if (fame.balanceOf(address(this)) < unit) return;
+            fame.transfer(provider, unit);
+            tokenId = _firstOwnedToken(provider);
+            if (tokenId == 0) return;
+        }
+
+        vm.startPrank(provider);
+        mirror.approve(address(market), tokenId);
+        market.depositInventory(tokenId);
+        vm.stopPrank();
+        ++providerDeposits;
+    }
+
+    function depositProviderBatch(uint256 providerSeed, uint8 batchSeed) external {
+        address provider = _provider(providerSeed);
+        uint256 count = 1 + (uint256(batchSeed) % market.MAX_INVENTORY_BATCH_SIZE());
+        uint256 owned = mirror.balanceOf(provider);
+        if (owned < count) {
+            uint256 funding = (count - owned) * fame.unit();
+            if (fame.balanceOf(address(this)) < funding) return;
+            fame.transfer(provider, funding);
+        }
+
+        uint256[] memory tokenIds = new uint256[](count);
+        uint256 found;
+        for (uint256 tokenId = 1; tokenId <= 888 && found < count; ++tokenId) {
+            if (mirror.ownerAt(tokenId) == provider) tokenIds[found++] = tokenId;
+        }
+        if (found != count) return;
+
+        vm.startPrank(provider);
+        mirror.setApprovalForAll(address(market), true);
+        market.depositInventoryBatch(tokenIds);
+        vm.stopPrank();
+        providerDeposits += count;
+        ++providerBatchDeposits;
+    }
+
+    function withdrawProvider(uint256 providerSeed) external {
+        address provider = _provider(providerSeed);
+        (uint256 units,) = market.providerPosition(provider);
+        if (units == 0) return;
+        vm.prank(provider);
+        market.withdrawInventory();
+        _observeInventory();
+        ++freeWithdrawals;
+    }
+
+    function withdrawProviderSelected(uint256 providerSeed, uint256 tokenSeed) external {
+        address provider = _provider(providerSeed);
+        (uint256 units,) = market.providerPosition(provider);
+        if (units == 0) return;
+
+        uint256 premiumAmount = market.premium();
+        uint256 balance = fame.balanceOf(provider);
+        if (balance < premiumAmount) {
+            uint256 shortfall = premiumAmount - balance;
+            if (fame.balanceOf(address(this)) < shortfall) return;
+            fame.transfer(provider, shortfall);
+        }
+        uint256 tokenId = _marketShell(tokenSeed);
+        vm.startPrank(provider);
+        fame.approve(address(market), premiumAmount);
+        market.withdrawInventorySelected(tokenId, premiumAmount);
+        vm.stopPrank();
+        _observeInventory();
+        ++selectedWithdrawals;
     }
 
     function attemptInvalidPurchase(uint256 buyerSeed, uint256 shellSeed, uint8 failureSeed) external {
@@ -229,7 +314,13 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
             }
         } else if (failureKind == 1) {
             vm.prank(failure.buyer);
-            try market.purchaseHeld(failure.shellId, failure.artwork, failure.premium - 1, 0, failure.buyer) {}
+            try market.purchaseHeld(
+                failure.shellId,
+                failure.premium == 0 ? failure.artwork ^ bytes32(uint256(1)) : failure.artwork,
+                failure.premium == 0 ? 0 : failure.premium - 1,
+                0,
+                failure.buyer
+            ) {}
             catch {
                 reverted = true;
             }
@@ -289,9 +380,9 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         uint256 inventoryBefore,
         uint256 inventoryAfter,
         uint256 marketFameBefore,
-        uint256 feeBefore
+        uint256 payoutRecipientsBefore
     ) internal {
-        assertEq(fame.balanceOf(market.feeRecipient()), feeBefore + purchase.premium);
+        assertEq(_payoutRecipientBalances(), payoutRecipientsBefore + purchase.premium);
         assertEq(fame.balanceOf(address(market)), marketFameBefore);
         assertEq(inventoryAfter, market.inventory());
         assertGe(inventoryAfter, inventoryBefore);
@@ -302,6 +393,31 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         if (purchase.minimum != 0) ++buyerMinimumChecks;
         ++handoffChecks;
         if (inventoryAfter < minimumObservedInventory) minimumObservedInventory = inventoryAfter;
+    }
+
+    function _payoutRecipientBalances() internal view returns (uint256 total) {
+        total = fame.balanceOf(market.feeRecipient());
+        uint256 providerCount = market.activeProviderCount();
+        for (uint256 i; i < providerCount; ++i) {
+            address provider = market.activeProviderAt(i);
+            if (provider != market.feeRecipient()) total += fame.balanceOf(provider);
+        }
+    }
+
+    function _observeInventory() internal {
+        uint256 currentInventory = market.inventory();
+        if (currentInventory < minimumObservedInventory) minimumObservedInventory = currentInventory;
+    }
+
+    function _provider(uint256 seed) internal view returns (address) {
+        return _providers[seed % _providers.length];
+    }
+
+    function _firstOwnedToken(address account) internal view returns (uint256) {
+        for (uint256 tokenId = 1; tokenId <= 888; ++tokenId) {
+            if (mirror.ownerAt(tokenId) == account) return tokenId;
+        }
+        return 0;
     }
 
     function _buyer(uint256 seed) internal view returns (address) {
@@ -349,6 +465,8 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
 contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPoolArtMarketplaceTestBase {
     UniversalPoolArtMarketplaceHandler internal handler;
     uint256 internal initialArtPoolNext;
+    address internal constant PROVIDER_ONE = address(0xC001);
+    address internal constant PROVIDER_TWO = address(0xC002);
 
     function setUp() public override {
         super.setUp();
@@ -363,6 +481,8 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         fame.transfer(feeRecipient, 180 * unit);
         assertTrue(creatorMagic.isTokenInBurnedPool(1));
         assertTrue(creatorMagic.isTokenInBurnedPool(180));
+        _depositUnits(market, PROVIDER_ONE, 1);
+        _depositUnits(market, PROVIDER_TWO, 2);
 
         creatorMagic.grantRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE);
 
@@ -376,7 +496,7 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         fame.transfer(address(handler), 400 * fame.unit());
         initialArtPoolNext = creatorMagic.artPoolNext();
 
-        bytes4[] memory selectors = new bytes4[](7);
+        bytes4[] memory selectors = new bytes4[](11);
         selectors[0] = handler.fundBuyer.selector;
         selectors[1] = handler.purchaseHeld.selector;
         selectors[2] = handler.purchaseMint.selector;
@@ -384,17 +504,23 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         selectors[4] = handler.purchaseAndForward.selector;
         selectors[5] = handler.configureMarket.selector;
         selectors[6] = handler.attemptInvalidPurchase.selector;
+        selectors[7] = handler.depositProvider.selector;
+        selectors[8] = handler.withdrawProvider.selector;
+        selectors[9] = handler.withdrawProviderSelected.selector;
+        selectors[10] = handler.depositProviderBatch.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
     }
 
     function invariant_MarketInventoryNeverDropsBelowCampaignFloor() public view {
-        assertGe(market.inventory(), handler.initialInventory());
-        assertGe(handler.minimumObservedInventory(), handler.initialInventory());
+        assertGe(market.inventory(), handler.campaignInventoryFloor());
+        assertGe(handler.minimumObservedInventory(), handler.campaignInventoryFloor());
     }
 
     function invariant_MarketRetainsNoPremiumRevenue() public view {
-        assertEq(fame.balanceOf(address(market)), handler.initialMarketFame());
+        assertEq(
+            fame.balanceOf(address(market)), handler.campaignFameFloor() + market.totalProviderUnits() * fame.unit()
+        );
     }
 
     function invariant_EverySuccessCompletedItsImmediateChecks() public view {
@@ -412,6 +538,24 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         assertTrue(fame.getSkipNFT(market.feeRecipient()));
     }
 
+    function invariant_ProviderPositionsRemainIndexedAndCheckoutNeutral() public view {
+        uint256 providerCount = market.activeProviderCount();
+        assertLe(providerCount, market.activeProviderCap());
+        uint256 summedUnits;
+        for (uint256 i; i < providerCount; ++i) {
+            address provider = market.activeProviderAt(i);
+            (uint256 units, uint256 indexPlusOne) = market.providerPosition(provider);
+            assertGt(units, 0);
+            assertEq(indexPlusOne, i + 1);
+            for (uint256 j; j < i; ++j) {
+                assertNotEq(market.activeProviderAt(j), provider);
+            }
+            summedUnits += units;
+        }
+        assertEq(summedUnits, market.totalProviderUnits());
+        assertLe(market.totalProviderUnits(), market.inventory());
+    }
+
     function testHandlerExercisesEveryLane() public {
         handler.fundBuyer(0, 1);
         handler.configureMarket(1, 1, false);
@@ -420,6 +564,11 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         handler.purchaseBurn(2, 0, true);
         handler.purchaseAndForward(0, 0);
         handler.attemptInvalidPurchase(1, 0, 0);
+        handler.depositProvider(2);
+        handler.withdrawProviderSelected(2, 0);
+        handler.depositProviderBatch(0, 7);
+        handler.depositProvider(3);
+        handler.withdrawProvider(3);
 
         assertGt(handler.fundingSuccesses(), 0);
         assertGt(handler.adminSuccesses(), 0);
@@ -431,5 +580,9 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         assertGt(handler.poolPlacementChecks(), 0);
         assertGt(handler.callbackChecks(), 0);
         assertGt(handler.buyerMinimumChecks(), 0);
+        assertGt(handler.providerDeposits(), 0);
+        assertGt(handler.providerBatchDeposits(), 0);
+        assertGt(handler.freeWithdrawals(), 0);
+        assertGt(handler.selectedWithdrawals(), 0);
     }
 }

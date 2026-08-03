@@ -1,7 +1,33 @@
 # Base Universal Pool Art Marketplace production implementation handoff
 
-Status: **ready for fork implementation and full browser rehearsal; no Base
-mainnet deployment authorized**
+Status: **automated contract and Base-fork gates passed; ready for the manual
+provider/browser fork rehearsal; no Base mainnet deployment authorized**
+
+## 2026-08-02 Society inventory-provider update
+
+The marketplace now uses direct wallet provider positions. It has no receipt NFT. Permissionless providers deposit Society units through the explicit deposit entrypoint, receive the configured provider allocation directly on each checkout, and may use either a free opaque pooled exit or a direct-FAME paid selected exit. Raw FAME or Society-unit transfers remain irreversible community donations and create no provider credit.
+
+Providers may credit one Society NFT with `depositInventory(uint256)` or up to
+eight selected NFTs atomically with
+`depositInventoryBatch(uint256[])`. The batch path rejects empty, oversized,
+invalid-ID, and duplicate-ID inputs before custody transfer, uses one active
+provider slot for the wallet, preserves the existing single-deposit receipt,
+and emits one dedicated batch receipt containing all deposited IDs and the
+resulting position. It does not convert direct NFT or FAME transfers into
+credited deposits.
+
+The old single-premium description below is historical context. Current release configuration uses independent `BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE` and `BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE` values, each capped at 10% of one FAME unit. `premium()` remains their displayed sum. Checkout pause does not block provider deposits or exits.
+
+The production active-provider cap is selected at `88`. Both latest-head Base benchmark lanes were requalified after the batch-deposit bytecode change with `forge test --isolate`: an 88-provider checkout where every provider payout triggered a DN404 mint used `3,790,903` gas, and a free exit proving `scanSteps == 888` used `2,805,985` gas. The selected cap remains applied to `config/fame-public.env`.
+
+The current-head automated release lifecycle also passes against real Base dependencies: configured deployment, paused validation, activation, re-pause, guarded ownership handoff, and post-handoff validation with marketplace ownership at the Society Safe while CreatorArtistMagic ownership remains at the deployer. The remaining acceptance work is the disposable manual provider/browser campaign in `docs/gallery/base-universal-pool-art-marketplace-fork-report.md`, followed by evidence review and separate on-chain authorization.
+
+The validator treats configured inventory as a minimum and verifies the live
+provider array, position indexes, and summed units. It does not require an empty
+provider set, so a permissionless provider deposit or direct donation while
+checkout is paused cannot grief activation.
+
+After paused deployment, inventory setup, checkout authorization, and validation, use `script/TransferBaseUniversalPoolArtMarketplaceOwnership.s.sol` for the one-way deployer-to-Society-Safe ownership handoff. It re-runs production validation and refuses an unpaused market before broadcasting. On-chain execution still requires separate authorization.
 
 The Base Sepolia marketplace and `fls-www` buyer experience have exercised the
 continuous held/Mint/Burn exchange successfully. Production should reuse the

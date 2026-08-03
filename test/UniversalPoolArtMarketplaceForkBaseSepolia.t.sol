@@ -83,14 +83,16 @@ abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
     }
 
     function _deployEphemeralMarket() internal returns (UniversalPoolArtMarketplace market) {
-        uint256 premium = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM");
+        uint256 communityFee = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE");
+        uint256 providerFee = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PROVIDER_FEE");
+        uint256 providerCap = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP");
 
         vm.prank(feeRecipient);
         fame.setSkipNFT(true);
 
         vm.startPrank(admin, admin);
         market = new UniversalPoolArtMarketplace(
-            payable(address(fame)), address(creatorMagic), premium, feeRecipient, admin
+            payable(address(fame)), address(creatorMagic), communityFee, providerFee, feeRecipient, admin, providerCap
         );
         creatorMagic.grantRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE);
         fame.transfer(address(market), SHELL_COUNT * fame.unit());
@@ -103,7 +105,13 @@ abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
                 creatorMagic,
                 market,
                 ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: admin, feeRecipient: feeRecipient, premium: premium, minimumInventory: SHELL_COUNT, paused: true
+                owner: admin,
+                feeRecipient: feeRecipient,
+                communityFee: communityFee,
+                providerFee: providerFee,
+                activeProviderCap: providerCap,
+                minimumInventory: SHELL_COUNT,
+                paused: true
             })
             );
 
@@ -402,7 +410,9 @@ contract UniversalPoolArtMarketplaceDeployedForkBaseSepoliaTest is UniversalPool
                 ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
                 owner: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER"),
                 feeRecipient: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
-                premium: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM"),
+                communityFee: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE"),
+                providerFee: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PROVIDER_FEE"),
+                activeProviderCap: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP"),
                 minimumInventory: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY"),
                 paused: expectedPaused
             })

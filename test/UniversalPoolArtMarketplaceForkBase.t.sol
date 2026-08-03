@@ -75,7 +75,7 @@ abstract contract UniversalPoolArtMarketplaceForkBaseTestBase is Test {
     function _deployOneShellMarket() internal returns (UniversalPoolArtMarketplace market) {
         vm.prank(DEPLOYER, DEPLOYER);
         market = new UniversalPoolArtMarketplace(
-            payable(address(fame)), address(creatorMagic), EXPECTED_PREMIUM, SAFE, DEPLOYER
+            payable(address(fame)), address(creatorMagic), EXPECTED_PREMIUM, 0, SAFE, DEPLOYER, 16
         );
 
         _seedOneShellMarket(market);
@@ -138,6 +138,15 @@ abstract contract UniversalPoolArtMarketplaceForkBaseTestBase is Test {
             }
         }
         revert PoolCandidateUnavailable("owned shell");
+    }
+
+    function _ownedTokenIds(address account, uint256 count) internal view returns (uint256[] memory tokenIds) {
+        tokenIds = new uint256[](count);
+        uint256 found;
+        for (uint256 tokenId = 1; tokenId <= 888 && found < count; ++tokenId) {
+            if (mirror.ownerAt(tokenId) == account) tokenIds[found++] = tokenId;
+        }
+        if (found != count) revert PoolCandidateUnavailable("owned shells");
     }
 
     function _purchaseEventCount(Vm.Log[] memory logs, address market) internal pure returns (uint256 count) {
@@ -207,6 +216,61 @@ abstract contract UniversalPoolArtMarketplaceForkBaseTestBase is Test {
 }
 
 contract UniversalPoolArtMarketplaceForkBaseTest is UniversalPoolArtMarketplaceForkBaseTestBase {
+    function testBenchmarkLatestBaseFreeExitTraversesFull888IdScan() public {
+        _selectLatestBaseFork();
+        uint256 candidateCap = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_BENCHMARK_CANDIDATE_CAP");
+        uint256 gasBudget = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_FREE_EXIT_GAS_BUDGET");
+        UniversalPoolArtMarketplace market;
+        vm.prank(DEPLOYER, DEPLOYER);
+        market = new UniversalPoolArtMarketplace(
+            payable(address(fame)), address(creatorMagic), 0, 0, SAFE, DEPLOYER, candidateCap
+        );
+
+        address provider = address(0xBEEF01);
+        uint256 unit = fame.unit();
+        vm.prank(SAFE);
+        fame.transfer(provider, unit);
+        uint256 depositedId = _ownedTokenAt(provider, 0);
+        vm.startPrank(provider);
+        mirror.approve(address(market), depositedId);
+        market.depositInventory(depositedId);
+        vm.stopPrank();
+
+        uint256 wantedStart = depositedId == 888 ? 1 : depositedId + 1;
+        bytes32 selectedRandao;
+        for (uint256 seed = 1; seed < 100_000; ++seed) {
+            bytes32 candidate = bytes32(seed);
+            if (uint256(keccak256(abi.encode(candidate, provider, uint256(0), uint256(0)))) % 888 + 1 == wantedStart) {
+                selectedRandao = candidate;
+                break;
+            }
+        }
+        assertNotEq(selectedRandao, bytes32(0), "full-scan randao fixture unavailable");
+        vm.prevrandao(selectedRandao);
+
+        vm.recordLogs();
+        uint256 gasBefore = gasleft();
+        vm.prank(provider);
+        uint256 withdrawnId = market.withdrawInventory();
+        uint256 gasUsed = gasBefore - gasleft();
+
+        emit log_named_uint("candidate active-provider cap", candidateCap);
+        emit log_named_uint("full 888-ID free-exit gas", gasUsed);
+        emit log_named_uint("Base block gas limit", block.gaslimit);
+        assertEq(withdrawnId, depositedId, "full-scan exit selected wrong live unit");
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 withdrawalTopic = keccak256("InventoryWithdrawn(address,uint256,bool,uint256,uint256,uint256)");
+        uint256 scanSteps;
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].emitter == address(market) && logs[i].topics[0] == withdrawalTopic) {
+                (,,, scanSteps) = abi.decode(logs[i].data, (bool, uint256, uint256, uint256));
+            }
+        }
+        assertEq(scanSteps, 888, "free-exit benchmark did not traverse all Society IDs");
+        assertLt(gasUsed, gasBudget, "full-scan free exit exceeds configured gas budget");
+        assertLt(gasUsed, (block.gaslimit * 8) / 10, "full-scan free exit lacks Base gas headroom");
+    }
+
     function testLatestBaseOneShellHeldMintBurnAndArtPoolMatrix() public {
         _selectLatestBaseFork();
         UniversalPoolArtMarketplace market = _deployOneShellMarket();
@@ -247,7 +311,7 @@ contract UniversalPoolArtMarketplaceForkBaseTest is UniversalPoolArtMarketplaceF
         market.purchaseHeld(shellId, staleArtwork, originalPremium, 0, DISTINCT_RECIPIENT);
 
         vm.prank(DEPLOYER);
-        market.setPremium(originalPremium + 1);
+        market.setCommunityFee(originalPremium + 1);
         vm.expectRevert(
             abi.encodeWithSelector(
                 UniversalPoolArtMarketplace.PremiumExceedsMaximum.selector, originalPremium + 1, originalPremium
@@ -258,7 +322,7 @@ contract UniversalPoolArtMarketplaceForkBaseTest is UniversalPoolArtMarketplaceF
 
         uint256 lowerPremium = originalPremium / 2;
         vm.prank(DEPLOYER);
-        market.setPremium(lowerPremium);
+        market.setCommunityFee(lowerPremium);
         uint256 feeBefore = fame.balanceOf(SAFE);
         vm.prank(BUYER_ONE);
         market.purchaseHeld(shellId, artwork, originalPremium, 0, DISTINCT_RECIPIENT);

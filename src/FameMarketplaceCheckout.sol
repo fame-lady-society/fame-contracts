@@ -614,8 +614,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         if (currentPremium > maxPremium) revert PremiumExceedsMaximum(currentPremium, maxPremium);
         address currentFeeRecipient = market.feeRecipient();
         if (currentFeeRecipient == address(this)) revert CheckoutIsFeeRecipient();
-        charge = fame.unit();
-        if (buyer != currentFeeRecipient) charge += currentPremium;
+        charge = market.purchaseCharge(buyer);
     }
 
     function _snapshotRouteAssets(FameRouterTypes.Route calldata route)

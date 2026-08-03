@@ -60,9 +60,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         uint256 unit = fame.unit();
         uint256 safeBalanceBefore = fame.balanceOf(SAFE);
 
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
 
         assertTrue(deployed.paused());
         assertEq(deployed.owner(), DEPLOYER);
@@ -89,7 +88,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             checkout,
             address(childRenderer),
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: true
+                owner: DEPLOYER,
+                creatorMagicOwner: DEPLOYER,
+                feeRecipient: SAFE,
+                communityFee: PREMIUM,
+                providerFee: 0,
+                activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
+                minimumInventory: REQUIRED_INVENTORY,
+                paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
                 router: address(router),
@@ -110,7 +116,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             checkout,
             address(childRenderer),
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: false
+                owner: DEPLOYER,
+                creatorMagicOwner: DEPLOYER,
+                feeRecipient: SAFE,
+                communityFee: PREMIUM,
+                providerFee: 0,
+                activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
+                minimumInventory: REQUIRED_INVENTORY,
+                paused: false
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
                 router: address(router),
@@ -122,10 +135,32 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         );
     }
 
+    function testValidationAndActivationAllowProviderDepositsWhilePaused() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantRoleAndSeed(deployed);
+
+        address provider = address(0xBEEF);
+        fame.transfer(provider, fame.unit());
+        uint256 tokenId = _ownedTokenAt(provider, 0);
+        vm.startPrank(provider);
+        mirror.approve(address(deployed), tokenId);
+        deployed.depositInventory(tokenId);
+        vm.stopPrank();
+
+        _validatePausedStack(deployed, checkout);
+        activator.activateMarketplace(deployed, checkout, DEPLOYER);
+        _validateStack(deployed, checkout, false);
+
+        assertFalse(deployed.paused());
+        assertEq(deployed.inventory(), REQUIRED_INVENTORY + 1);
+        assertEq(deployed.totalProviderUnits(), 1);
+        assertEq(deployed.activeProviderCount(), 1);
+    }
+
     function testValidationRejectsRendererAuthorityInAdditionToBanisher() public {
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
 
         vm.startPrank(DEPLOYER);
         creatorMagic.grantRoles(address(deployed), CREATOR_MAGIC_BANISHER_ROLE | CREATOR_MAGIC_RENDERER_ROLE);
@@ -147,7 +182,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             checkout,
             address(childRenderer),
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: true
+                owner: DEPLOYER,
+                creatorMagicOwner: DEPLOYER,
+                feeRecipient: SAFE,
+                communityFee: PREMIUM,
+                providerFee: 0,
+                activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
+                minimumInventory: REQUIRED_INVENTORY,
+                paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
                 router: address(router),
@@ -160,9 +202,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     }
 
     function testValidationRejectsMarketplacePointingAtAnotherCheckout() public {
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
 
         vm.startPrank(DEPLOYER);
         creatorMagic.grantRoles(address(deployed), CREATOR_MAGIC_BANISHER_ROLE);
@@ -188,7 +229,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             checkout,
             address(childRenderer),
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: true
+                owner: DEPLOYER,
+                creatorMagicOwner: DEPLOYER,
+                feeRecipient: SAFE,
+                communityFee: PREMIUM,
+                providerFee: 0,
+                activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
+                minimumInventory: REQUIRED_INVENTORY,
+                paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
                 router: address(router),
@@ -201,9 +249,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     }
 
     function testValidationRejectsMissingOneUnitSeed() public {
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         vm.prank(DEPLOYER);
         creatorMagic.grantRoles(address(deployed), CREATOR_MAGIC_BANISHER_ROLE);
 
@@ -216,9 +263,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     }
 
     function testValidationRejectsRouterSkipNftDisabled() public {
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         _grantRoleAndSeed(deployed);
         vm.prank(address(router));
         fame.setSkipNFT(false);
@@ -232,9 +278,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     }
 
     function testValidationRejectsCheckoutAsRouterFeeRecipient() public {
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         _grantRoleAndSeed(deployed);
         router.setFeeRecipient(address(checkout));
 
@@ -251,7 +296,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             checkout,
             address(childRenderer),
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: true
+                owner: DEPLOYER,
+                creatorMagicOwner: DEPLOYER,
+                feeRecipient: SAFE,
+                communityFee: PREMIUM,
+                providerFee: 0,
+                activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
+                minimumInventory: REQUIRED_INVENTORY,
+                paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
                 router: address(router),
@@ -264,9 +316,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     }
 
     function testActivationRejectsMarketplacePointingAtAnotherCheckout() public {
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         vm.prank(DEPLOYER);
         deployed.setAuthorizedCheckout(address(router));
 
@@ -279,9 +330,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     }
 
     function testValidationRejectsCheckoutWithWrongUsdc() public {
-        (UniversalPoolArtMarketplace deployed,) = deployer.deployMarketplaceStack(
-            fame, creatorMagic, address(router), address(usdc), address(weth), PREMIUM, SAFE, DEPLOYER, DEPLOYER
-        );
+        (UniversalPoolArtMarketplace deployed,) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         MockERC20 wrongUsdc = new MockERC20("Wrong USD", "WUSD", 6);
         FameMarketplaceCheckout wrongCheckout = new FameMarketplaceCheckout(
             address(router), address(deployed), payable(address(fame)), address(wrongUsdc), address(weth)
@@ -309,7 +359,32 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         fame.transfer(address(deployed), fame.unit());
     }
 
+    function _deploymentConfig()
+        private
+        view
+        returns (DeployBaseUniversalPoolArtMarketplace.DeploymentConfig memory config)
+    {
+        config = DeployBaseUniversalPoolArtMarketplace.DeploymentConfig({
+            router: address(router),
+            usdc: address(usdc),
+            weth: address(weth),
+            communityFee: PREMIUM,
+            providerFee: 0,
+            feeRecipient: SAFE,
+            owner: DEPLOYER,
+            activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
+            sender: DEPLOYER
+        });
+    }
+
     function _validatePausedStack(UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) private view {
+        _validateStack(deployed, checkout, true);
+    }
+
+    function _validateStack(UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout, bool expectedPaused)
+        private
+        view
+    {
         validator.validateMarketplaceStack(
             fame,
             mirror,
@@ -318,7 +393,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             checkout,
             address(childRenderer),
             ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: DEPLOYER, feeRecipient: SAFE, premium: PREMIUM, inventory: REQUIRED_INVENTORY, paused: true
+                owner: DEPLOYER,
+                creatorMagicOwner: DEPLOYER,
+                feeRecipient: SAFE,
+                communityFee: PREMIUM,
+                providerFee: 0,
+                activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
+                minimumInventory: REQUIRED_INVENTORY,
+                paused: expectedPaused
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
                 router: address(router),

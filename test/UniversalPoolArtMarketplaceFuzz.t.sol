@@ -33,24 +33,49 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
         bool paused;
     }
 
-    function testPremiumAcceptsUint96MaximumAndRejectsNextValue() public {
-        market.setPremium(type(uint96).max);
-        assertEq(market.premium(), type(uint96).max);
+    function testFuzzBatchDepositCreditsExactLength(uint8 rawCount, bool alreadyActive) public {
+        uint256 count = bound(uint256(rawCount), 1, market.MAX_INVENTORY_BATCH_SIZE());
+        address provider = address(0xD008);
+        uint256 startingUnits;
+        if (alreadyActive) {
+            _depositUnits(market, provider, 1);
+            startingUnits = 1;
+        }
 
-        uint256 oversized = uint256(type(uint96).max) + 1;
-        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.PremiumTooLarge.selector, oversized));
-        market.setPremium(oversized);
+        uint256[] memory tokenIds = _prepareBatch(provider, count, market);
+        vm.prank(provider);
+        market.depositInventoryBatch(tokenIds);
+
+        (uint256 unitCount, uint256 indexPlusOne) = market.providerPosition(provider);
+        assertEq(unitCount, startingUnits + count);
+        assertEq(indexPlusOne, 1);
+        assertEq(market.activeProviderCount(), 1);
+        assertEq(market.totalProviderUnits(), startingUnits + count);
+        assertEq(market.inventory(), startingUnits + count);
+        for (uint256 i; i < count; ++i) {
+            assertEq(mirror.ownerAt(tokenIds[i]), address(market));
+        }
     }
 
-    function testFuzzPremiumConfiguration(uint256 candidate) public {
-        if (candidate == 0) {
-            vm.expectRevert(UniversalPoolArtMarketplace.ZeroPremium.selector);
-            market.setPremium(candidate);
-        } else if (candidate > type(uint96).max) {
-            vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.PremiumTooLarge.selector, candidate));
-            market.setPremium(candidate);
+    function testFeeAcceptsTenPercentMaximumAndRejectsNextValue() public {
+        uint256 maximum = fame.unit() / 10;
+        market.setCommunityFee(maximum);
+        assertEq(market.premium(), maximum);
+
+        uint256 oversized = maximum + 1;
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeTooLarge.selector, oversized, maximum));
+        market.setCommunityFee(oversized);
+    }
+
+    function testFuzzFeeConfiguration(uint256 candidate) public {
+        uint256 maximum = fame.unit() / 10;
+        if (candidate > maximum) {
+            vm.expectRevert(
+                abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeTooLarge.selector, candidate, maximum)
+            );
+            market.setCommunityFee(candidate);
         } else {
-            market.setPremium(candidate);
+            market.setCommunityFee(candidate);
             assertEq(market.premium(), candidate);
         }
     }
@@ -63,8 +88,8 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
         bool buyerSkipsNFT
     ) public {
         uint256 unit = fame.unit();
-        uint256 currentPremium = bound(uint256(rawPremium), 1, unit * 4);
-        market.setPremium(currentPremium);
+        uint256 currentPremium = bound(uint256(rawPremium), 1, unit / 10);
+        market.setCommunityFee(currentPremium);
 
         address payer = buyerIsFeeRecipient ? feeRecipient : buyer;
         if (!buyerIsFeeRecipient) {
@@ -122,9 +147,9 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
         bool buyerSkipsNFT
     ) public {
         uint256 unit = fame.unit();
-        uint256 currentPremium = bound(uint256(rawPremium), 1, unit * 4);
+        uint256 currentPremium = bound(uint256(rawPremium), 1, unit / 10);
         uint256 maximumPremium = bound(uint256(rawMaximum), 0, currentPremium - 1);
-        market.setPremium(currentPremium);
+        market.setCommunityFee(currentPremium);
         vm.prank(buyer);
         fame.setSkipNFT(buyerSkipsNFT);
 
@@ -147,9 +172,9 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
 
     function testFuzzPurchaseHeldBuyerMinimumRollsBack(uint96 rawPremium, uint16 rawMinimum) public {
         uint256 unit = fame.unit();
-        uint256 currentPremium = bound(uint256(rawPremium), 1, unit * 4);
+        uint256 currentPremium = bound(uint256(rawPremium), 1, unit / 10);
         uint256 minimum = bound(uint256(rawMinimum), 1, 888);
-        market.setPremium(currentPremium);
+        market.setCommunityFee(currentPremium);
         vm.prank(buyer);
         fame.setSkipNFT(true);
 
@@ -170,8 +195,8 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
 
     function testFuzzPurchasePoolMaterializesMintArtwork(uint96 rawPremium, uint16 rawSourceId) public {
         uint256 unit = fame.unit();
-        uint256 currentPremium = bound(uint256(rawPremium), 1, unit * 4);
-        market.setPremium(currentPremium);
+        uint256 currentPremium = bound(uint256(rawPremium), 1, unit / 10);
+        market.setCommunityFee(currentPremium);
         uint256 shellId = _seedShells(market, 2);
         uint256 sourceId =
             bound(uint256(rawSourceId), creatorMagic.getMintPoolStart(), creatorMagic.getMintPoolEnd() - 1);
@@ -199,8 +224,8 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
 
     function testFuzzPurchasePoolRejectsArtPoolAndRollsBack(uint96 rawPremium, uint16 rawSourceId) public {
         uint256 unit = fame.unit();
-        uint256 currentPremium = bound(uint256(rawPremium), 1, unit * 4);
-        market.setPremium(currentPremium);
+        uint256 currentPremium = bound(uint256(rawPremium), 1, unit / 10);
+        market.setCommunityFee(currentPremium);
         uint256 shellId = _seedShells(market, 2);
         uint256 sourceId = bound(uint256(rawSourceId), creatorMagic.artPoolStartIndex(), creatorMagic.artPoolEndIndex());
         bytes32 selectedArtwork = market.artworkHash(sourceId);
@@ -220,8 +245,8 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
     function testFuzzStaleArtworkCommitmentsRollBack(uint96 rawPremium, bytes32 corruption, bool usePoolPath) public {
         vm.assume(corruption != bytes32(0));
         uint256 unit = fame.unit();
-        uint256 currentPremium = bound(uint256(rawPremium), 1, unit * 4);
-        market.setPremium(currentPremium);
+        uint256 currentPremium = bound(uint256(rawPremium), 1, unit / 10);
+        market.setCommunityFee(currentPremium);
         uint256 shellId = _seedShells(market, 2);
         vm.prank(buyer);
         fame.setSkipNFT(true);

@@ -17,7 +17,6 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
     address internal constant EXPECTED_DEPLOYER = 0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9;
     address internal constant EXPECTED_SAFE = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;
     uint256 internal constant EXPECTED_UNIT = 1_000_000 ether;
-    uint256 internal constant EXPECTED_PREMIUM = 30_000 ether;
 
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error CanonicalStackMismatch();
@@ -26,72 +25,83 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
     error FeeRecipientNotSkippingNFT(address recipient);
     error RouterNotSkippingNFT(address router);
 
+    struct DeploymentConfig {
+        address router;
+        address usdc;
+        address weth;
+        uint256 communityFee;
+        uint256 providerFee;
+        address feeRecipient;
+        address owner;
+        uint256 activeProviderCap;
+        address sender;
+    }
+
     function run() external returns (UniversalPoolArtMarketplace market, FameMarketplaceCheckout checkout) {
         _requireBase();
 
         Fame fame = Fame(payable(vm.envAddress("BASE_FAME_ADDRESS")));
         CreatorArtistMagic creatorMagic = CreatorArtistMagic(vm.envAddress("BASE_CREATOR_ARTIST_MAGIC_ADDRESS"));
-        address router = vm.envAddress("BASE_FAME_ROUTER_ADDRESS");
-        address usdc = vm.envAddress("BASE_USDC_ADDRESS");
-        address weth = vm.envAddress("BASE_WETH_ADDRESS");
-        address deployer = vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_DEPLOYER");
-        address owner = vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_OWNER");
-        address feeRecipient = vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT");
+        DeploymentConfig memory config = DeploymentConfig({
+            router: vm.envAddress("BASE_FAME_ROUTER_ADDRESS"),
+            usdc: vm.envAddress("BASE_USDC_ADDRESS"),
+            weth: vm.envAddress("BASE_WETH_ADDRESS"),
+            communityFee: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE"),
+            providerFee: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE"),
+            feeRecipient: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
+            owner: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_OWNER"),
+            activeProviderCap: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP"),
+            sender: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_DEPLOYER")
+        });
         address futureOwner = vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_FUTURE_OWNER");
-        uint256 premium = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PREMIUM");
 
         _checkAddress("fame", BASE_FAME, address(fame));
         _checkAddress("mirror", BASE_MIRROR, address(fame.fameMirror()));
         _checkAddress("creatorMagic", BASE_CREATOR_MAGIC, address(creatorMagic));
         _checkAddress("childRenderer", BASE_CHILD_RENDERER, address(creatorMagic.childRenderer()));
-        _checkAddress("deployer", EXPECTED_DEPLOYER, deployer);
-        _checkAddress("owner", EXPECTED_DEPLOYER, owner);
-        _checkAddress("feeRecipient", EXPECTED_SAFE, feeRecipient);
+        _checkAddress("deployer", EXPECTED_DEPLOYER, config.sender);
+        _checkAddress("owner", EXPECTED_DEPLOYER, config.owner);
+        _checkAddress("feeRecipient", EXPECTED_SAFE, config.feeRecipient);
         _checkAddress("futureOwner", EXPECTED_SAFE, futureOwner);
-        if (premium != EXPECTED_PREMIUM) {
-            revert ValueMismatch("premium", EXPECTED_PREMIUM, premium);
+        uint256 maximumFee = fame.unit() / 10;
+        if (config.communityFee > maximumFee) {
+            revert ValueMismatch("communityFee.max", maximumFee, config.communityFee);
         }
+        if (config.providerFee > maximumFee) revert ValueMismatch("providerFee.max", maximumFee, config.providerFee);
+        if (config.activeProviderCap == 0) revert ValueMismatch("activeProviderCap", 1, config.activeProviderCap);
 
         new ValidateFameRouterBase().run();
-        _validateStack(fame, creatorMagic, router, feeRecipient, deployer);
-        (market, checkout) =
-            _deployMarketplaceStack(fame, creatorMagic, router, usdc, weth, premium, feeRecipient, owner, deployer);
+        _validateStack(fame, creatorMagic, config.router, config.feeRecipient, config.sender);
+        (market, checkout) = _deployMarketplaceStack(fame, creatorMagic, config);
     }
 
-    function deployMarketplaceStack(
-        Fame fame,
-        CreatorArtistMagic creatorMagic,
-        address router,
-        address usdc,
-        address weth,
-        uint256 premium,
-        address feeRecipient,
-        address owner,
-        address sender
-    ) public returns (UniversalPoolArtMarketplace market, FameMarketplaceCheckout checkout) {
+    function deployMarketplaceStack(Fame fame, CreatorArtistMagic creatorMagic, DeploymentConfig memory config)
+        public
+        returns (UniversalPoolArtMarketplace market, FameMarketplaceCheckout checkout)
+    {
         _requireBase();
-        _validateStack(fame, creatorMagic, router, feeRecipient, sender);
-        if (owner != sender) revert ConfigurationMismatch("owner", sender, owner);
-        (market, checkout) =
-            _deployMarketplaceStack(fame, creatorMagic, router, usdc, weth, premium, feeRecipient, owner, sender);
+        _validateStack(fame, creatorMagic, config.router, config.feeRecipient, config.sender);
+        if (config.owner != config.sender) revert ConfigurationMismatch("owner", config.sender, config.owner);
+        (market, checkout) = _deployMarketplaceStack(fame, creatorMagic, config);
     }
 
-    function _deployMarketplaceStack(
-        Fame fame,
-        CreatorArtistMagic creatorMagic,
-        address router,
-        address usdc,
-        address weth,
-        uint256 premium,
-        address feeRecipient,
-        address owner,
-        address sender
-    ) internal returns (UniversalPoolArtMarketplace market, FameMarketplaceCheckout checkout) {
-        vm.startBroadcast(sender);
+    function _deployMarketplaceStack(Fame fame, CreatorArtistMagic creatorMagic, DeploymentConfig memory config)
+        internal
+        returns (UniversalPoolArtMarketplace market, FameMarketplaceCheckout checkout)
+    {
+        vm.startBroadcast(config.sender);
         market = new UniversalPoolArtMarketplace(
-            payable(address(fame)), address(creatorMagic), premium, feeRecipient, owner
+            payable(address(fame)),
+            address(creatorMagic),
+            config.communityFee,
+            config.providerFee,
+            config.feeRecipient,
+            config.owner,
+            config.activeProviderCap
         );
-        checkout = new FameMarketplaceCheckout(router, address(market), payable(address(fame)), usdc, weth);
+        checkout = new FameMarketplaceCheckout(
+            config.router, address(market), payable(address(fame)), config.usdc, config.weth
+        );
         market.setAuthorizedCheckout(address(checkout));
         vm.stopBroadcast();
     }

@@ -16,6 +16,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
     uint256 internal constant REQUIRED_INITIAL_INVENTORY = 3;
+    uint256 internal constant EXPECTED_MAX_INVENTORY_BATCH_SIZE = 8;
 
     enum DeploymentPrefix {
         None,
@@ -32,7 +33,9 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         CreatorArtistMagic creatorMagic;
         address owner;
         address feeRecipient;
-        uint256 premium;
+        uint256 communityFee;
+        uint256 providerFee;
+        uint256 activeProviderCap;
         uint256 minimumInventory;
         uint256 expectedNonce;
     }
@@ -44,6 +47,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     error CanonicalStackMismatch();
     error InvalidOwner(address owner);
     error InvalidPremium(uint256 premium);
+    error InvalidActiveProviderCap(uint256 cap);
     error InvalidMinimumInventory(uint256 expected, uint256 actual);
     error FeeRecipientNotSkippingNFT(address recipient);
     error InsufficientSeedBalance(uint256 required, uint256 available);
@@ -77,7 +81,9 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
                 inputs.creatorMagic,
                 inputs.owner,
                 inputs.feeRecipient,
-                inputs.premium,
+                inputs.communityFee,
+                inputs.providerFee,
+                inputs.activeProviderCap,
                 inputs.minimumInventory
             );
         }
@@ -94,9 +100,11 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
             market = new UniversalPoolArtMarketplace(
                 payable(address(inputs.fame)),
                 address(inputs.creatorMagic),
-                inputs.premium,
+                inputs.communityFee,
+                inputs.providerFee,
                 inputs.feeRecipient,
-                inputs.owner
+                inputs.owner,
+                inputs.activeProviderCap
             );
         }
         if (!inputs.creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE)) {
@@ -120,14 +128,21 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         inputs.creatorMagic = CreatorArtistMagic(vm.envAddress("BASE_SEPOLIA_CREATOR_ARTIST_MAGIC_ADDRESS"));
         inputs.owner = vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER");
         inputs.feeRecipient = vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT");
-        inputs.premium = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM");
+        inputs.communityFee = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE");
+        inputs.providerFee = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PROVIDER_FEE");
+        inputs.activeProviderCap = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP");
         inputs.minimumInventory = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY");
         inputs.expectedNonce = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_EXPECTED_DEPLOYER_NONCE");
         _validateMinimumInventory(inputs.minimumInventory);
 
         _validateInputs(
-            inputs.fame, inputs.creatorMagic, inputs.deployer, inputs.owner, inputs.feeRecipient, inputs.premium
+            inputs.fame, inputs.creatorMagic, inputs.deployer, inputs.owner, inputs.feeRecipient, inputs.communityFee
         );
+        uint256 maximumFee = inputs.fame.unit() / 10;
+        if (inputs.providerFee > maximumFee) revert InvalidPremium(inputs.providerFee);
+        if (inputs.activeProviderCap == 0 || inputs.activeProviderCap > 888) {
+            revert InvalidActiveProviderCap(inputs.activeProviderCap);
+        }
     }
 
     function deploymentPrefix(
@@ -136,11 +151,22 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         CreatorArtistMagic creatorMagic,
         address expectedOwner,
         address expectedFeeRecipient,
-        uint256 expectedPremium,
+        uint256 expectedCommunityFee,
+        uint256 expectedProviderFee,
+        uint256 expectedActiveProviderCap,
         uint256 minimumInventory
     ) public view returns (DeploymentPrefix prefix, uint256 inventory) {
         _validateMinimumInventory(minimumInventory);
-        _validateExistingCore(market, fame, creatorMagic, expectedOwner, expectedFeeRecipient, expectedPremium);
+        _validateExistingCore(
+            market,
+            fame,
+            creatorMagic,
+            expectedOwner,
+            expectedFeeRecipient,
+            expectedCommunityFee,
+            expectedProviderFee,
+            expectedActiveProviderCap
+        );
 
         bool hasBanisher = creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE);
         inventory = market.inventory();
@@ -158,7 +184,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         address deployer,
         address owner,
         address feeRecipient,
-        uint256 premium
+        uint256 communityFee
     ) internal view {
         if (
             address(fame) != BASE_SEPOLIA_FAME || address(fame.fameMirror()) != BASE_SEPOLIA_MIRROR
@@ -169,7 +195,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
             revert CanonicalStackMismatch();
         }
         if (owner == address(0) || owner != deployer) revert InvalidOwner(owner);
-        if (premium == 0 || premium > type(uint96).max) revert InvalidPremium(premium);
+        if (communityFee > fame.unit() / 10) revert InvalidPremium(communityFee);
         if (!fame.getSkipNFT(feeRecipient)) {
             revert FeeRecipientNotSkippingNFT(feeRecipient);
         }
@@ -187,8 +213,18 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         CreatorArtistMagic creatorMagic,
         address expectedOwner,
         address expectedFeeRecipient,
-        uint256 expectedPremium
+        uint256 expectedCommunityFee,
+        uint256 expectedProviderFee,
+        uint256 expectedActiveProviderCap
     ) internal view {
+        (bool batchSizeRead, bytes memory batchSizeData) =
+            address(market).staticcall(abi.encodeWithSignature("MAX_INVENTORY_BATCH_SIZE()"));
+        if (
+            !batchSizeRead || batchSizeData.length != 32
+                || abi.decode(batchSizeData, (uint256)) != EXPECTED_MAX_INVENTORY_BATCH_SIZE
+        ) {
+            revert ExistingDeploymentMismatch("maxInventoryBatchSize");
+        }
         if (
             address(market.fame()) != address(fame) || address(market.mirror()) != address(fame.fameMirror())
                 || address(market.creatorMagic()) != address(creatorMagic)
@@ -201,8 +237,14 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         if (market.feeRecipient() != expectedFeeRecipient) {
             revert ExistingDeploymentMismatch("feeRecipient");
         }
-        if (market.premium() != expectedPremium) {
-            revert ExistingDeploymentMismatch("premium");
+        if (market.communityFee() != expectedCommunityFee) {
+            revert ExistingDeploymentMismatch("communityFee");
+        }
+        if (market.providerFee() != expectedProviderFee) {
+            revert ExistingDeploymentMismatch("providerFee");
+        }
+        if (market.activeProviderCap() != expectedActiveProviderCap) {
+            revert ExistingDeploymentMismatch("activeProviderCap");
         }
         if (!market.paused()) revert ExistingDeploymentActivated(address(market));
         if (fame.getSkipNFT(address(market))) {

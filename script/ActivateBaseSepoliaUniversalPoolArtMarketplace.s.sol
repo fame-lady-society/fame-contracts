@@ -26,7 +26,9 @@ contract ActivateBaseSepoliaUniversalPoolArtMarketplace is Script {
             UniversalPoolArtMarketplace(vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ADDRESS"));
         address owner = vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER");
         address feeRecipient = vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT");
-        uint256 premium = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM");
+        uint256 communityFee = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE");
+        uint256 providerFee = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PROVIDER_FEE");
+        uint256 activeProviderCap = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP");
         uint256 minimumInventory = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY");
 
         ValidateBaseSepoliaUniversalPoolArtMarketplace validator = new ValidateBaseSepoliaUniversalPoolArtMarketplace();
@@ -40,7 +42,9 @@ contract ActivateBaseSepoliaUniversalPoolArtMarketplace is Script {
             ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
                 owner: owner,
                 feeRecipient: feeRecipient,
-                premium: premium,
+                communityFee: communityFee,
+                providerFee: providerFee,
+                activeProviderCap: activeProviderCap,
                 minimumInventory: minimumInventory,
                 paused: market.paused()
             });

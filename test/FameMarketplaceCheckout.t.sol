@@ -30,6 +30,64 @@ contract RejectingNativeCheckoutBuyer is IERC721Receiver {
 }
 
 contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
+    function testRoutedCheckoutPaysProvidersAndLeavesNoPayoutResidue() public {
+        address provider = address(0xA001);
+        fame.transfer(provider, fame.unit());
+        uint256 depositedId = _ownedTokenAt(provider, 0);
+        vm.startPrank(provider);
+        mirror.approve(address(market), depositedId);
+        market.depositInventory(depositedId);
+        vm.stopPrank();
+        market.setCommunityFee(11);
+        market.setProviderFee(13);
+
+        uint256 shellId = _ownedTokenAt(address(market), 0);
+        bytes32 artwork = market.artworkHash(shellId);
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, _marketCharge());
+        uint256 communityBefore = fame.balanceOf(feeRecipient);
+        uint256 maxPremium = market.premium();
+        market.unpause();
+
+        vm.prank(buyer);
+        (uint256 routerOutput, uint256 marketCharge,,) = checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
+
+        assertEq(routerOutput, fame.unit() + 24);
+        assertEq(marketCharge, fame.unit() + 24);
+        assertEq(fame.balanceOf(provider), 13);
+        assertEq(fame.balanceOf(feeRecipient) - communityBefore, 11);
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(fame.allowance(address(checkout), address(market)), 0);
+    }
+
+    function testCommunityRecipientCheckoutPaysProviderDustAndWaivesOnlyCommunityFee() public {
+        address firstProvider = address(0xA002);
+        address secondProvider = address(0xA003);
+        _depositUnits(market, firstProvider, 1);
+        _depositUnits(market, secondProvider, 1);
+        market.setCommunityFee(11);
+        market.setProviderFee(13);
+
+        uint256 shellId = _ownedTokenAt(address(market), 0);
+        bytes32 artwork = market.artworkHash(shellId);
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, _marketCharge());
+        usdc.mint(feeRecipient, 100e6);
+        vm.prank(feeRecipient);
+        usdc.approve(address(checkout), 100e6);
+        uint256 communityBefore = fame.balanceOf(feeRecipient);
+        uint256 maxPremium = market.premium();
+        market.unpause();
+
+        vm.prank(feeRecipient);
+        (, uint256 marketCharge, uint256 fameRefund,) = checkout.checkoutHeld(route, shellId, artwork, maxPremium, 0);
+
+        assertEq(marketCharge, fame.unit() + 13);
+        assertEq(fame.balanceOf(firstProvider), 6);
+        assertEq(fame.balanceOf(secondProvider), 6);
+        assertEq(fame.balanceOf(feeRecipient) - communityBefore, fame.unit() + fameRefund + 1);
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(fame.allowance(address(checkout), address(market)), 0);
+    }
+
     function testConstructorBindsStackAndEnablesSkipNFT() public view {
         assertEq(address(checkout.router()), address(router));
         assertEq(address(checkout.market()), address(market));
@@ -177,7 +235,7 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         bytes32 artwork = market.artworkHash(shellId);
         uint256 quotedPremium = market.premium();
         FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, fame.unit() + quotedPremium);
-        market.setPremium(quotedPremium / 2);
+        market.setCommunityFee(quotedPremium / 2);
         market.unpause();
 
         uint256 buyerFameBefore = fame.balanceOf(buyer);

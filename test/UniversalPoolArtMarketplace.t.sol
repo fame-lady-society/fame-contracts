@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ERC721} from "@openzeppelin5/contracts/token/ERC721/ERC721.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.sol";
 import {Fame} from "../src/Fame.sol";
 import {UniversalPoolArtMarketplaceTestBase} from "./helpers/UniversalPoolArtMarketplaceTestBase.sol";
@@ -46,12 +47,11 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(market.artworkHash(7), keccak256(bytes(creatorMagic.tokenURI(7))));
     }
 
-    function testConstructorRejectsInvalidPremiumOwnerAndFeeRecipient() public {
-        vm.expectRevert(UniversalPoolArtMarketplace.ZeroPremium.selector);
-        _deployMarket(0, feeRecipient, owner);
-
-        uint256 oversized = uint256(type(uint96).max) + 1;
-        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.PremiumTooLarge.selector, oversized));
+    function testConstructorRejectsInvalidFeeOwnerAndFeeRecipient() public {
+        uint256 oversized = fame.unit() / 10 + 1;
+        vm.expectRevert(
+            abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeTooLarge.selector, oversized, fame.unit() / 10)
+        );
         _deployMarket(oversized, feeRecipient, owner);
 
         vm.expectRevert(UniversalPoolArtMarketplace.ZeroAddress.selector);
@@ -66,19 +66,25 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
 
     function testConstructorRejectsInvalidDependenciesAndStack() public {
         vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.InvalidDependency.selector, address(0)));
-        new UniversalPoolArtMarketplace(payable(address(0)), address(creatorMagic), 1, feeRecipient, owner);
+        new UniversalPoolArtMarketplace(
+            payable(address(0)), address(creatorMagic), 1, 0, feeRecipient, owner, TEST_ACTIVE_PROVIDER_CAP
+        );
 
         vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.InvalidDependency.selector, buyer));
-        new UniversalPoolArtMarketplace(payable(buyer), address(creatorMagic), 1, feeRecipient, owner);
+        new UniversalPoolArtMarketplace(
+            payable(buyer), address(creatorMagic), 1, 0, feeRecipient, owner, TEST_ACTIVE_PROVIDER_CAP
+        );
 
         Fame otherFame = new Fame("Other", "OTHER", address(0));
         vm.expectRevert(UniversalPoolArtMarketplace.StackMismatch.selector);
-        new UniversalPoolArtMarketplace(payable(address(otherFame)), address(creatorMagic), 1, feeRecipient, owner);
+        new UniversalPoolArtMarketplace(
+            payable(address(otherFame)), address(creatorMagic), 1, 0, feeRecipient, owner, TEST_ACTIVE_PROVIDER_CAP
+        );
     }
 
     function testOwnerUpdatesGlobalConfigurationAndPause() public {
-        uint256 updatedPremium = fame.unit() / 5;
-        market.setPremium(updatedPremium);
+        uint256 updatedPremium = fame.unit() / 10;
+        market.setCommunityFee(updatedPremium);
         assertEq(market.premium(), updatedPremium);
 
         address updatedRecipient = address(0x2001);
@@ -96,19 +102,21 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
     function testOwnerUpdatesRejectInvalidValuesAndUnauthorizedCaller() public {
         vm.startPrank(buyer);
         vm.expectRevert();
-        market.setPremium(1);
+        market.setCommunityFee(1);
         vm.expectRevert();
         market.setFeeRecipient(feeRecipient);
         vm.expectRevert();
         market.unpause();
         vm.stopPrank();
 
-        vm.expectRevert(UniversalPoolArtMarketplace.ZeroPremium.selector);
-        market.setPremium(0);
+        market.setCommunityFee(0);
+        assertEq(market.communityFee(), 0);
 
-        uint256 oversized = uint256(type(uint96).max) + 1;
-        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.PremiumTooLarge.selector, oversized));
-        market.setPremium(oversized);
+        uint256 oversized = fame.unit() / 10 + 1;
+        vm.expectRevert(
+            abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeTooLarge.selector, oversized, fame.unit() / 10)
+        );
+        market.setCommunityFee(oversized);
 
         vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeRecipientNotSkippingNFT.selector, buyer));
         market.setFeeRecipient(buyer);
@@ -308,7 +316,7 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         bytes32 expectedArtwork = market.artworkHash(shellId);
         uint256 originalPremium = market.premium();
         uint256 lowerPremium = originalPremium / 2;
-        market.setPremium(lowerPremium);
+        market.setCommunityFee(lowerPremium);
         _fundAndApprove(buyer, market, 3 * fame.unit());
         market.unpause();
 

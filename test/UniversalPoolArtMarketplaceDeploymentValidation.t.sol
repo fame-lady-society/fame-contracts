@@ -79,12 +79,12 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
         vm.expectRevert(
             abi.encodeWithSelector(
                 ValidateBaseSepoliaUniversalPoolArtMarketplace.ValueMismatch.selector,
-                "marketplace.premium",
-                configuredPremium + 1,
+                "marketplace.communityFee",
+                configuredPremium - 1,
                 configuredPremium
             )
         );
-        _validateMarket(market, owner, feeRecipient, configuredPremium + 1, INITIAL_INVENTORY, true);
+        _validateMarket(market, owner, feeRecipient, configuredPremium - 1, INITIAL_INVENTORY, true);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -97,15 +97,8 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
         _validateMarket(market, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY, false);
     }
 
-    function testValidationRejectsInvalidPremiumExpectation() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ValidateBaseSepoliaUniversalPoolArtMarketplace.PremiumOutOfRange.selector, uint256(0)
-            )
-        );
-        _validateMarket(market, owner, feeRecipient, 0, INITIAL_INVENTORY, true);
-
-        uint256 oversized = uint256(type(uint96).max) + 1;
+    function testValidationRejectsOutOfRangeFeeExpectation() public {
+        uint256 oversized = fame.unit() / 10 + 1;
         vm.expectRevert(
             abi.encodeWithSelector(ValidateBaseSepoliaUniversalPoolArtMarketplace.PremiumOutOfRange.selector, oversized)
         );
@@ -218,49 +211,38 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
 
     function testDeploymentPrefixClassifiesEverySafeContinuation() public {
         uint256 configuredPremium = market.premium();
-        (DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix prefix, uint256 inventory) = deployer.deploymentPrefix(
-            market, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY
-        );
+        (DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix prefix, uint256 inventory) =
+            _deploymentPrefix(market, configuredPremium, INITIAL_INVENTORY);
         assertEq(uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.ReadyPaused));
         assertEq(inventory, INITIAL_INVENTORY);
 
         UniversalPoolArtMarketplace partialMarket = _deployMarket(configuredPremium, feeRecipient, owner);
-        (prefix, inventory) = deployer.deploymentPrefix(
-            partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY
-        );
+        (prefix, inventory) = _deploymentPrefix(partialMarket, configuredPremium, INITIAL_INVENTORY);
         assertEq(uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.Deployed));
         assertEq(inventory, 0);
 
         creatorMagic.grantRoles(address(partialMarket), CREATOR_MAGIC_BANISHER_ROLE);
-        (prefix, inventory) = deployer.deploymentPrefix(
-            partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY
-        );
+        (prefix, inventory) = _deploymentPrefix(partialMarket, configuredPremium, INITIAL_INVENTORY);
         assertEq(
             uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.BanisherGranted)
         );
 
         fame.transfer(address(partialMarket), fame.unit());
-        (prefix, inventory) = deployer.deploymentPrefix(
-            partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY
-        );
+        (prefix, inventory) = _deploymentPrefix(partialMarket, configuredPremium, INITIAL_INVENTORY);
         assertEq(
             uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.PartiallySeeded)
         );
         assertEq(inventory, 1);
 
         fame.transfer(address(partialMarket), fame.unit());
-        (prefix, inventory) = deployer.deploymentPrefix(
-            partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY
-        );
+        (prefix, inventory) = _deploymentPrefix(partialMarket, configuredPremium, INITIAL_INVENTORY);
         assertEq(
             uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.PartiallySeeded)
         );
         assertEq(inventory, INITIAL_INVENTORY - 1);
 
         fame.transfer(address(partialMarket), fame.unit());
-        (prefix, inventory) = deployer.deploymentPrefix(
-            partialMarket, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY
-        );
+        (prefix, inventory) = _deploymentPrefix(partialMarket, configuredPremium, INITIAL_INVENTORY);
         assertEq(uint256(prefix), uint256(DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix.ReadyPaused));
         assertEq(inventory, INITIAL_INVENTORY);
     }
@@ -274,9 +256,71 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 INITIAL_INVENTORY - 1
             )
         );
-        deployer.deploymentPrefix(
-            market, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY - 1
+        _deploymentPrefix(market, configuredPremium, INITIAL_INVENTORY - 1);
+    }
+
+    function testDeploymentPrefixRejectsProviderFeeAndCapDrift() public {
+        uint256 configuredCommunityFee = market.communityFee();
+        UniversalPoolArtMarketplace providerFeeDrift =
+            _deployMarketWithFees(configuredCommunityFee, 1, feeRecipient, owner, TEST_ACTIVE_PROVIDER_CAP);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployBaseSepoliaUniversalPoolArtMarketplace.ExistingDeploymentMismatch.selector, "providerFee"
+            )
         );
+        deployer.deploymentPrefix(
+            providerFeeDrift,
+            fame,
+            creatorMagic,
+            owner,
+            feeRecipient,
+            configuredCommunityFee,
+            0,
+            TEST_ACTIVE_PROVIDER_CAP,
+            INITIAL_INVENTORY
+        );
+
+        UniversalPoolArtMarketplace capDrift = _deployMarketWithFees(configuredCommunityFee, 0, feeRecipient, owner, 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployBaseSepoliaUniversalPoolArtMarketplace.ExistingDeploymentMismatch.selector, "activeProviderCap"
+            )
+        );
+        deployer.deploymentPrefix(
+            capDrift,
+            fame,
+            creatorMagic,
+            owner,
+            feeRecipient,
+            configuredCommunityFee,
+            0,
+            TEST_ACTIVE_PROVIDER_CAP,
+            INITIAL_INVENTORY
+        );
+    }
+
+    function testDeploymentPrefixRejectsMissingOrMismatchedBatchApi() public {
+        bytes memory batchSizeCall = abi.encodeWithSignature("MAX_INVENTORY_BATCH_SIZE()");
+        uint256 configuredProviderFee = market.providerFee();
+
+        vm.mockCall(address(market), batchSizeCall, abi.encode(uint256(7)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployBaseSepoliaUniversalPoolArtMarketplace.ExistingDeploymentMismatch.selector,
+                "maxInventoryBatchSize"
+            )
+        );
+        _deploymentPrefix(market, configuredProviderFee, INITIAL_INVENTORY);
+
+        vm.clearMockedCalls();
+        vm.mockCallRevert(address(market), batchSizeCall, bytes("missing getter"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeployBaseSepoliaUniversalPoolArtMarketplace.ExistingDeploymentMismatch.selector,
+                "maxInventoryBatchSize"
+            )
+        );
+        _deploymentPrefix(market, configuredProviderFee, INITIAL_INVENTORY);
     }
 
     function testDeploymentPrefixRejectsActivationAndBroadAuthority() public {
@@ -287,7 +331,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 DeployBaseSepoliaUniversalPoolArtMarketplace.ExistingDeploymentActivated.selector, address(market)
             )
         );
-        deployer.deploymentPrefix(market, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY);
+        _deploymentPrefix(market, configuredPremium, INITIAL_INVENTORY);
 
         market.pause();
         creatorMagic.grantRoles(address(market), CREATOR_MAGIC_CREATOR_ROLE);
@@ -297,11 +341,29 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
                 CREATOR_MAGIC_CREATOR_ROLE
             )
         );
-        deployer.deploymentPrefix(market, fame, creatorMagic, owner, feeRecipient, configuredPremium, INITIAL_INVENTORY);
+        _deploymentPrefix(market, configuredPremium, INITIAL_INVENTORY);
     }
 
     function _validate(bool expectedPaused) internal view {
         _validateMarket(market, owner, feeRecipient, market.premium(), INITIAL_INVENTORY, expectedPaused);
+    }
+
+    function _deploymentPrefix(
+        UniversalPoolArtMarketplace target,
+        uint256 expectedCommunityFee,
+        uint256 minimumInventory
+    ) internal view returns (DeployBaseSepoliaUniversalPoolArtMarketplace.DeploymentPrefix prefix, uint256 inventory) {
+        return deployer.deploymentPrefix(
+            target,
+            fame,
+            creatorMagic,
+            owner,
+            feeRecipient,
+            expectedCommunityFee,
+            0,
+            TEST_ACTIVE_PROVIDER_CAP,
+            minimumInventory
+        );
     }
 
     function _validateMarket(
@@ -320,7 +382,9 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
             ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceExpectations({
                 owner: expectedOwner,
                 feeRecipient: expectedFeeRecipient,
-                premium: expectedPremium,
+                communityFee: expectedPremium,
+                providerFee: 0,
+                activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
                 minimumInventory: minimumInventory,
                 paused: expectedPaused
             })

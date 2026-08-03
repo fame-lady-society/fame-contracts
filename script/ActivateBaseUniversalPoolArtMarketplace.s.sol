@@ -38,22 +38,9 @@ contract ActivateBaseUniversalPoolArtMarketplace is Script {
             vm.envAddress("BASE_WETH_ADDRESS")
         );
         ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations memory expected =
-            ValidateBaseUniversalPoolArtMarketplace.MarketplaceExpectations({
-                owner: owner,
-                feeRecipient: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
-                premium: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PREMIUM"),
-                inventory: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_INVENTORY"),
-                paused: true
-            });
-
+            validator.configuredMarketplaceExpectations(owner, true);
         ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations memory checkoutExpected =
-            ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
-                router: vm.envAddress("BASE_FAME_ROUTER_ADDRESS"),
-                usdc: vm.envAddress("BASE_USDC_ADDRESS"),
-                weth: vm.envAddress("BASE_WETH_ADDRESS"),
-                routerFeeRecipient: vm.envAddress("BASE_FAME_ROUTER_FEE_RECIPIENT"),
-                routerFeePpm: vm.envUint("BASE_FAME_ROUTER_FEE_PPM")
-            });
+            validator.configuredCheckoutExpectations();
 
         validator.validateMarketplaceStack(
             fame, mirror, creatorMagic, market, checkout, BASE_CHILD_RENDERER, expected, checkoutExpected

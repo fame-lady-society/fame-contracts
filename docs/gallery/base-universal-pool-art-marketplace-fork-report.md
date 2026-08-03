@@ -1,6 +1,6 @@
 ---
 chain: base-fork
-status: operator-template
+status: ready-for-manual-provider-rehearsal
 contracts: UniversalPoolArtMarketplace + FameMarketplaceCheckout
 ---
 
@@ -11,6 +11,29 @@ that sends a transaction below must target the literal loopback RPC
 `http://127.0.0.1:8545`. Never substitute a Base RPC, load a production key,
 commit the temporary marketplace or checkout address, or preserve Foundry
 `broadcast/` output.
+
+This runbook now includes the Society inventory-provider acceptance pass. The
+contract release suite must be green before starting Anvil:
+
+```sh
+set -a
+source config/fame-public.env
+set +a
+
+doppler run --config prd -- sh -c '
+  BASE_RPC="$RPC_URL" FOUNDRY_PROFILE=universal_marketplace \
+    forge test --isolate \
+      --match-contract "^(UniversalPoolArtMarketplaceForkBaseTest|FameMarketplaceCheckoutForkBaseTest|UniversalPoolArtMarketplaceContentionBaseTest)$" \
+      --summary
+'
+```
+
+The required automated result includes the configured 88-provider all-mint
+checkout, the full 888-ID free-exit scan, and
+`testLatestBaseReleaseLifecycleDeploysValidatesActivatesAndHandsOff`, which now
+credits the maximum eight-token provider batch before validation and handoff. A
+skipped or RPC-less run is not green. These are fork simulations only; they do
+not authorize a Base transaction.
 
 Run Anvil, the Forge lifecycle, optional wagmi generation, and `fls-www` as
 independent commands. If the page reloads while a transaction is pending, a
@@ -172,12 +195,15 @@ export BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=false
 forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
   --rpc-url "$LOCAL_BASE_RPC"
 
-cast rpc anvil_stopImpersonatingAccount "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-The successful prefix is one active shell, deployer ownership, the configured
-Safe as fee recipient, and `BANISHER` as the marketplace's only CreatorMagic
-role. There is no Safe ownership handoff in this run.
+The successful prefix is at least one active shell, deployer ownership, the
+configured Safe as fee recipient, the configured immutable provider cap of
+`88`, and `BANISHER` as the marketplace's only CreatorMagic role. Validation
+also checks the live provider array, indexes, and unit total rather than
+requiring an empty provider set, because deposits and direct donations remain
+open while checkout is paused. Keep deployer impersonation available until the
+final paused ownership-handoff rehearsal in section 8.
 
 ## 6. Start `fls-www` separately
 
@@ -330,7 +356,161 @@ cast call "$BASE_FAME_NFT_ADDRESS" \
 Both must return zero. Wallet rejection, simulation failure, or mined revert is
 recorded once; do not retry automatically or invent a recovery flow.
 
-## 8. Evidence and teardown
+## 8. Rehearse providers, checkout-only pause, and ownership handoff
+
+Use two disposable provider wallets. Give provider A two real Society NFTs and
+provider B one using the owner-transfer procedure in section 7, and give both
+wallets Anvil ETH. Keep the provider wallets distinct from the buyer and from
+the Society Safe. Provider A uses the frontend-friendly batch path: one
+`setApprovalForAll` approval followed by one atomic `depositInventoryBatch`
+transaction. Provider B preserves evidence for the original single-token path:
+
+```sh
+export FORK_PROVIDER_A="<first disposable provider wallet>"
+export FORK_PROVIDER_B="<second disposable provider wallet>"
+export PROVIDER_A_ID_1="<first Society ID transferred to provider A>"
+export PROVIDER_A_ID_2="<second Society ID transferred to provider A>"
+export PROVIDER_B_ID="<Society ID transferred to provider B>"
+
+for PROVIDER in "$FORK_PROVIDER_A" "$FORK_PROVIDER_B"; do
+  cast rpc anvil_setBalance "$PROVIDER" 0x56BC75E2D63100000 --rpc-url "$LOCAL_BASE_RPC"
+  cast rpc anvil_impersonateAccount "$PROVIDER" --rpc-url "$LOCAL_BASE_RPC"
+done
+
+cast send "$BASE_FAME_NFT_ADDRESS" \
+  "setApprovalForAll(address,bool)" \
+  "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" true \
+  --from "$FORK_PROVIDER_A" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "depositInventoryBatch(uint256[])" "[$PROVIDER_A_ID_1,$PROVIDER_A_ID_2]" \
+  --from "$FORK_PROVIDER_A" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+
+cast send "$BASE_FAME_NFT_ADDRESS" \
+  "approve(address,uint256)" \
+  "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "$PROVIDER_B_ID" \
+  --from "$FORK_PROVIDER_B" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "depositInventory(uint256)" "$PROVIDER_B_ID" \
+  --from "$FORK_PROVIDER_B" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Read back both direct positions. Provider A must report two units, provider B
+must report one, and both must have a nonzero index. The active-provider count
+must be `2`, while total provider units must be `3`:
+
+```sh
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "providerPosition(address)(uint256,uint256)" "$FORK_PROVIDER_A" \
+  --rpc-url "$LOCAL_BASE_RPC"
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "providerPosition(address)(uint256,uint256)" "$FORK_PROVIDER_B" \
+  --rpc-url "$LOCAL_BASE_RPC"
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "activeProviderCount()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "totalProviderUnits()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
+```
+
+For visible payout evidence on the disposable fork, set a nonzero provider fee
+from the deployer, then complete one normal browser checkout from section 6.
+`1,000 FAME` is well below the 10% component cap:
+
+```sh
+export FORK_PROVIDER_FEE=1000000000000000000000
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "setProviderFee(uint256)" "$FORK_PROVIDER_FEE" \
+  --from "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
+  --unlocked --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Before and after checkout, record both provider FAME balances, the Safe balance,
+`premium()`, inventory, and both positions. The provider component must split
+2:1 according to the positions, provider rounding dust and the community
+component must reach the Safe, the checkout must retain no FAME or allowance,
+and neither position may change.
+
+Next, prove selected exit has no self-rebate. Use the checkout helper to scan
+the marketplace's current live IDs after the purchase, select any returned ID,
+and fund provider A with exactly the current premium on Anvil:
+
+```sh
+cast call "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" \
+  "ownedSocietyTokenIds(address,uint256,uint256)(uint256[])" \
+  "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" 1 889 \
+  --rpc-url "$LOCAL_BASE_RPC"
+
+export SELECTED_POOL_ID="<one ID returned above>"
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "premium()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
+export CURRENT_PREMIUM="<raw uint256 before the bracketed display value>"
+
+cast rpc anvil_impersonateAccount "$BASE_UNIVERSAL_MARKETPLACE_SEED_SOURCE" --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_FAME_ADDRESS" \
+  "transfer(address,uint256)(bool)" "$FORK_PROVIDER_A" "$CURRENT_PREMIUM" \
+  --from "$BASE_UNIVERSAL_MARKETPLACE_SEED_SOURCE" \
+  --unlocked --rpc-url "$LOCAL_BASE_RPC"
+cast rpc anvil_stopImpersonatingAccount "$BASE_UNIVERSAL_MARKETPLACE_SEED_SOURCE" --rpc-url "$LOCAL_BASE_RPC"
+
+cast send "$BASE_FAME_ADDRESS" \
+  "approve(address,uint256)(bool)" \
+  "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "$CURRENT_PREMIUM" \
+  --from "$FORK_PROVIDER_A" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "withdrawInventorySelected(uint256,uint256)" \
+  "$SELECTED_POOL_ID" "$CURRENT_PREMIUM" \
+  --from "$FORK_PROVIDER_A" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Provider A must remain with exactly one credited unit. Its exiting unit is
+removed before distribution and its wallet receives no provider-fee rebate;
+provider B receives its one-unit weighted share. The Safe receives the
+community component, provider A's excluded share, and any rounding dust.
+
+Pause checkout and prove custody remains open. Both providers' free exits must
+succeed while paused and return whichever live IDs the contract selects. Each
+exit removes the wallet's final position; together they reduce the
+active-provider count to zero:
+
+```sh
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "pause()" \
+  --from "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
+  --unlocked --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "withdrawInventory()" \
+  --from "$FORK_PROVIDER_A" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "withdrawInventory()" \
+  --from "$FORK_PROVIDER_B" --unlocked --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Finally rehearse the one-way owner transition only on this disposable fork.
+CreatorArtistMagic ownership intentionally stays with the deployer; only the
+marketplace owner becomes the Society Safe:
+
+```sh
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "transferOwnership(address)" "$BASE_UNIVERSAL_MARKETPLACE_FUTURE_OWNER" \
+  --from "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
+  --unlocked --rpc-url "$LOCAL_BASE_RPC"
+
+export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_FUTURE_OWNER"
+export BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=true
+forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
+  --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Stop impersonating both provider wallets and the deployer after validation:
+
+```sh
+for PROVIDER in "$FORK_PROVIDER_A" "$FORK_PROVIDER_B"; do
+  cast rpc anvil_stopImpersonatingAccount "$PROVIDER" --rpc-url "$LOCAL_BASE_RPC"
+done
+cast rpc anvil_stopImpersonatingAccount "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Never copy the temporary addresses or transaction hashes into public deployment
+configuration.
+
+## 9. Evidence and teardown
 
 This template records concise run facts. It is not a persisted session journal,
 deployment manifest, or authorization for production.
@@ -344,6 +524,11 @@ deployment manifest, or authorization for production.
 | Paused deployment and checkout authorization | Passed on the disposable fork |
 | Paused validation | Passed |
 | Active validation | Passed |
+| Two direct provider positions, including a two-ID batch | Not run in this template yet |
+| Checkout provider payout split | Not run in this template yet |
+| Selected exit with no self-rebate | Not run in this template yet |
+| Free exit while checkout paused | Not run in this template yet |
+| Paused owner handoff to Society Safe | Automated fork gate passed; manual run pending |
 | Temporary addresses | Intentionally omitted; localhost fork only |
 | Direct FAME held purchase | Passed in the browser |
 | Native ETH pool checkout | Passed atomically; zero retained checkout balance |
@@ -385,6 +570,6 @@ wallet's normal Base RPC configuration, and close the shells containing the
 temporary address. Do not copy the address or Foundry `broadcast/` output into
 tracked configuration.
 
-Production inventory funding, the three-unit production transfer, live
+Production inventory funding and its exact transfer amount, live
 marketplace/checkout deployment, live activation and testing, and the later
 7-of-14 Safe ownership handoff are all deferred.

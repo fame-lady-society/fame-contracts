@@ -12,6 +12,7 @@ abstract contract UniversalPoolArtMarketplaceTestBase is Test {
     uint256 internal constant FAME_RENDERER_ROLE = 1;
     uint256 internal constant FAME_METADATA_ROLE = 2;
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 4;
+    uint256 internal constant TEST_ACTIVE_PROVIDER_CAP = 16;
 
     address internal owner = address(this);
     address internal buyer = address(0x1002);
@@ -53,8 +54,24 @@ abstract contract UniversalPoolArtMarketplaceTestBase is Test {
         internal
         returns (UniversalPoolArtMarketplace deployed)
     {
+        return _deployMarketWithFees(premium_, 0, feeRecipient_, owner_, TEST_ACTIVE_PROVIDER_CAP);
+    }
+
+    function _deployMarketWithFees(
+        uint256 communityFee_,
+        uint256 providerFee_,
+        address feeRecipient_,
+        address owner_,
+        uint256 providerCap_
+    ) internal returns (UniversalPoolArtMarketplace deployed) {
         deployed = new UniversalPoolArtMarketplace(
-            payable(address(fame)), address(creatorMagic), premium_, feeRecipient_, owner_
+            payable(address(fame)),
+            address(creatorMagic),
+            communityFee_,
+            providerFee_,
+            feeRecipient_,
+            owner_,
+            providerCap_
         );
     }
 
@@ -97,6 +114,36 @@ abstract contract UniversalPoolArtMarketplaceTestBase is Test {
         fame.transfer(account, amount);
         vm.prank(account);
         fame.approve(address(target), amount);
+    }
+
+    function _depositUnits(UniversalPoolArtMarketplace target, address provider, uint256 count) internal {
+        fame.transfer(provider, count * fame.unit());
+        vm.startPrank(provider);
+        for (uint256 i; i < count; ++i) {
+            uint256 tokenId = _ownedTokenAt(provider, 0);
+            mirror.approve(address(target), tokenId);
+            target.depositInventory(tokenId);
+        }
+        vm.stopPrank();
+    }
+
+    function _prepareBatch(address provider, uint256 count, UniversalPoolArtMarketplace target)
+        internal
+        returns (uint256[] memory tokenIds)
+    {
+        fame.transfer(provider, count * fame.unit());
+        tokenIds = _ownedTokenIds(provider, count);
+        vm.prank(provider);
+        mirror.setApprovalForAll(address(target), true);
+    }
+
+    function _ownedTokenIds(address account, uint256 count) internal view returns (uint256[] memory tokenIds) {
+        tokenIds = new uint256[](count);
+        uint256 found;
+        for (uint256 tokenId = 1; tokenId <= 888 && found < count; ++tokenId) {
+            if (mirror.ownerAt(tokenId) == account) tokenIds[found++] = tokenId;
+        }
+        if (found != count) revert("OWNED_TOKENS_NOT_FOUND");
     }
 
     function _ownedTokenAt(address account, uint256 index) internal view returns (uint256) {

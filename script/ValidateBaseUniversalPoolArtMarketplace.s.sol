@@ -19,14 +19,18 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
     address internal constant BASE_CREATOR_MAGIC = 0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F;
     address internal constant BASE_CHILD_RENDERER = 0x8091D00A25ebE87A2A1Ef19e1d33689FCAdC3fA5;
     uint256 internal constant EXPECTED_UNIT = 1_000_000 ether;
+    uint256 internal constant EXPECTED_MAX_INVENTORY_BATCH_SIZE = 8;
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
 
     struct MarketplaceExpectations {
         address owner;
+        address creatorMagicOwner;
         address feeRecipient;
-        uint256 premium;
-        uint256 inventory;
+        uint256 communityFee;
+        uint256 providerFee;
+        uint256 activeProviderCap;
+        uint256 minimumInventory;
         bool paused;
     }
 
@@ -85,21 +89,39 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
             market,
             checkout,
             BASE_CHILD_RENDERER,
-            MarketplaceExpectations({
-                owner: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_OWNER"),
-                feeRecipient: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
-                premium: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PREMIUM"),
-                inventory: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_INVENTORY"),
-                paused: vm.envBool("BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED")
-            }),
-            CheckoutExpectations({
-                router: vm.envAddress("BASE_FAME_ROUTER_ADDRESS"),
-                usdc: vm.envAddress("BASE_USDC_ADDRESS"),
-                weth: vm.envAddress("BASE_WETH_ADDRESS"),
-                routerFeeRecipient: vm.envAddress("BASE_FAME_ROUTER_FEE_RECIPIENT"),
-                routerFeePpm: vm.envUint("BASE_FAME_ROUTER_FEE_PPM")
-            })
+            configuredMarketplaceExpectations(
+                vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_OWNER"),
+                vm.envBool("BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED")
+            ),
+            configuredCheckoutExpectations()
         );
+    }
+
+    function configuredMarketplaceExpectations(address owner, bool paused)
+        public
+        view
+        returns (MarketplaceExpectations memory)
+    {
+        return MarketplaceExpectations({
+            owner: owner,
+            creatorMagicOwner: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"),
+            feeRecipient: vm.envAddress("BASE_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
+            communityFee: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE"),
+            providerFee: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE"),
+            activeProviderCap: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP"),
+            minimumInventory: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_INVENTORY"),
+            paused: paused
+        });
+    }
+
+    function configuredCheckoutExpectations() public view returns (CheckoutExpectations memory) {
+        return CheckoutExpectations({
+            router: vm.envAddress("BASE_FAME_ROUTER_ADDRESS"),
+            usdc: vm.envAddress("BASE_USDC_ADDRESS"),
+            weth: vm.envAddress("BASE_WETH_ADDRESS"),
+            routerFeeRecipient: vm.envAddress("BASE_FAME_ROUTER_FEE_RECIPIENT"),
+            routerFeePpm: vm.envUint("BASE_FAME_ROUTER_FEE_PPM")
+        });
     }
 
     function validateBaseCheckoutDependencies(
@@ -182,15 +204,22 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         _checkAddress("fame.renderer", address(creatorMagic), address(fame.renderer()));
         _checkAddress("creatorMagic.fame", address(fame), address(creatorMagic.fame()));
         _checkAddress("creatorMagic.childRenderer", expectedChildRenderer, address(creatorMagic.childRenderer()));
-        _checkAddress("creatorMagic.owner", expected.owner, creatorMagic.owner());
+        _checkAddress("creatorMagic.owner", expected.creatorMagicOwner, creatorMagic.owner());
         _checkAddress("marketplace.fame", address(fame), address(market.fame()));
         _checkAddress("marketplace.mirror", address(mirror), address(market.mirror()));
         _checkAddress("marketplace.creatorMagic", address(creatorMagic), address(market.creatorMagic()));
         _checkAddress("marketplace.owner", expected.owner, market.owner());
         _checkAddress("marketplace.feeRecipient", expected.feeRecipient, market.feeRecipient());
 
-        _checkValue("marketplace.premium", expected.premium, market.premium());
-        _checkValue("marketplace.inventory", expected.inventory, market.inventory());
+        _checkValue("marketplace.communityFee", expected.communityFee, market.communityFee());
+        _checkValue("marketplace.providerFee", expected.providerFee, market.providerFee());
+        _checkValue("marketplace.premium", expected.communityFee + expected.providerFee, market.premium());
+        _checkValue("marketplace.activeProviderCap", expected.activeProviderCap, market.activeProviderCap());
+        _checkValue(
+            "marketplace.maxInventoryBatchSize", EXPECTED_MAX_INVENTORY_BATCH_SIZE, market.MAX_INVENTORY_BATCH_SIZE()
+        );
+        _validateProviderState(market);
+        _checkAtLeast("marketplace.inventory", expected.minimumInventory, market.inventory());
         _checkValue("marketplace.paused", expected.paused ? 1 : 0, market.paused() ? 1 : 0);
 
         if (!fame.getSkipNFT(expected.feeRecipient)) {
@@ -207,6 +236,27 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         if (fame.hasAnyRole(address(market), FAME_SKIP_MANAGER_ROLE)) revert FameSkipManagerRoleTooBroad();
     }
 
+    function _validateProviderState(UniversalPoolArtMarketplace market) internal view {
+        uint256 providerCount = market.activeProviderCount();
+        uint256 providerCap = market.activeProviderCap();
+        if (providerCount > providerCap) {
+            revert ValueMismatch("marketplace.activeProviderCount", providerCap, providerCount);
+        }
+
+        uint256 summedUnits;
+        for (uint256 i; i < providerCount; ++i) {
+            address provider = market.activeProviderAt(i);
+            if (provider == address(0)) {
+                revert AddressMismatch("marketplace.activeProvider", address(1), address(0));
+            }
+            (uint256 units, uint256 indexPlusOne) = market.providerPosition(provider);
+            if (units == 0) revert ValueMismatch("marketplace.providerUnits", 1, 0);
+            _checkValue("marketplace.providerIndex", i + 1, indexPlusOne);
+            summedUnits += units;
+        }
+        _checkValue("marketplace.totalProviderUnits", summedUnits, market.totalProviderUnits());
+    }
+
     function _requireBase() internal view {
         if (block.chainid != BASE_CHAIN_ID) revert ChainIdMismatch(BASE_CHAIN_ID, block.chainid);
     }
@@ -221,5 +271,9 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
 
     function _checkValue(string memory field, uint256 expected, uint256 actual) internal pure {
         if (actual != expected) revert ValueMismatch(field, expected, actual);
+    }
+
+    function _checkAtLeast(string memory field, uint256 minimum, uint256 actual) internal pure {
+        if (actual < minimum) revert ValueMismatch(field, minimum, actual);
     }
 }

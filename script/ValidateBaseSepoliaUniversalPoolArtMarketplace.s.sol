@@ -12,6 +12,7 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
     address internal constant BASE_SEPOLIA_FAME = 0x2cF0408Ee86b337216dD0073ab257F84497067cA;
     address internal constant BASE_SEPOLIA_MIRROR = 0x2907936013BDF568F98A98893AC1C746256A9cC5;
     uint256 internal constant EXPECTED_UNIT = 1_000_000 ether;
+    uint256 internal constant EXPECTED_MAX_INVENTORY_BATCH_SIZE = 8;
     uint256 internal constant CREATOR_MAGIC_CREATOR_ROLE = 1 << 1;
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
@@ -21,7 +22,9 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
     struct MarketplaceExpectations {
         address owner;
         address feeRecipient;
-        uint256 premium;
+        uint256 communityFee;
+        uint256 providerFee;
+        uint256 activeProviderCap;
         uint256 minimumInventory;
         bool paused;
     }
@@ -54,7 +57,9 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
         MarketplaceExpectations memory expected = MarketplaceExpectations({
             owner: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_OWNER"),
             feeRecipient: vm.envAddress("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT"),
-            premium: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PREMIUM"),
+            communityFee: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE"),
+            providerFee: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_PROVIDER_FEE"),
+            activeProviderCap: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP"),
             minimumInventory: vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_MINIMUM_INVENTORY"),
             paused: vm.envOr("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED", true)
         });
@@ -99,12 +104,20 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
         _checkAddress("marketplace.owner", expected.owner, market.owner());
         _checkAddress("marketplace.feeRecipient", expected.feeRecipient, market.feeRecipient());
 
-        if (expected.premium == 0 || expected.premium > type(uint96).max) {
-            revert PremiumOutOfRange(expected.premium);
+        uint256 maximumFee = fame.unit() / 10;
+        if (expected.communityFee > maximumFee) {
+            revert PremiumOutOfRange(expected.communityFee);
         }
-        if (market.premium() != expected.premium) {
-            revert ValueMismatch("marketplace.premium", expected.premium, market.premium());
+        if (expected.providerFee > maximumFee) {
+            revert PremiumOutOfRange(expected.providerFee);
         }
+        _checkValue("marketplace.communityFee", expected.communityFee, market.communityFee());
+        _checkValue("marketplace.providerFee", expected.providerFee, market.providerFee());
+        _checkValue("marketplace.premium", expected.communityFee + expected.providerFee, market.premium());
+        _checkValue("marketplace.activeProviderCap", expected.activeProviderCap, market.activeProviderCap());
+        _checkValue(
+            "marketplace.maxInventoryBatchSize", EXPECTED_MAX_INVENTORY_BATCH_SIZE, market.MAX_INVENTORY_BATCH_SIZE()
+        );
         if (market.paused() != expected.paused) {
             revert ValueMismatch("marketplace.paused", expected.paused ? 1 : 0, market.paused() ? 1 : 0);
         }
@@ -141,5 +154,9 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
 
     function _checkAddress(string memory field, address expected, address actual) internal pure {
         if (actual != expected) revert AddressMismatch(field, expected, actual);
+    }
+
+    function _checkValue(string memory field, uint256 expected, uint256 actual) internal pure {
+        if (actual != expected) revert ValueMismatch(field, expected, actual);
     }
 }

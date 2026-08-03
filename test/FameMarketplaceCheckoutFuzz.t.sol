@@ -61,15 +61,15 @@ contract FameMarketplaceCheckoutFuzzTest is FameMarketplaceCheckoutTestBase {
     }
 
     function testFuzzPremiumDecreaseRefundsTheDifference(uint96 rawQuotedPremium, uint96 rawCurrentPremium) public {
-        uint256 quotedPremium = bound(uint256(rawQuotedPremium), 1, fame.unit() / 2);
+        uint256 quotedPremium = bound(uint256(rawQuotedPremium), 1, fame.unit() / 10);
         uint256 currentPremium = bound(uint256(rawCurrentPremium), 1, quotedPremium);
-        market.setPremium(quotedPremium);
+        market.setCommunityFee(quotedPremium);
 
         uint256 shellId = _seedShells(market, 2);
         bytes32 artwork = market.artworkHash(shellId);
         FameRouterTypes.Route memory route =
             _singleLegRoute(address(weth), 1 ether, 1 ether, fame.unit() + quotedPremium);
-        market.setPremium(currentPremium);
+        market.setCommunityFee(currentPremium);
         market.unpause();
 
         uint256 buyerFameBefore = fame.balanceOf(buyer);
