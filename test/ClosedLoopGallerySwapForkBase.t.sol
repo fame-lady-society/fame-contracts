@@ -5,10 +5,12 @@ import {Test} from "forge-std/Test.sol";
 import {Fame} from "../src/Fame.sol";
 
 contract ClosedLoopGallerySwapForkBaseTest is Test {
+    error MissingBaseRpc();
+
     function test_BaseForkFameMirrorMatchesPublicConfig() public {
         string memory rpc = vm.envOr("BASE_RPC", string(""));
         if (bytes(rpc).length == 0) {
-            vm.skip(true);
+            revert MissingBaseRpc();
         }
 
         uint256 forkId = vm.createSelectFork(rpc);

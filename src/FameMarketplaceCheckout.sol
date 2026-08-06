@@ -87,7 +87,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     error ProtectedOutputTooLow(uint256 protectedOutput, uint256 requiredOutput);
     error NativeValueMismatch(uint256 expected, uint256 actual);
     error UnexpectedNativeValue(uint256 actual);
-    error MarketPaused();
+    error PurchasesPaused();
     error CheckoutNotAuthorized(address configuredCheckout);
     error CheckoutIsFeeRecipient();
     error RouterFeeRecipientIsCheckout();
@@ -95,6 +95,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     error UnavailableShell(uint256 shellId);
     error ArtworkMismatch(uint256 tokenId, bytes32 expected, bytes32 actual);
     error SourceEqualsShell(uint256 tokenId);
+    error ArtPoolSourceExcluded(uint256 sourceId);
     error IneligiblePoolSource(uint256 sourceId);
     error AmbiguousPoolSource(uint256 sourceId);
     error InputTransferMismatch(uint256 expected, uint256 actual);
@@ -570,7 +571,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         view
         returns (UniversalPoolArtMarketplace.FulfillmentPath path)
     {
-        if (market.paused()) revert MarketPaused();
+        if (market.paused()) revert PurchasesPaused();
         address configuredCheckout = market.authorizedCheckout();
         if (configuredCheckout != address(this)) revert CheckoutNotAuthorized(configuredCheckout);
         if (market.feeRecipient() == address(this)) revert CheckoutIsFeeRecipient();
@@ -592,7 +593,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         CreatorArtistMagic creatorMagic = market.creatorMagic();
         if (request.sourceId >= creatorMagic.artPoolStartIndex() && request.sourceId <= creatorMagic.artPoolEndIndex())
         {
-            revert IneligiblePoolSource(request.sourceId);
+            revert ArtPoolSourceExcluded(request.sourceId);
         }
         bool mintEligible = creatorMagic.isTokenInMintPool(request.sourceId);
         bool burnEligible = creatorMagic.isTokenInBurnedPool(request.sourceId);
