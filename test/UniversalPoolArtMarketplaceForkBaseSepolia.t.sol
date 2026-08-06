@@ -175,15 +175,16 @@ abstract contract UniversalPoolArtMarketplaceForkBaseSepoliaTestBase is Test {
         bytes32 shellArtwork = market.artworkHash(shellId);
         uint256 maxPremium = market.premium();
 
+        // Fee recipient without skipNFT must still allow purchases.
         vm.prank(feeRecipient);
         fame.setSkipNFT(false);
-        vm.expectRevert(
-            abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeRecipientNotSkippingNFT.selector, feeRecipient)
-        );
         vm.prank(buyer);
         market.purchaseHeld(shellId, shellArtwork, maxPremium, 0, recipient);
-        vm.prank(feeRecipient);
-        fame.setSkipNFT(true);
+        assertEq(mirror.ownerAt(shellId), recipient, "non-skip fee recipient blocked purchase");
+        assertGe(market.inventory(), inventoryFloor, "non-skip fee purchase reduced inventory");
+
+        shellId = _ownedTokenAt(address(market), 0);
+        shellArtwork = market.artworkHash(shellId);
 
         uint256 artPoolSource = creatorMagic.artPoolStartIndex();
         bytes32 artPoolArtwork = market.artworkHash(artPoolSource);

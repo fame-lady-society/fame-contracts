@@ -22,7 +22,6 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
     error CanonicalStackMismatch();
     error ConfigurationMismatch(string field, address expected, address actual);
     error ValueMismatch(string field, uint256 expected, uint256 actual);
-    error FeeRecipientNotSkippingNFT(address recipient);
     error RouterNotSkippingNFT(address router);
 
     struct DeploymentConfig {
@@ -110,7 +109,7 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
         Fame fame,
         CreatorArtistMagic creatorMagic,
         address router,
-        address feeRecipient,
+        address, /* feeRecipient — skipNFT not required */
         address deployer
     ) internal view {
         if (
@@ -121,7 +120,6 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
         ) {
             revert CanonicalStackMismatch();
         }
-        if (!fame.getSkipNFT(feeRecipient)) revert FeeRecipientNotSkippingNFT(feeRecipient);
         if (!fame.getSkipNFT(router)) revert RouterNotSkippingNFT(router);
     }
 

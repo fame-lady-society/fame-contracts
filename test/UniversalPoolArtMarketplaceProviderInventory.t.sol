@@ -278,14 +278,15 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
         assertEq(market.inventory(), 0);
     }
 
-    function testCommunityBuyerWaivesOnlyCommunityComponent() public {
+    function testCommunityBuyerPaysFullPremiumIncludingProviderShare() public {
         address provider = address(0x9050);
         _depositUnits(market, provider, 1);
         market.setCommunityFee(11);
         market.setProviderFee(13);
         uint256 shellId = _ownedTokenAt(address(market), 0);
         bytes32 artwork = market.artworkHash(shellId);
-        _fundAndApprove(feeRecipient, market, fame.unit() + 13);
+        // Full charge: unit + communityFee + providerFee
+        _fundAndApprove(feeRecipient, market, fame.unit() + 24);
         uint256 communityBefore = fame.balanceOf(feeRecipient);
         market.unpause();
 
@@ -293,22 +294,25 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
         market.purchaseHeld(shellId, artwork, 24, 0, feeRecipient);
 
         assertEq(fame.balanceOf(provider), 13);
+        // Keeps shell (unit nets); community self-pay nets zero; only provider share leaves.
         assertEq(fame.balanceOf(feeRecipient), communityBefore - 13);
     }
 
-    function testCommunityBuyerWaivesCommunityFeeButKeepsEmptyPoolProviderAllocation() public {
+    function testCommunityBuyerPaysCommunityAndEmptyPoolProviderDustToSelf() public {
         uint256 shellId = _seedShells(market, 1);
         bytes32 artwork = market.artworkHash(shellId);
         market.setCommunityFee(11);
         market.setProviderFee(13);
-        _fundAndApprove(feeRecipient, market, fame.unit() + 13);
+        _fundAndApprove(feeRecipient, market, fame.unit() + 24);
         uint256 communityBefore = fame.balanceOf(feeRecipient);
         market.unpause();
 
         vm.prank(feeRecipient);
         market.purchaseHeld(shellId, artwork, 24, 0, feeRecipient);
 
+        // No active providers: providerFee + communityFee self-pay (net 0); shell unit nets.
         assertEq(fame.balanceOf(feeRecipient), communityBefore);
+        assertEq(mirror.ownerOf(shellId), feeRecipient);
     }
 
     function testDirectFameAndSocietyTransfersCreateNoProviderCredit() public {

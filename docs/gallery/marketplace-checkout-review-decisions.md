@@ -129,8 +129,8 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | Checkout accounting + selector tests | #2, #8, #9, #12, #20 Accept | Not started |
 | Invariant pool coverage | #10 Accept | Not started |
 | Event/receipt ABI | #6, #11, #13 Accept (a) | Not started |
-| Drop feeRecipient skipNFT requirement | #7 Accept with updates | Not started |
-| Remove fee-recipient buyer waiver | R5 Accept | Not started |
+| Drop feeRecipient skipNFT requirement | #7 Accept with updates | Done |
+| Remove fee-recipient buyer waiver | R5 Accept | Done |
 | Docs: deposit sniping intentional | #16 (b) | Not started |
 | #18 shell contention | Reject | Closed |
 | #19 provider mint gas | Reject | Closed |
@@ -155,3 +155,4 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | 2026-08-06 | R1 surface **3**: boon on either successful purchase or redemption (first claim wins). Operator notes UniswapV2 Router dust is negligible in practice. |
 | 2026-08-06 | R5 Accept: remove fee-recipient buyer special case; same charge/premium path as all buyers. |
 | 2026-08-06 | D1 implemented: removed ClosedLoop + Base Sepolia gallery test stack from tree; superseded notes on plans/brainstorms/ops docs. |
+| 2026-08-06 | R5 + #7 implemented: no buyer fee waiver; no fee-recipient skipNFT gate; scripts/tests/handoffs updated. |

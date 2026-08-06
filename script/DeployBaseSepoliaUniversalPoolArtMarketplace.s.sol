@@ -47,7 +47,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     error InvalidPremium(uint256 premium);
     error InvalidActiveProviderCap(uint256 cap);
     error InvalidMinimumInventory(uint256 expected, uint256 actual);
-    error FeeRecipientNotSkippingNFT(address recipient);
     error ExistingDeploymentMismatch(string field);
     error ExistingDeploymentActivated(address market);
     error ExistingDeploymentAuthorityTooBroad(uint256 role);
@@ -165,7 +164,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         CreatorArtistMagic creatorMagic,
         address deployer,
         address owner,
-        address feeRecipient,
+        address, /* feeRecipient — skipNFT not required */
         uint256 communityFee
     ) internal view {
         if (
@@ -178,9 +177,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         }
         if (owner == address(0) || owner != deployer) revert InvalidOwner(owner);
         if (communityFee > fame.unit() / 10) revert InvalidPremium(communityFee);
-        if (!fame.getSkipNFT(feeRecipient)) {
-            revert FeeRecipientNotSkippingNFT(feeRecipient);
-        }
     }
 
     function _validateMinimumInventory(uint256 minimumInventory) internal pure {
@@ -231,9 +227,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         if (!market.paused()) revert ExistingDeploymentActivated(address(market));
         if (fame.getSkipNFT(address(market))) {
             revert ExistingDeploymentMismatch("marketplace.skipNFT");
-        }
-        if (!fame.getSkipNFT(expectedFeeRecipient)) {
-            revert FeeRecipientNotSkippingNFT(expectedFeeRecipient);
         }
         if (creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_CREATOR_ROLE)) {
             revert ExistingDeploymentAuthorityTooBroad(CREATOR_MAGIC_CREATOR_ROLE);

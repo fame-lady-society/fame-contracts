@@ -57,11 +57,9 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         vm.expectRevert(UniversalPoolArtMarketplace.ZeroAddress.selector);
         _deployMarket(1, feeRecipient, address(0));
 
-        address nonSkip = address(0xBEEF);
-        vm.expectRevert(
-            abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeRecipientNotSkippingNFT.selector, nonSkip)
-        );
-        _deployMarket(1, nonSkip, owner);
+        // Non-skip fee recipients are allowed (fee recipient may mint NFTs).
+        UniversalPoolArtMarketplace nonSkipMarket = _deployMarket(1, address(0xBEEF), owner);
+        assertEq(nonSkipMarket.feeRecipient(), address(0xBEEF));
     }
 
     function testConstructorRejectsInvalidDependenciesAndStack() public {
@@ -88,8 +86,6 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(market.premium(), updatedPremium);
 
         address updatedRecipient = address(0x2001);
-        vm.prank(updatedRecipient);
-        fame.setSkipNFT(true);
         market.setFeeRecipient(updatedRecipient);
         assertEq(market.feeRecipient(), updatedRecipient);
 
@@ -118,8 +114,8 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         );
         market.setCommunityFee(oversized);
 
-        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeRecipientNotSkippingNFT.selector, buyer));
         market.setFeeRecipient(buyer);
+        assertEq(market.feeRecipient(), buyer);
 
         vm.expectRevert(
             abi.encodeWithSelector(UniversalPoolArtMarketplace.InvalidFeeRecipient.selector, address(market))
@@ -263,22 +259,25 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(fame.allowance(address(this), address(market)), 0);
     }
 
-    function testAuthorizedCheckoutPurchaseHeldPreservesBuyerPremiumWaiver() public {
+    function testAuthorizedCheckoutPurchaseHeldChargesFeeRecipientBuyerFullPremium() public {
         uint256 shellId = _seedShells(market, 2);
         bytes32 expectedArtwork = market.artworkHash(shellId);
         uint256 currentPremium = market.premium();
 
-        vm.prank(buyer);
-        fame.setSkipNFT(true);
         market.setFeeRecipient(buyer);
         market.setAuthorizedCheckout(address(this));
-        fame.approve(address(market), fame.unit());
+        // Checkout (this) is the FAME payer; buyer is only the attributed purchaser.
+        fame.approve(address(market), fame.unit() + currentPremium);
         market.unpause();
 
+        uint256 checkoutBefore = fame.balanceOf(address(this));
+        uint256 buyerBefore = fame.balanceOf(buyer);
         market.purchaseHeldFor(buyer, shellId, expectedArtwork, currentPremium, 1);
 
         assertEq(mirror.ownerOf(shellId), buyer);
-        assertEq(fame.balanceOf(buyer), fame.unit());
+        assertEq(fame.balanceOf(address(this)), checkoutBefore - (fame.unit() + currentPremium));
+        // Buyer receives the shell (unit-backed); community fee self-pays into buyer as fee recipient.
+        assertEq(fame.balanceOf(buyer), buyerBefore + fame.unit() + currentPremium);
         assertEq(fame.allowance(address(this), address(market)), 0);
     }
 
@@ -349,7 +348,7 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertEq(mirror.ownerOf(shellId), address(market));
     }
 
-    function testPurchaseHeldRejectsFeeRecipientPostureDriftBeforePayment() public {
+    function testPurchaseHeldAllowsFeeRecipientWithoutSkipNFT() public {
         uint256 shellId = _seedShells(market, 2);
         bytes32 expectedArtwork = market.artworkHash(shellId);
         _fundAndApprove(buyer, market, fame.unit() + market.premium());
@@ -357,29 +356,33 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
 
         vm.prank(feeRecipient);
         fame.setSkipNFT(false);
+        assertFalse(fame.getSkipNFT(feeRecipient));
 
         uint256 maxPremium = market.premium();
-        vm.expectRevert(
-            abi.encodeWithSelector(UniversalPoolArtMarketplace.FeeRecipientNotSkippingNFT.selector, feeRecipient)
-        );
-        vm.prank(buyer);
-        market.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, recipient);
-    }
-
-    function testPurchaseHeldSkipsPremiumSelfTransferWhenBuyerIsFeeRecipient() public {
-        uint256 shellId = _seedShells(market, 2);
-        bytes32 expectedArtwork = market.artworkHash(shellId);
-        vm.prank(buyer);
-        fame.setSkipNFT(true);
-        market.setFeeRecipient(buyer);
-        _fundAndApprove(buyer, market, fame.unit());
-        market.unpause();
-
-        uint256 maxPremium = market.premium();
+        uint256 feeBefore = fame.balanceOf(feeRecipient);
         vm.prank(buyer);
         market.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, recipient);
 
         assertEq(mirror.ownerOf(shellId), recipient);
+        assertEq(fame.balanceOf(feeRecipient), feeBefore + maxPremium);
+    }
+
+    function testPurchaseHeldChargesFullPremiumWhenBuyerIsFeeRecipient() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 expectedArtwork = market.artworkHash(shellId);
+        market.setFeeRecipient(buyer);
+        uint256 maxPremium = market.premium();
+        _fundAndApprove(buyer, market, fame.unit() + maxPremium);
+        market.unpause();
+
+        uint256 buyerBefore = fame.balanceOf(buyer);
+        vm.prank(buyer);
+        market.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, recipient);
+
+        assertEq(mirror.ownerOf(shellId), recipient);
+        // Unit leaves to market inventory; community fee self-transfers (net zero on that leg).
+        // Net: buyer loses unit only when premium is pure community (providerFee == 0).
+        assertEq(fame.balanceOf(buyer), buyerBefore - fame.unit());
         assertEq(fame.allowance(buyer, address(market)), 0);
     }
 

@@ -126,8 +126,15 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
             purchase.destination
         );
 
-        uint256 expectedPayerSpend = purchase.destination == purchase.payer ? 0 : fame.unit();
-        if (!purchase.payerIsFeeRecipient) expectedPayerSpend += purchase.premium;
+        // Premium is pure communityFee in this fuzz (providerFee == 0).
+        // Destination == payer: unit returns as shell NFT (net 0 on unit).
+        // Fee-recipient payer: community self-transfer nets 0.
+        uint256 expectedPayerSpend;
+        if (purchase.destination == purchase.payer) {
+            expectedPayerSpend = purchase.payerIsFeeRecipient ? 0 : purchase.premium;
+        } else {
+            expectedPayerSpend = purchase.payerIsFeeRecipient ? fame.unit() : fame.unit() + purchase.premium;
+        }
         assertEq(fame.balanceOf(purchase.payer), payerFameBefore - expectedPayerSpend);
         if (!purchase.payerIsFeeRecipient) {
             assertEq(fame.balanceOf(feeRecipient), feeFameBefore + purchase.premium);

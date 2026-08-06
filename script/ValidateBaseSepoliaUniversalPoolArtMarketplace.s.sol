@@ -35,7 +35,6 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
     error ValueMismatch(string field, uint256 expected, uint256 actual);
     error FameIdentityMismatch();
     error PremiumOutOfRange(uint256 premium);
-    error FeeRecipientNotSkippingNFT(address recipient);
     error MarketplaceSkippingNFT();
     error MarketplaceInventoryTooLow(uint256 minimum, uint256 actual);
     error CreatorMagicBanisherRoleMissing();
@@ -118,9 +117,6 @@ contract ValidateBaseSepoliaUniversalPoolArtMarketplace is Script {
         );
         if (market.paused() != expected.paused) {
             revert ValueMismatch("marketplace.paused", expected.paused ? 1 : 0, market.paused() ? 1 : 0);
-        }
-        if (!fame.getSkipNFT(expected.feeRecipient)) {
-            revert FeeRecipientNotSkippingNFT(expected.feeRecipient);
         }
         if (fame.getSkipNFT(address(market))) revert MarketplaceSkippingNFT();
         uint256 actualInventory = mirror.balanceOf(address(market));

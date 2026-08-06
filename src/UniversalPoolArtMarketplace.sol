@@ -102,7 +102,6 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     error NoProviderPosition(address provider);
     error NoPooledInventory();
     error InvalidFeeRecipient(address recipient);
-    error FeeRecipientNotSkippingNFT(address recipient);
     error PurchasesPaused();
     error MarketNotPaused();
     error MarketAlreadyPaused();
@@ -225,10 +224,9 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         emit ProviderFeeUpdated(previousFee, newFee);
     }
 
-    function purchaseCharge(address buyer) external view returns (uint256) {
-        uint256 charge = fame.unit() + providerFee;
-        if (buyer != feeRecipient) charge += communityFee;
-        return charge;
+    /// @dev `buyer` is retained for ABI stability; charge does not depend on buyer identity.
+    function purchaseCharge(address) external view returns (uint256) {
+        return fame.unit() + uint256(providerFee) + uint256(communityFee);
     }
 
     function depositInventory(uint256 tokenId) external nonReentrant {
@@ -310,7 +308,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
 
         _enterSettlement();
         uint256 remainingUnits = _removeProviderUnit(msg.sender);
-        _distributePremium(msg.sender, msg.sender, msg.sender);
+        _distributePremium(msg.sender, msg.sender);
         mirror.safeTransferFrom(address(this), msg.sender, tokenId);
         _exitSettlement();
 
@@ -390,7 +388,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         inventoryBefore = inventory();
 
         _enterSettlement();
-        _distributePremium(payer, buyer, address(0));
+        _distributePremium(payer, address(0));
 
         _requireStack();
         _requireShellArtwork(shellId, expectedArtworkHash);
@@ -501,7 +499,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         returns (uint256 inventoryBefore, uint256 inventoryAfter)
     {
         _enterSettlement();
-        _distributePremium(purchase.payer, purchase.buyer, address(0));
+        _distributePremium(purchase.payer, address(0));
 
         _requireStack();
         _requireShell(purchase.shellId);
@@ -613,7 +611,6 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         if (candidate == address(0) || candidate == address(this)) {
             revert InvalidFeeRecipient(candidate);
         }
-        if (!fame.getSkipNFT(candidate)) revert FeeRecipientNotSkippingNFT(candidate);
     }
 
     function _requireStack() internal view {
@@ -654,7 +651,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         revert IneligiblePoolSource(sourceId);
     }
 
-    function _distributePremium(address payer, address buyer, address excludedProvider) internal {
+    function _distributePremium(address payer, address excludedProvider) internal {
         address communityRecipient = feeRecipient;
         _requireFeeRecipient(communityRecipient);
 
@@ -673,9 +670,10 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
             }
         }
 
-        uint256 communityAmount = configuredProviderFee - distributedProviderFee;
-        if (buyer != communityRecipient) communityAmount += communityFee;
-        if (communityAmount != 0 && payer != communityRecipient) {
+        // Always charge communityFee (no buyer-identity waiver). Pull even when payer is
+        // the fee recipient so purchaseCharge stays synchronized with measured debits.
+        uint256 communityAmount = configuredProviderFee - distributedProviderFee + uint256(communityFee);
+        if (communityAmount != 0) {
             _pullFame(payer, communityRecipient, communityAmount);
         }
     }

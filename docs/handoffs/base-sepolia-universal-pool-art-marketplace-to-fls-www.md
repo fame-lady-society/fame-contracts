@@ -214,15 +214,16 @@ result when appropriate rather than continuing with stale purchase inputs.
 
 ## Pricing and allowance
 
-For an ordinary buyer:
+For every buyer (including the fee recipient):
 
 ```text
 total = fame.unit() + marketplace.premium()
+     = fame.unit() + communityFee + providerFee
 ```
 
-If the buyer is the fee recipient, the contract skips the premium self-transfer
-and only the unit consumes allowance. This is an edge case, not the default
-buyer presentation.
+Prefer `marketplace.purchaseCharge(buyer)` for allowance sizing; charge does not
+depend on buyer identity. Fee-recipient buyers pay the full premium like anyone
+else (community fee may self-transfer when they are also the FAME payer).
 
 The one-button TEST flow should:
 
@@ -366,7 +367,7 @@ At minimum, map these named errors into specific recoverable states:
 | `BuyerMirrorBalanceTooLow` | Requested postcondition was not met |
 | `InventoryInvariantBroken` | Contract invariant stopped settlement |
 | `StackMismatch` | Deployed dependency wiring changed |
-| `FeeRecipientNotSkippingNFT` | Fee-recipient posture is invalid |
+| `InvalidFeeRecipient` | Fee recipient is zero or the marketplace itself |
 | `PaymentTransferFailed` | FAME transfer or allowance failed |
 
 Reuse the app's existing transaction error display and replacement handling.

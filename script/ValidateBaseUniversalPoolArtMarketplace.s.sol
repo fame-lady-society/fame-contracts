@@ -47,7 +47,6 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
     error ValueMismatch(string field, uint256 expected, uint256 actual);
     error CodeMissing(string field, address target);
     error FameIdentityMismatch();
-    error FeeRecipientNotSkippingNFT(address recipient);
     error CheckoutNotSkippingNFT(address checkout);
     error RouterNotSkippingNFT(address router);
     error CheckoutIsFeeRecipient(address checkout);
@@ -222,9 +221,6 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         _checkAtLeast("marketplace.inventory", expected.minimumInventory, market.inventory());
         _checkValue("marketplace.paused", expected.paused ? 1 : 0, market.paused() ? 1 : 0);
 
-        if (!fame.getSkipNFT(expected.feeRecipient)) {
-            revert FeeRecipientNotSkippingNFT(expected.feeRecipient);
-        }
         if (fame.getSkipNFT(address(market))) revert MarketplaceSkippingNFT();
         uint256 creatorMagicRoles = creatorMagic.rolesOf(address(market));
         if (creatorMagicRoles & CREATOR_MAGIC_BANISHER_ROLE == 0) {

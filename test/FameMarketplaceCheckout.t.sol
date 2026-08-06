@@ -59,7 +59,7 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(fame.allowance(address(checkout), address(market)), 0);
     }
 
-    function testCommunityRecipientCheckoutPaysProviderDustAndWaivesOnlyCommunityFee() public {
+    function testCommunityRecipientCheckoutPaysFullPremiumIncludingCommunityFee() public {
         address firstProvider = address(0xA002);
         address secondProvider = address(0xA003);
         _depositUnits(market, firstProvider, 1);
@@ -80,10 +80,12 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         vm.prank(feeRecipient);
         (, uint256 marketCharge, uint256 fameRefund,) = checkout.checkoutHeld(route, shellId, artwork, maxPremium, 0);
 
-        assertEq(marketCharge, fame.unit() + 13);
+        // Full charge: unit + communityFee + providerFee (no buyer waiver).
+        assertEq(marketCharge, fame.unit() + 24);
         assertEq(fame.balanceOf(firstProvider), 6);
         assertEq(fame.balanceOf(secondProvider), 6);
-        assertEq(fame.balanceOf(feeRecipient) - communityBefore, fame.unit() + fameRefund + 1);
+        // Buyer receives shell unit + fame refund + community (11) + provider dust (1).
+        assertEq(fame.balanceOf(feeRecipient) - communityBefore, fame.unit() + fameRefund + 12);
         assertEq(fame.balanceOf(address(checkout)), 0);
         assertEq(fame.allowance(address(checkout), address(market)), 0);
     }
@@ -245,9 +247,7 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(fame.balanceOf(buyer), buyerFameBefore + fame.unit() + quotedPremium / 2);
     }
 
-    function testBuyerFeeRecipientWaiverBecomesFameRefund() public {
-        vm.prank(buyer);
-        fame.setSkipNFT(true);
+    function testBuyerFeeRecipientPaysFullPremiumCharge() public {
         market.setFeeRecipient(buyer);
         uint256 shellId = _seedShells(market, 2);
         bytes32 artwork = market.artworkHash(shellId);
@@ -259,10 +259,12 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         (uint256 output, uint256 charge, uint256 refund,) =
             checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
 
+        // No waiver: charge is unit + full premium; exact route leaves no FAME refund.
         assertEq(output, fame.unit() + maxPremium);
-        assertEq(charge, fame.unit());
-        assertEq(refund, maxPremium);
+        assertEq(charge, fame.unit() + maxPremium);
+        assertEq(refund, 0);
         assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(mirror.ownerOf(shellId), buyer);
     }
 
     function testAmbientBalancesCannotBeClaimed() public {

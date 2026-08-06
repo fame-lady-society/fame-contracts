@@ -38,9 +38,9 @@ Prepared on Base Sepolia on 2026-07-18:
 
 - Funded with exactly `0.0001 ETH`:
   `0xa6ded7840580cc5ba84869946c442f4db07a1e2eaf8ffc601fa0fb062fff31aa`
-- Called `Fame.setSkipNFT(true)`:
+- Called `Fame.setSkipNFT(true)` (optional for fee recipients; no longer required):
   `0xf4484234195720d0b2691ed5790319e90299c39f843412002fdc25f3dfcbb77c`
-- Canonical readback: `Fame.getSkipNFT(feeRecipient) == true`
+- Fee recipient skipNFT is **not** enforced by marketplace deploy/validate
 
 The private key is stored only as the masked Doppler `dev` secret
 `BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_FEE_RECIPIENT_PRIVATE_KEY`.

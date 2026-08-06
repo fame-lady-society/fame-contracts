@@ -535,7 +535,7 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         assertEq(creatorMagic.artPoolNext(), initialArtPoolNext);
         assertEq(creatorMagic.rolesOf(address(market)), CREATOR_MAGIC_BANISHER_ROLE);
         assertFalse(fame.getSkipNFT(address(market)));
-        assertTrue(fame.getSkipNFT(market.feeRecipient()));
+        // Fee recipient skipNFT is not required; market must stay non-skip.
     }
 
     function invariant_ProviderPositionsRemainIndexedAndCheckoutNeutral() public view {

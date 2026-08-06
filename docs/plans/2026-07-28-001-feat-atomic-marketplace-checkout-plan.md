@@ -69,7 +69,7 @@ The current router and WWW quote stack are exact-input: the user specifies an in
 - R7. The quote result must contain the exact input, protected FAME floor, current market unit and premium, maximum premium, route deadline, route provenance, and the marketplace/checkout addresses used to produce it.
 - R8. Once A1 locks a purchase selection, the quote path must use one concrete block for market, router-policy, readiness, pool, candidate, and materialization reads. It must retain the first sufficient route witness, enforce mathematically bounded evaluations plus cancelable RPC/wall-clock safeguards, and spend remaining budget refining the input downward rather than discarding a valid witness.
 - R9. WWW must simulate each newly produced quote once to surface reverts. It need not force another simulation immediately before submission while the quote is unexpired and all consent-bound inputs are unchanged; the wallet's standard simulation remains an additional check. Consent binds account, chain, payment asset, selected artwork and fulfillment, buyer/recipient, marketplace, checkout, `maxPremium`, and maximum input. After A1 confirms a quote, increasing either cap, changing any bound identity or purchase field, or replacing its route with a different topology requires fresh confirmation; a same-route adjustment within the approved caps does not.
-- R10. The marketplace must continue enforcing pause state, maximum premium, fee-recipient buyer premium waiver, expected artwork hash, eligible shell/source, fulfillment path, buyer mirror-balance floor, and inventory invariants for both direct and checkout purchases.
+- R10. The marketplace must continue enforcing pause state, maximum premium, expected artwork hash, eligible shell/source, fulfillment path, buyer mirror-balance floor, and inventory invariants for both direct and checkout purchases. *(2026-08-06: fee-recipient buyer premium waiver removed — all buyers pay full `purchaseCharge`.)*
 
 #### Identity and trust boundaries
 
@@ -351,7 +351,7 @@ flowchart TD
 - The checkout snapshots distinct route-asset baselines before funding. For native ETH, the baseline removes this call's `msg.value`.
 - It validates the submitted route against bound dependencies before transferring tokens or calling the router, and it requires measured ERC-20 input and router FAME output to match the declared/returned values.
 - The router event will name the checkout as payer and recipient; the checkout settlement event records A1 and measured deltas for contract tests and fork diagnostics; the marketplace event continues to record A1 as buyer.
-- The marketplace snapshots current premium, fee recipient, fulfillment, artwork, and inventory using the same settlement lock for direct and authorized-checkout calls; premium waiver follows the semantic buyer rather than the FAME payer.
+- The marketplace snapshots current premium, fee recipient, fulfillment, artwork, and inventory using the same settlement lock for direct and authorized-checkout calls; charge is independent of buyer identity (no fee-recipient waiver).
 - Exact temporary allowance and DN404 skip-NFT posture prevent the coordinator from becoming a hidden inventory owner or durable spending authority.
 
 ### System-Wide Impact
@@ -455,14 +455,14 @@ Use the Product Contract Sources plus these implementation seams:
 - `test/UniversalPoolArtMarketplaceInvariant.t.sol`
 - `test/UniversalPoolArtMarketplaceDeploymentValidation.t.sol`
 
-**Approach:** Add one `authorizedCheckout` address with an owner-only setter guarded by paused and no-active-settlement state. Emit `AuthorizedCheckoutChanged(previous, current)` on set, clear, or rotation; do not add an access-control role framework. External entrypoints derive payer from `msg.sender` and never accept payer calldata. Refactor held/pool execution around explicit internal payer, buyer, and recipient roles. Direct entrypoints use `msg.sender` as payer and buyer. Separate typed authorized held/pool entrypoints require `msg.sender == authorizedCheckout`, accept A1 as the semantic buyer/recipient, pull FAME from the checkout, preserve A1 in `ArtworkPurchased`, apply the premium waiver and mirror-balance floor to A1, and deliver to A1. Keep one settlement lock and one invariant path.
+**Approach:** Add one `authorizedCheckout` address with an owner-only setter guarded by paused and no-active-settlement state. Emit `AuthorizedCheckoutChanged(previous, current)` on set, clear, or rotation; do not add an access-control role framework. External entrypoints derive payer from `msg.sender` and never accept payer calldata. Refactor held/pool execution around explicit internal payer, buyer, and recipient roles. Direct entrypoints use `msg.sender` as payer and buyer. Separate typed authorized held/pool entrypoints require `msg.sender == authorizedCheckout`, accept A1 as the semantic buyer/recipient, pull FAME from the checkout, preserve A1 in `ArtworkPurchased`, apply the mirror-balance floor to A1, and deliver to A1. Keep one settlement lock and one invariant path.
 
 **Test scenarios:**
 
 - Direct held, mint-pool, and burn-pool purchases produce the same events, balances, artwork, and inventory as before.
 - A configured checkout can buy for and deliver to A1; the event buyer is A1 and FAME is pulled from the checkout.
 - The FAME payer is always the market caller; only `authorizedCheckout` may supply A1 as semantic buyer, and the typed held/pool entrypoints cannot redirect either role.
-- When A1 is the fee recipient, direct and authorized-checkout purchases both preserve the premium waiver.
+- When A1 is the fee recipient, direct and authorized-checkout purchases still charge full unit + premium (no waiver).
 - An unauthorized caller reverts; zero disables checkout settlement while paused; disable/rotation while unpaused or during settlement reverts; every successful change emits the old and new addresses.
 - Authorized-checkout purchases still revert on pause, premium cap, artwork mismatch, shell/source races, mirror-balance floor, and inventory violations.
 - Reentrant attempts through token/NFT callbacks cannot bypass settlement or configuration guards.

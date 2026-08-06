@@ -104,20 +104,14 @@ contract UniversalPoolArtMarketplaceDeploymentValidationTest is UniversalPoolArt
         _validateMarket(market, owner, feeRecipient, oversized, MINIMUM_INVENTORY, true);
     }
 
-    function testValidationRejectsFeeAndMarketplaceSkipDrift() public {
+    function testValidationRejectsMarketplaceSkipDrift() public {
         uint256 configuredPremium = market.premium();
 
+        // Fee recipient may disable skipNFT; validation must still pass.
         vm.prank(feeRecipient);
         fame.setSkipNFT(false);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ValidateBaseSepoliaUniversalPoolArtMarketplace.FeeRecipientNotSkippingNFT.selector, feeRecipient
-            )
-        );
         _validateMarket(market, owner, feeRecipient, configuredPremium, MINIMUM_INVENTORY, true);
 
-        vm.prank(feeRecipient);
-        fame.setSkipNFT(true);
         fame.grantRoles(address(this), FAME_SKIP_MANAGER_ROLE);
         fame.setSkipNftForAccount(address(market), true);
         vm.expectRevert(ValidateBaseSepoliaUniversalPoolArtMarketplace.MarketplaceSkippingNFT.selector);
