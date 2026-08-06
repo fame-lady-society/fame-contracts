@@ -4,9 +4,6 @@ pragma solidity ^0.8.24;
 import {Vm} from "forge-std/Vm.sol";
 import {ActivateBaseUniversalPoolArtMarketplace} from "../script/ActivateBaseUniversalPoolArtMarketplace.s.sol";
 import {DeployBaseUniversalPoolArtMarketplace} from "../script/DeployBaseUniversalPoolArtMarketplace.s.sol";
-import {
-    TransferBaseUniversalPoolArtMarketplaceOwnership
-} from "../script/TransferBaseUniversalPoolArtMarketplaceOwnership.s.sol";
 import {ValidateBaseUniversalPoolArtMarketplace} from "../script/ValidateBaseUniversalPoolArtMarketplace.s.sol";
 import {FameMarketplaceCheckout} from "../src/FameMarketplaceCheckout.sol";
 import {FameRouter} from "../src/FameRouter.sol";
@@ -70,7 +67,21 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         uint256 communityFee;
         uint256 providerFee;
         uint256 activeProviderCap;
-        uint256 inventory;
+        uint256 minimumInventory;
+    }
+
+    struct ReleaseCheckoutContext {
+        uint256 unit;
+        bytes32 artwork;
+        FameRouterTypes.Route route;
+        uint256 providerBalanceBefore;
+        uint256 communityBefore;
+        uint256 buyerMirrorBalanceBefore;
+        uint256 routerOutput;
+        uint256 marketCharge;
+        uint256 fameRefund;
+        uint256 inputRefund;
+        Vm.Log[] logs;
     }
 
     address internal constant EXPECTED_ROUTER = 0xAdefa5860389E8936ebf2977e1Fb4a365aA39636;
@@ -94,7 +105,7 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
 
     error NoSufficientUpperWitness(InputKind kind, uint256 lastAmountIn, uint256 lastAmountOut);
 
-    function testLatestBaseReleaseLifecycleDeploysValidatesActivatesAndHandsOff() public {
+    function testLatestBaseReleaseLifecycleDeploysValidatesActivatesAndChecksOutFromDeployer() public {
         _selectLatestBaseFork();
         router = FameRouter(payable(vm.envAddress("BASE_FAME_ROUTER_ADDRESS")));
         usdc = IERC20CheckoutFork(vm.envAddress("BASE_USDC_ADDRESS"));
@@ -104,7 +115,8 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         context.communityFee = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE");
         context.providerFee = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE");
         context.activeProviderCap = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP");
-        context.inventory = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_INVENTORY");
+        context.minimumInventory = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_INVENTORY");
+        assertEq(context.minimumInventory, 0, "release configuration must allow an empty launch");
         DeployBaseUniversalPoolArtMarketplace deployment = new DeployBaseUniversalPoolArtMarketplace();
         (context.market, context.checkout) = deployment.deployMarketplaceStack(
             fame,
@@ -124,10 +136,22 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
 
         vm.prank(DEPLOYER);
         creatorMagic.grantRoles(address(context.market), BANISHER_ROLE);
-        uint256 unit = fame.unit();
-        vm.prank(SAFE);
-        fame.transfer(address(context.market), context.inventory * unit);
+        _assertEmptyReleaseState(context.market);
 
+        context.validator = new ValidateBaseUniversalPoolArtMarketplace();
+        _validateConfiguredReleaseStack(context, DEPLOYER, true);
+
+        new ActivateBaseUniversalPoolArtMarketplace().activateMarketplace(context.market, context.checkout, DEPLOYER);
+        _assertEmptyReleaseState(context.market);
+        _validateConfiguredReleaseStack(context, DEPLOYER, false);
+
+        FameRouterTypes.Route memory emptyRoute;
+        uint256 emptyMarketPremium = context.market.premium();
+        vm.expectRevert(abi.encodeWithSelector(FameMarketplaceCheckout.UnavailableShell.selector, uint256(1)));
+        vm.prank(BUYER_ONE);
+        context.checkout.checkoutHeld(emptyRoute, 1, bytes32(0), emptyMarketPremium, 0);
+
+        uint256 unit = fame.unit();
         uint256 batchSize = context.market.MAX_INVENTORY_BATCH_SIZE();
         vm.prank(SAFE);
         fame.transfer(BATCH_PROVIDER, batchSize * unit);
@@ -142,22 +166,86 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         assertEq(indexPlusOne, 1, "batch provider index mismatch");
         assertEq(context.market.activeProviderCount(), 1, "batch should consume one provider slot");
         assertEq(context.market.totalProviderUnits(), batchSize, "batch total units mismatch");
-
-        context.validator = new ValidateBaseUniversalPoolArtMarketplace();
-        _validateConfiguredReleaseStack(context, DEPLOYER, true);
-
-        new ActivateBaseUniversalPoolArtMarketplace().activateMarketplace(context.market, context.checkout, DEPLOYER);
         _validateConfiguredReleaseStack(context, DEPLOYER, false);
 
-        vm.prank(DEPLOYER);
-        context.market.pause();
-        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
-            new TransferBaseUniversalPoolArtMarketplaceOwnership();
-        handoff.validateHandoff(context.market, DEPLOYER, SAFE);
-        vm.prank(DEPLOYER);
-        context.market.transferOwnership(SAFE);
+        _executeAndAssertFirstPostLaunchCheckout(context, tokenIds[0], batchSize);
+    }
 
-        _validateConfiguredReleaseStack(context, SAFE, true);
+    function _executeAndAssertFirstPostLaunchCheckout(
+        ReleaseLifecycleContext memory context,
+        uint256 shellId,
+        uint256 batchSize
+    ) internal {
+        ReleaseCheckoutContext memory checkoutContext;
+        checkoutContext.unit = fame.unit();
+        checkoutContext.artwork = context.market.artworkHash(shellId);
+        uint256 premium = context.market.premium();
+        (checkoutContext.route,) =
+            _findSufficientRoute(InputKind.Eth, 0.5 ether, context.checkout, checkoutContext.unit + premium);
+        _fundAndApproveInput(BUYER_ONE, checkoutContext.route, address(context.checkout));
+        checkoutContext.providerBalanceBefore = fame.balanceOf(BATCH_PROVIDER);
+        checkoutContext.communityBefore = fame.balanceOf(SAFE);
+        checkoutContext.buyerMirrorBalanceBefore = mirror.balanceOf(BUYER_ONE);
+        vm.recordLogs();
+        vm.prank(BUYER_ONE);
+        (
+            checkoutContext.routerOutput,
+            checkoutContext.marketCharge,
+            checkoutContext.fameRefund,
+            checkoutContext.inputRefund
+        ) =
+            context.checkout.checkoutHeld{value: checkoutContext.route.amountIn}(
+                checkoutContext.route,
+                shellId,
+                checkoutContext.artwork,
+                premium,
+                checkoutContext.buyerMirrorBalanceBefore + 1
+            );
+        checkoutContext.logs = vm.getRecordedLogs();
+
+        assertEq(checkoutContext.marketCharge, checkoutContext.unit + premium, "market charge mismatch");
+        assertEq(
+            checkoutContext.routerOutput,
+            checkoutContext.marketCharge + checkoutContext.fameRefund,
+            "FAME reconciliation mismatch"
+        );
+        assertEq(checkoutContext.inputRefund, 0, "all-input route returned input residue");
+        assertEq(
+            fame.balanceOf(BATCH_PROVIDER) - checkoutContext.providerBalanceBefore,
+            context.providerFee,
+            "configured provider fee routing mismatch"
+        );
+        assertEq(
+            fame.balanceOf(SAFE) - checkoutContext.communityBefore,
+            context.communityFee + _routeFeeFromLogs(checkoutContext.logs, address(router)),
+            "configured community fee routing mismatch"
+        );
+        assertEq(context.market.inventory(), batchSize, "checkout changed provider-backed inventory");
+        assertEq(context.market.totalProviderUnits(), batchSize, "checkout changed provider units");
+        assertEq(context.market.activeProviderCount(), 1, "checkout changed provider count");
+        assertEq(mirror.ownerAt(shellId), BUYER_ONE, "post-launch shell recipient mismatch");
+        assertEq(fame.balanceOf(address(context.checkout)), 0, "checkout retained FAME");
+        assertEq(address(context.checkout).balance, 0, "checkout retained ETH");
+        assertEq(usdc.balanceOf(address(context.checkout)), 0, "checkout retained USDC");
+        assertEq(weth.balanceOf(address(context.checkout)), 0, "checkout retained WETH");
+        assertEq(fame.allowance(address(context.checkout), address(context.market)), 0, "market allowance");
+        assertEq(
+            _purchaseEventCount(checkoutContext.logs, address(context.market)), 1, "ArtworkPurchased event mismatch"
+        );
+        assertEq(
+            _eventCount(checkoutContext.logs, address(router), ROUTE_EXECUTED_TOPIC), 1, "RouteExecuted event mismatch"
+        );
+        assertEq(
+            _eventCount(checkoutContext.logs, address(context.checkout), CHECKOUT_SETTLED_TOPIC),
+            1,
+            "CheckoutSettled event mismatch"
+        );
+    }
+
+    function _assertEmptyReleaseState(UniversalPoolArtMarketplace market) internal view {
+        assertEq(market.inventory(), 0, "empty release inventory mismatch");
+        assertEq(market.activeProviderCount(), 0, "empty release provider count mismatch");
+        assertEq(market.totalProviderUnits(), 0, "empty release provider units mismatch");
     }
 
     function _validateConfiguredReleaseStack(ReleaseLifecycleContext memory context, address owner, bool paused)
@@ -179,7 +267,7 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
                     communityFee: context.communityFee,
                     providerFee: context.providerFee,
                     activeProviderCap: context.activeProviderCap,
-                    minimumInventory: context.inventory,
+                    minimumInventory: context.minimumInventory,
                     paused: paused
                 }),
                 ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({

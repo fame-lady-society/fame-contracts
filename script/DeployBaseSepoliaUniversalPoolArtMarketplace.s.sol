@@ -15,14 +15,12 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     uint256 internal constant CREATOR_MAGIC_BANISHER_ROLE = 1 << 2;
     uint256 internal constant CREATOR_MAGIC_ART_POOL_MANAGER_ROLE = 1 << 3;
     uint256 internal constant FAME_SKIP_MANAGER_ROLE = 1 << 3;
-    uint256 internal constant REQUIRED_INITIAL_INVENTORY = 3;
+    uint256 internal constant REQUIRED_INITIAL_INVENTORY = 0;
     uint256 internal constant EXPECTED_MAX_INVENTORY_BATCH_SIZE = 8;
 
     enum DeploymentPrefix {
         None,
         Deployed,
-        BanisherGranted,
-        PartiallySeeded,
         ReadyPaused
     }
 
@@ -50,7 +48,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
     error InvalidActiveProviderCap(uint256 cap);
     error InvalidMinimumInventory(uint256 expected, uint256 actual);
     error FeeRecipientNotSkippingNFT(address recipient);
-    error InsufficientSeedBalance(uint256 required, uint256 available);
     error ExistingDeploymentMismatch(string field);
     error ExistingDeploymentActivated(address market);
     error ExistingDeploymentAuthorityTooBroad(uint256 role);
@@ -72,10 +69,9 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
             revert DeployerNonceMismatch(inputs.expectedNonce, actualNonce);
         }
 
-        uint256 existingInventory;
         if (predicted.code.length != 0) {
             market = UniversalPoolArtMarketplace(predicted);
-            (, existingInventory) = deploymentPrefix(
+            deploymentPrefix(
                 market,
                 inputs.fame,
                 inputs.creatorMagic,
@@ -86,13 +82,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
                 inputs.activeProviderCap,
                 inputs.minimumInventory
             );
-        }
-        uint256 missingInventory =
-            existingInventory >= inputs.minimumInventory ? 0 : inputs.minimumInventory - existingInventory;
-        uint256 requiredBalance = missingInventory * inputs.fame.unit();
-        uint256 availableBalance = inputs.fame.balanceOf(inputs.deployer);
-        if (availableBalance < requiredBalance) {
-            revert InsufficientSeedBalance(requiredBalance, availableBalance);
         }
 
         vm.startBroadcast(inputs.privateKey);
@@ -109,9 +98,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         }
         if (!inputs.creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE)) {
             inputs.creatorMagic.grantRoles(address(market), CREATOR_MAGIC_BANISHER_ROLE);
-        }
-        for (uint256 i; i < missingInventory; ++i) {
-            inputs.fame.transfer(address(market), inputs.fame.unit());
         }
         vm.stopBroadcast();
     }
@@ -171,10 +157,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         bool hasBanisher = creatorMagic.hasAnyRole(address(market), CREATOR_MAGIC_BANISHER_ROLE);
         inventory = market.inventory();
         if (!hasBanisher) return (DeploymentPrefix.Deployed, inventory);
-        if (inventory == 0) return (DeploymentPrefix.BanisherGranted, 0);
-        if (inventory < minimumInventory) {
-            return (DeploymentPrefix.PartiallySeeded, inventory);
-        }
         return (DeploymentPrefix.ReadyPaused, inventory);
     }
 

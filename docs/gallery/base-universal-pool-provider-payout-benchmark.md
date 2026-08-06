@@ -63,6 +63,26 @@ the earlier qualification:
 - Full 888-ID free exit: `2,805,985` gas against a `10,000,000` gas budget
 - Base block gas limit: `400,000,000`
 - Result: both isolated benchmark lanes passed against the changed bytecode.
-  The release lifecycle independently credited one maximum eight-token batch,
-  validated, activated, re-paused, handed ownership to the Safe, and validated
-  the post-handoff state on the same latest-Base release run.
+  The release lifecycle at that point still used pre-activation inventory and
+  was superseded by the empty-launch rehearsal below.
+
+## Post-zero-inventory lifecycle requalification
+
+The provider bytecode did not change for the zero-inventory release update, but
+the complete latest-Base release suite was rerun so the cap benchmarks and the
+new lifecycle share current fork evidence:
+
+- UTC: `2026-08-03T19:26Z`
+- Base benchmark block: `49497889`
+- Base benchmark block hash: `0xcf32e4f4ea7e9f7d26ab531f21e8fb4463e3479f1e77f0a83c94c6f95ff9048b`
+- Deployer-owned lifecycle block: `49497895`
+- Deployer-owned lifecycle block hash: `0xbc1e27dc636377937a317b85a0a0e7aa1e30c93a547123ead56085f0968675a9`
+- Candidate active-provider cap: `88`
+- All-provider auto-mint checkout: `3,790,903` gas against a `15,000,000` gas budget
+- Full 888-ID free exit: `2,805,985` gas against a `10,000,000` gas budget
+- Base block gas limit: `400,000,000`
+- Result: all 19 isolated release tests passed. The lifecycle deployed and
+  validated exact zero inventory/provider state, activated from the deployer,
+  rejected checkout while empty before buyer funding, accepted a post-launch
+  eight-token credited provider batch, and completed a real configured
+  checkout. No fork ownership transfer occurred.
