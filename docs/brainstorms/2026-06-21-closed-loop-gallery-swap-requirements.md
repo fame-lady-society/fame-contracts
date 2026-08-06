@@ -1,9 +1,14 @@
 ---
 date: 2026-06-21
 topic: closed-loop-gallery-swap
+status: superseded
+superseded_date: 2026-08-06
+superseded_by: UniversalPoolArtMarketplace + FameMarketplaceCheckout
 ---
 
 # Closed-Loop Gallery Swap Requirements
+
+> **Superseded (2026-08-06).** Product surface removed; kept as historical requirements only. See `docs/gallery/marketplace-checkout-review-decisions.md` (D1).
 
 ## Summary
 

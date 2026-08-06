@@ -7,9 +7,14 @@ artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 execution: code
 deepened: 2026-07-15
+status: superseded
+superseded_date: 2026-08-06
+superseded_by: UniversalPoolArtMarketplace Base Sepolia stack
 ---
 
 # Base Sepolia Marketplace Test Renderer - Plan
+
+> **Superseded (2026-08-06).** ClosedLoop gallery test stack and `BaseSepoliaTestRenderer` were removed with `ClosedLoopGallerySwap`. See `docs/gallery/marketplace-checkout-review-decisions.md` (D1).
 
 ## Goal Capsule
 

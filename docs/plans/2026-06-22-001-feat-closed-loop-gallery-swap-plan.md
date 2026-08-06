@@ -3,9 +3,15 @@ title: "feat: Build closed-loop gallery swap"
 type: feat
 date: 2026-06-22
 origin: docs/brainstorms/2026-06-21-closed-loop-gallery-swap-requirements.md
+status: superseded
+superseded_date: 2026-08-06
+superseded_by: UniversalPoolArtMarketplace + FameMarketplaceCheckout
+decision: docs/gallery/marketplace-checkout-review-decisions.md#d1-remove-closedloopgalleryswap-entirely
 ---
 
 # feat: Build closed-loop gallery swap
+
+> **Superseded (2026-08-06).** `ClosedLoopGallerySwap` was removed from the codebase. Do not implement this plan. Successor: universal pool art marketplace + atomic checkout. See `docs/gallery/marketplace-checkout-review-decisions.md` (D1).
 
 ## Summary
 

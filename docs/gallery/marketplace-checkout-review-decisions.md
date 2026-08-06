@@ -37,10 +37,10 @@ Decision vocabulary:
 
 **Follow-ups when implementing removal:**
 
-- [ ] Delete source, scripts, tests, gallery-only mocks
-- [ ] Grep and clean references in `CONCEPTS.md`, `docs/fame-release-plan.md`, `config/fame-public.env`, handoffs
-- [ ] Mark plan/brainstorm superseded (do not necessarily delete protected `docs/plans/*` / `docs/brainstorms/*` artifacts; prefer a short “Superseded by universal marketplace” note)
-- [ ] Ensure CI / foundry profiles do not still match ClosedLoop suites only
+- [x] Delete source, scripts, tests, gallery-only mocks (incl. Base Sepolia gallery test stack + `BaseSepoliaTestRenderer`)
+- [x] Clean `docs/fame-release-plan.md`, `config/fame-public.env`, operational gallery docs
+- [x] Mark plan/brainstorm superseded
+- [x] Handoffs that already say “do not preserve closed-loop assumptions” left as historical guidance
 
 **Review findings closed by D1 (no separate fix):**
 
@@ -125,7 +125,7 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 
 | Workstream | Decision refs | Status |
 |------------|---------------|--------|
-| Delete ClosedLoopGallerySwap stack | D1, #1, #5, #17 | Not started |
+| Delete ClosedLoopGallerySwap stack | D1, #1, #5, #17 | Done (removal commit) |
 | Checkout accounting + selector tests | #2, #8, #9, #12, #20 Accept | Not started |
 | Invariant pool coverage | #10 Accept | Not started |
 | Event/receipt ABI | #6, #11, #13 Accept (a) | Not started |
@@ -154,3 +154,4 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | 2026-08-06 | R1 Accept: boon latent assets rather than bury forever; couples with #14 policy redesign. R5 still open. |
 | 2026-08-06 | R1 surface **3**: boon on either successful purchase or redemption (first claim wins). Operator notes UniswapV2 Router dust is negligible in practice. |
 | 2026-08-06 | R5 Accept: remove fee-recipient buyer special case; same charge/premium path as all buyers. |
+| 2026-08-06 | D1 implemented: removed ClosedLoop + Base Sepolia gallery test stack from tree; superseded notes on plans/brainstorms/ops docs. |
