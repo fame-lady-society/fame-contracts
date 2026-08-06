@@ -120,9 +120,7 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         inputs.expectedNonce = vm.envUint("BASE_SEPOLIA_UNIVERSAL_MARKETPLACE_EXPECTED_DEPLOYER_NONCE");
         _validateMinimumInventory(inputs.minimumInventory);
 
-        _validateInputs(
-            inputs.fame, inputs.creatorMagic, inputs.deployer, inputs.owner, inputs.feeRecipient, inputs.communityFee
-        );
+        _validateInputs(inputs.fame, inputs.creatorMagic, inputs.deployer, inputs.owner, inputs.communityFee);
         uint256 maximumFee = inputs.fame.unit() / 10;
         if (inputs.providerFee > maximumFee) revert InvalidPremium(inputs.providerFee);
         if (inputs.activeProviderCap == 0 || inputs.activeProviderCap > 888) {
@@ -164,7 +162,6 @@ contract DeployBaseSepoliaUniversalPoolArtMarketplace is Script {
         CreatorArtistMagic creatorMagic,
         address deployer,
         address owner,
-        address, /* feeRecipient — skipNFT not required */
         uint256 communityFee
     ) internal view {
         if (

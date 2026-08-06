@@ -70,7 +70,7 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
         if (config.activeProviderCap == 0) revert ValueMismatch("activeProviderCap", 1, config.activeProviderCap);
 
         new ValidateFameRouterBase().run();
-        _validateStack(fame, creatorMagic, config.router, config.feeRecipient, config.sender);
+        _validateStack(fame, creatorMagic, config.router, config.sender);
         (market, checkout) = _deployMarketplaceStack(fame, creatorMagic, config);
     }
 
@@ -79,7 +79,7 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
         returns (UniversalPoolArtMarketplace market, FameMarketplaceCheckout checkout)
     {
         _requireBase();
-        _validateStack(fame, creatorMagic, config.router, config.feeRecipient, config.sender);
+        _validateStack(fame, creatorMagic, config.router, config.sender);
         if (config.owner != config.sender) revert ConfigurationMismatch("owner", config.sender, config.owner);
         (market, checkout) = _deployMarketplaceStack(fame, creatorMagic, config);
     }
@@ -105,13 +105,10 @@ contract DeployBaseUniversalPoolArtMarketplace is Script {
         vm.stopBroadcast();
     }
 
-    function _validateStack(
-        Fame fame,
-        CreatorArtistMagic creatorMagic,
-        address router,
-        address, /* feeRecipient — skipNFT not required */
-        address deployer
-    ) internal view {
+    function _validateStack(Fame fame, CreatorArtistMagic creatorMagic, address router, address deployer)
+        internal
+        view
+    {
         if (
             address(fame.fameMirror()) == address(0) || address(fame.renderer()) != address(creatorMagic)
                 || address(creatorMagic.fame()) != address(fame) || creatorMagic.owner() != deployer
