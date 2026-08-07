@@ -51,10 +51,11 @@ contract FameMarketplaceCheckoutFuzzTest is FameMarketplaceCheckoutTestBase {
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
 
-        assertEq(usdc.balanceOf(buyer), buyerInputBefore - spend);
-        assertEq(fame.balanceOf(buyer), buyerFameBefore + fame.unit() + surplus);
-        assertEq(usdc.balanceOf(address(checkout)), ambientUsdc);
-        assertEq(fame.balanceOf(address(checkout)), ambientFame);
+        // Boon: buyer recovers input residue + ambient USDC; ambient FAME with surplus.
+        assertEq(usdc.balanceOf(buyer), buyerInputBefore - spend + ambientUsdc);
+        assertEq(fame.balanceOf(buyer), buyerFameBefore + fame.unit() + surplus + ambientFame);
+        assertEq(usdc.balanceOf(address(checkout)), 0);
+        assertEq(fame.balanceOf(address(checkout)), 0);
         assertEq(usdc.allowance(address(checkout), address(router)), 0);
         assertEq(fame.allowance(address(checkout), address(market)), 0);
         assertEq(mirror.balanceOf(address(checkout)), 0);

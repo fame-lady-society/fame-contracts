@@ -267,7 +267,7 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(mirror.ownerOf(shellId), buyer);
     }
 
-    function testAmbientBalancesCannotBeClaimed() public {
+    function testSuccessfulCheckoutBoonsSnapshottedAmbientBalances() public {
         uint256 shellId = _seedShells(market, 2);
         bytes32 artwork = market.artworkHash(shellId);
         uint256 ambientFame = fame.unit() / 5;
@@ -279,15 +279,21 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         weth.mint(address(checkout), ambientWeth);
         ForceNativeDonation donation = new ForceNativeDonation{value: ambientEth}();
         donation.donate(payable(address(checkout)));
+        // Route assets: USDC + FAME. WETH/ETH ambient is not on this route and stays.
         FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 40e6, _marketCharge());
         market.unpause();
         uint256 maxPremium = market.premium();
 
+        uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
+        uint256 buyerFameBefore = fame.balanceOf(buyer);
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
 
-        assertEq(fame.balanceOf(address(checkout)), ambientFame);
-        assertEq(usdc.balanceOf(address(checkout)), ambientUsdc);
+        // Spend 40e6; residue 60e6 + ambient USDC booned; ambient FAME booned with surplus.
+        assertEq(usdc.balanceOf(buyer), buyerUsdcBefore - 40e6 + ambientUsdc);
+        assertEq(fame.balanceOf(buyer), buyerFameBefore + fame.unit() + ambientFame);
+        assertEq(usdc.balanceOf(address(checkout)), 0);
+        assertEq(fame.balanceOf(address(checkout)), 0);
         assertEq(weth.balanceOf(address(checkout)), ambientWeth);
         assertEq(address(checkout).balance, ambientEth);
     }

@@ -92,27 +92,23 @@ Purchase paths are delta-isolated. Pre-existing checkout balances do not subsidi
 
 “Surplus” and “ambient balance” are not synonyms, and unsolicited FAME is not automatically an attack.
 
-#### Purchase policy: preserve ambient balances
+#### Purchase and redemption refund policy: boon snapshotted route assets (finders-keepers)
 
-Only transaction-local input residue, route leftovers, and FAME above the marketplace charge are refunded to the buyer. A balance that existed before the purchase remains untouched (`src/FameMarketplaceCheckout.sol:430-455`). Tests cover preservation of pre-existing FAME, USDC, WETH, and ETH and return of transaction-local surplus (`test/FameMarketplaceCheckout.t.sol:213-232`, `test/FameMarketplaceCheckoutFuzz.t.sol:28-60`).
+After a **successful** `checkoutHeld` / `checkoutPool` or `redeemSociety`, checkout sends the **full remaining balance** of every asset in the route snapshot to the caller (latent ambient + transaction-local surplus). Assets not on the route stay put until a later successful call that snapshotted them. There is no owner rescue; dust is not buried forever on purpose.
 
-#### Society redemption policy: consume all FAME as a bonus
+Purchase FAME accounting is:
 
-After pulling the caller's selected Society NFTs, checkout measures its complete FAME balance. The transfer of each DN404 mirror token releases its backing FAME into checkout; any FAME already present is included as well (`src/FameMarketplaceCheckout.sol:333-345`). Checkout copies the quoted route, replaces `amountIn` with this actual balance, approves exactly that amount, executes once, and clears the allowance (`src/FameMarketplaceCheckout.sol:348-358`).
+```text
+fameBaseline + routerFameOutput == marketplaceFameCharge + fameRefund
+```
 
-The route must contain exactly one `All`-mode FAME-consuming leg, and it must be the final FAME-input leg (`src/FameMarketplaceCheckout.sol:525-541`). A successful redemption must leave zero FAME and zero Society NFTs in checkout (`src/FameMarketplaceCheckout.sol:360-365`). Existing FAME and directly donated Society NFTs are therefore intentional value for the next successful eligible redeemer.
+where `fameRefund` is the full post-settlement FAME balance transferred to the buyer (includes ambient FAME).
 
-This is the useful destination for extra FAME. It does not require an owner, rescue role, quarantine, sweep ceremony, or a new custody contract. Those mechanisms would add governance and access-control surface while fighting the intended economics.
+#### Society redemption: all-in FAME, then boon residual route assets
 
-The policy still fails closed:
+After pulling the caller's selected Society NFTs, checkout measures its complete FAME balance (backing + ambient). Checkout copies the quoted route, replaces `amountIn` with this actual balance, approves exactly that amount, executes once, and clears the allowance. The route must contain exactly one final `All`-mode FAME-consuming leg. Success requires zero FAME and zero Society NFTs, then boons any residual snapshotted non-FAME (e.g. ambient WETH on a WETH out route) to the redeemer.
 
-- redemption requires at least one selected NFT;
-- the quoted input must cover the selected NFTs' token basis;
-- actual FAME must be at least the quoted input;
-- output is sent directly to the caller;
-- a stale quote whose bonus has already been consumed reverts the entire NFT pull and swap.
-
-Ambient non-FAME assets do not become a redemption bonus. Redemption refunds only transaction-local non-FAME deltas and restores their baselines (`src/FameMarketplaceCheckout.sol:472-490`). The all-in policy is deliberately narrow: FAME and Society inventory on redemption only.
+The policy still fails closed on quote/pull/route/inventory errors (full atomic revert).
 
 ### Let wagmi own transaction truth
 

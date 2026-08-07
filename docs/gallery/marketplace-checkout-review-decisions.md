@@ -134,7 +134,7 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | Docs: deposit sniping intentional | #16 (b) | Not started |
 | #18 shell contention | Reject | Closed |
 | #19 provider mint gas | Reject | Closed |
-| Checkout refund policy (boon + consolidate) | #14 + R1 surface 3 | Not started |
+| Checkout refund policy (boon + consolidate) | #14 + R1 surface 3 | Done |
 | Shared route-header helper | #15 Accept | Not started |
 
 ---
@@ -156,3 +156,4 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | 2026-08-06 | R5 Accept: remove fee-recipient buyer special case; same charge/premium path as all buyers. |
 | 2026-08-06 | D1 implemented: removed ClosedLoop + Base Sepolia gallery test stack from tree; superseded notes on plans/brainstorms/ops docs. |
 | 2026-08-06 | R5 + #7 implemented: no buyer fee waiver; no fee-recipient skipNFT gate; scripts/tests/handoffs updated. |
+| 2026-08-06 | #14 + R1 implemented: consolidated `_refundSnapshottedBalances` boons full route-asset balances on purchase/redemption success. |

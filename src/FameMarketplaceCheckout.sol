@@ -101,7 +101,6 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     error InputTransferMismatch(uint256 expected, uint256 actual);
     error RouterOutputMismatch(uint256 reported, uint256 measured);
     error MarketplaceChargeMismatch(uint256 expected, uint256 actual);
-    error AmbientBalanceConsumed(address asset, uint256 baseline, uint256 current);
     error RefundBalanceMismatch(address asset, uint256 expected, uint256 actual);
     error FameAccountingMismatch(uint256 routerOutput, uint256 marketplaceCharge, uint256 fameRefund);
     error MirrorBalanceChanged(uint256 baseline, uint256 current);
@@ -190,7 +189,10 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         bytes32 executedRouteHash;
         (netAmountOut, executedRouteHash) = _executeRedemptionRoute(route, actualFameInput);
 
-        _refundRedemptionAssets(snapshots, snapshotCount, caller);
+        // Boon non-FAME (and any residual FAME) on the route asset set to the redeemer.
+        // Successful redemption still requires empty FAME/Society inventory afterward.
+        uint256[] memory refundAmounts = _refundSnapshottedBalances(snapshots, snapshotCount, caller);
+        _emitRefunds(caller, snapshots, snapshotCount, refundAmounts);
         _requireEmptyRedemptionInventory();
 
         _emitSocietyRedemption(route, tokenIds, caller, actualFameInput, executedRouteHash, netAmountOut);
@@ -272,15 +274,19 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         (AssetSnapshot[] memory snapshots, uint256 snapshotCount) = _snapshotRouteAssets(route);
         uint256 mirrorBaseline = market.mirror().balanceOf(address(this));
 
+        uint256 fameBaseline = _snapshotBaseline(snapshots, snapshotCount, address(fame));
+
         accounting.routerFameOutput = _executeRoute(route, snapshots, snapshotCount, buyer);
         accounting.marketplaceFameCharge = _settleMarketplace(request, buyer);
-        uint256[] memory refundAmounts;
-        (accounting.fameRefund, accounting.inputRefund, refundAmounts) =
-            _refundRouteAssets(route, snapshots, snapshotCount, buyer);
+        uint256[] memory refundAmounts =
+            _refundSnapshottedBalances(snapshots, snapshotCount, buyer);
+        accounting.fameRefund = _refundAmountForAsset(snapshots, snapshotCount, refundAmounts, address(fame));
+        accounting.inputRefund = _refundAmountForAsset(snapshots, snapshotCount, refundAmounts, route.tokenIn);
 
         uint256 mirrorAfter = market.mirror().balanceOf(address(this));
         if (mirrorAfter != mirrorBaseline) revert MirrorBalanceChanged(mirrorBaseline, mirrorAfter);
-        if (accounting.routerFameOutput != accounting.marketplaceFameCharge + accounting.fameRefund) {
+        // Boon: fameRefund includes ambient FAME (fameBaseline) plus route surplus above charge.
+        if (fameBaseline + accounting.routerFameOutput != accounting.marketplaceFameCharge + accounting.fameRefund) {
             revert FameAccountingMismatch(
                 accounting.routerFameOutput, accounting.marketplaceFameCharge, accounting.fameRefund
             );
@@ -428,65 +434,49 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         _requireSkipNFT();
     }
 
-    function _refundRouteAssets(
-        FameRouterTypes.Route calldata route,
+    /// @dev Finders-keepers for snapshotted route assets: successful purchase or redemption
+    ///      sends the full remaining balance of each asset to `to` (latent ambient + tx surplus).
+    function _refundSnapshottedBalances(
         AssetSnapshot[] memory snapshots,
         uint256 snapshotCount,
-        address buyer
-    ) private returns (uint256 fameRefund, uint256 inputRefund, uint256[] memory refundAmounts) {
+        address to
+    ) private returns (uint256[] memory refundAmounts) {
         refundAmounts = new uint256[](snapshotCount);
         for (uint256 i; i < snapshotCount; ++i) {
-            AssetSnapshot memory snapshot = snapshots[i];
-            uint256 current = _assetBalance(snapshot.asset);
-            if (current < snapshot.baseline) {
-                revert AmbientBalanceConsumed(snapshot.asset, snapshot.baseline, current);
-            }
-            uint256 refund = current - snapshot.baseline;
-            refundAmounts[i] = refund;
-            if (snapshot.asset == route.tokenIn) inputRefund = refund;
-            if (snapshot.asset == address(fame)) fameRefund = refund;
-            _transferAsset(snapshot.asset, buyer, refund);
+            address asset = snapshots[i].asset;
+            uint256 current = _assetBalance(asset);
+            refundAmounts[i] = current;
+            _transferAsset(asset, to, current);
         }
 
         for (uint256 i; i < snapshotCount; ++i) {
             uint256 current = _assetBalance(snapshots[i].asset);
-            if (current != snapshots[i].baseline) {
-                revert RefundBalanceMismatch(snapshots[i].asset, snapshots[i].baseline, current);
+            if (current != 0) {
+                revert RefundBalanceMismatch(snapshots[i].asset, 0, current);
             }
         }
-        return (fameRefund, inputRefund, refundAmounts);
+    }
+
+    function _refundAmountForAsset(
+        AssetSnapshot[] memory snapshots,
+        uint256 snapshotCount,
+        uint256[] memory refundAmounts,
+        address asset
+    ) private pure returns (uint256 amount) {
+        for (uint256 i; i < snapshotCount; ++i) {
+            if (snapshots[i].asset == asset) return refundAmounts[i];
+        }
     }
 
     function _emitRefunds(
-        address buyer,
+        address to,
         AssetSnapshot[] memory snapshots,
         uint256 snapshotCount,
         uint256[] memory refundAmounts
     ) private {
         for (uint256 i; i < snapshotCount; ++i) {
             if (refundAmounts[i] != 0) {
-                emit AssetRefunded(buyer, snapshots[i].asset, refundAmounts[i]);
-            }
-        }
-    }
-
-    function _refundRedemptionAssets(AssetSnapshot[] memory snapshots, uint256 snapshotCount, address caller) private {
-        for (uint256 i; i < snapshotCount; ++i) {
-            AssetSnapshot memory snapshot = snapshots[i];
-            if (snapshot.asset == address(fame)) continue;
-            uint256 current = _assetBalance(snapshot.asset);
-            if (current < snapshot.baseline) {
-                revert AmbientBalanceConsumed(snapshot.asset, snapshot.baseline, current);
-            }
-            _transferAsset(snapshot.asset, caller, current - snapshot.baseline);
-        }
-
-        for (uint256 i; i < snapshotCount; ++i) {
-            AssetSnapshot memory snapshot = snapshots[i];
-            if (snapshot.asset == address(fame)) continue;
-            uint256 current = _assetBalance(snapshot.asset);
-            if (current != snapshot.baseline) {
-                revert RefundBalanceMismatch(snapshot.asset, snapshot.baseline, current);
+                emit AssetRefunded(to, snapshots[i].asset, refundAmounts[i]);
             }
         }
     }

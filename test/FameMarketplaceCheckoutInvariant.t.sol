@@ -160,8 +160,11 @@ contract FameMarketplaceCheckoutHandler is Test {
 
         assertEq(actualFameInput, fame.unit() + expectedFame);
         assertEq(netAmountOut, output);
+        // Redemption route assets are FAME + WETH: both cleared by all-in FAME + boon refund.
         expectedFame = 0;
+        expectedWeth = 0;
         assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(weth.balanceOf(address(checkout)), 0);
         assertEq(mirror.balanceOf(address(checkout)), 0);
         assertEq(fame.allowance(address(checkout), address(router)), 0);
         ++redemptionSuccesses;
@@ -177,23 +180,46 @@ contract FameMarketplaceCheckoutHandler is Test {
             ? _nativeRoute(purchase.amountIn, purchase.spend, fameOutput)
             : _erc20Route(purchase.tokenIn, purchase.amountIn, purchase.spend, fameOutput);
 
+        uint256 ambientInput = purchase.nativeInput
+            ? expectedNative
+            : (purchase.tokenIn == address(usdc) ? expectedUsdc : expectedWeth);
+        uint256 ambientFame = expectedFame;
+
         BuyerSnapshot memory beforeState = BuyerSnapshot({
             inputBalance: purchase.nativeInput ? purchase.buyer.balance : _balanceOf(purchase.tokenIn, purchase.buyer),
             fameBalance: fame.balanceOf(purchase.buyer)
         });
         vm.prank(purchase.buyer);
         checkout.checkoutHeld{value: purchase.nativeInput ? purchase.amountIn : 0}(route, shellId, artwork, premium, 1);
-        _assertCheckout(purchase, shellId, beforeState);
+
+        // Boon clears every snapshotted route asset (input, intermediates such as WETH on
+        // native wrap routes, and FAME output).
+        if (purchase.nativeInput) {
+            expectedNative = 0;
+            expectedWeth = 0;
+        } else if (purchase.tokenIn == address(usdc)) {
+            expectedUsdc = 0;
+        } else {
+            expectedWeth = 0;
+        }
+        expectedFame = 0;
+
+        _assertCheckout(purchase, shellId, beforeState, ambientInput, ambientFame);
     }
 
-    function _assertCheckout(CheckoutCase memory purchase, uint256 shellId, BuyerSnapshot memory beforeState)
-        private
-        view
-    {
+    function _assertCheckout(
+        CheckoutCase memory purchase,
+        uint256 shellId,
+        BuyerSnapshot memory beforeState,
+        uint256 ambientInput,
+        uint256 ambientFame
+    ) private view {
         uint256 buyerInputAfter =
             purchase.nativeInput ? purchase.buyer.balance : _balanceOf(purchase.tokenIn, purchase.buyer);
-        assertEq(buyerInputAfter, beforeState.inputBalance - purchase.spend);
-        assertEq(fame.balanceOf(purchase.buyer), beforeState.fameBalance + fame.unit() + purchase.surplus);
+        assertEq(buyerInputAfter, beforeState.inputBalance - purchase.spend + ambientInput);
+        assertEq(
+            fame.balanceOf(purchase.buyer), beforeState.fameBalance + fame.unit() + purchase.surplus + ambientFame
+        );
         assertEq(mirror.ownerOf(shellId), purchase.buyer);
         assertEq(usdc.balanceOf(address(checkout)), expectedUsdc);
         assertEq(weth.balanceOf(address(checkout)), expectedWeth);
@@ -351,7 +377,8 @@ contract FameMarketplaceCheckoutInvariantTest is StdInvariant, FameMarketplaceCh
         targetContract(address(handler));
     }
 
-    function invariantCheckoutRetainsOnlyAmbientBalances() public view {
+    function invariantCheckoutBalancesMatchBoonExpectations() public view {
+        // Ambient remains only for assets not cleared by a successful route that snapshotted them.
         assertEq(usdc.balanceOf(address(checkout)), handler.expectedUsdc());
         assertEq(weth.balanceOf(address(checkout)), handler.expectedWeth());
         assertEq(fame.balanceOf(address(checkout)), handler.expectedFame());

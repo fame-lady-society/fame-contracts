@@ -222,9 +222,10 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
 
         assertEq(actualFameInput, fame.unit());
         assertEq(netAmountOut, finalWeth);
-        assertEq(usdc.balanceOf(buyer), buyerUsdcBefore + intermediateUsdc);
+        // Intermediate USDC residue + ambient USDC are booned (USDC is on the route snapshot).
+        assertEq(usdc.balanceOf(buyer), buyerUsdcBefore + intermediateUsdc + ambientUsdc);
         assertEq(weth.balanceOf(buyer), buyerWethBefore + finalWeth);
-        assertEq(usdc.balanceOf(address(checkout)), ambientUsdc);
+        assertEq(usdc.balanceOf(address(checkout)), 0);
         assertEq(fame.balanceOf(address(checkout)), 0);
         assertEq(mirror.balanceOf(address(checkout)), 0);
         assertEq(fame.allowance(address(checkout), address(router)), 0);
@@ -445,7 +446,7 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         _assertNftPullFailureRollsBackEntireRedemption(2);
     }
 
-    function testPurchaseStillPreservesAmbientFameAfterRedemptionFeature() public {
+    function testPurchaseBoonsAmbientFameOnSuccessfulCheckout() public {
         uint256 shellId = _seedShells(market, 2);
         bytes32 artwork = market.artworkHash(shellId);
         uint256 ambientFame = fame.unit() / 5;
@@ -454,10 +455,12 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         market.unpause();
         uint256 maxPremium = market.premium();
 
+        uint256 buyerFameBefore = fame.balanceOf(buyer);
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
 
-        assertEq(fame.balanceOf(address(checkout)), ambientFame);
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(fame.balanceOf(buyer), buyerFameBefore + fame.unit() + ambientFame);
         assertEq(mirror.balanceOf(address(checkout)), 0);
     }
 
