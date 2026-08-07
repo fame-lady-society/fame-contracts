@@ -2,9 +2,27 @@
 pragma solidity ^0.8.24;
 
 import {FameRouterTypes} from "../src/router/FameRouterTypes.sol";
+import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.sol";
 import {FameMarketplaceCheckoutTestBase} from "./helpers/FameMarketplaceCheckoutTestBase.sol";
 
 contract FameMarketplaceCheckoutFuzzTest is FameMarketplaceCheckoutTestBase {
+    struct LateFailureSnapshot {
+        uint256 buyerInput;
+        uint256 buyerFame;
+        uint256 buyerMirror;
+        uint256 venueInput;
+        uint256 venueFame;
+        uint256 routerInput;
+        uint256 routerFame;
+        uint256 checkoutInput;
+        uint256 checkoutFame;
+        uint256 checkoutMirror;
+        uint256 checkoutNative;
+        uint256 feeFame;
+        uint256 inventory;
+        bytes32 shellArtwork;
+    }
+
     function testFuzzRedemptionBatchConsumesMeasuredFameAndClearsInventory(uint8 rawCount, uint96 rawAmbientFame)
         public
     {
@@ -91,22 +109,52 @@ contract FameMarketplaceCheckoutFuzzTest is FameMarketplaceCheckoutTestBase {
         FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), amountIn, spend, _marketCharge() + surplus);
         market.unpause();
 
-        uint256 buyerInputBefore = usdc.balanceOf(buyer);
-        uint256 venueInputBefore = usdc.balanceOf(address(venue));
-        uint256 venueFameBefore = fame.balanceOf(address(venue));
-        uint256 feeFameBefore = fame.balanceOf(feeRecipient);
+        LateFailureSnapshot memory beforeState = _snapshotLateFailure(shellId);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.BuyerMirrorBalanceTooLow.selector, 2, 1));
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 2);
 
-        assertEq(usdc.balanceOf(buyer), buyerInputBefore);
-        assertEq(usdc.balanceOf(address(venue)), venueInputBefore);
-        assertEq(fame.balanceOf(address(venue)), venueFameBefore);
-        assertEq(fame.balanceOf(feeRecipient), feeFameBefore);
+        _assertLateFailureRollback(shellId, beforeState);
         assertEq(venue.nextOutputIndex(), 0);
         assertEq(mirror.ownerOf(shellId), address(market));
         assertEq(usdc.allowance(address(checkout), address(router)), 0);
         assertEq(fame.allowance(address(checkout), address(market)), 0);
+    }
+
+    function _snapshotLateFailure(uint256 shellId) private view returns (LateFailureSnapshot memory state) {
+        state = LateFailureSnapshot({
+            buyerInput: usdc.balanceOf(buyer),
+            buyerFame: fame.balanceOf(buyer),
+            buyerMirror: mirror.balanceOf(buyer),
+            venueInput: usdc.balanceOf(address(venue)),
+            venueFame: fame.balanceOf(address(venue)),
+            routerInput: usdc.balanceOf(address(router)),
+            routerFame: fame.balanceOf(address(router)),
+            checkoutInput: usdc.balanceOf(address(checkout)),
+            checkoutFame: fame.balanceOf(address(checkout)),
+            checkoutMirror: mirror.balanceOf(address(checkout)),
+            checkoutNative: address(checkout).balance,
+            feeFame: fame.balanceOf(feeRecipient),
+            inventory: market.inventory(),
+            shellArtwork: market.artworkHash(shellId)
+        });
+    }
+
+    function _assertLateFailureRollback(uint256 shellId, LateFailureSnapshot memory beforeState) private view {
+        assertEq(usdc.balanceOf(buyer), beforeState.buyerInput);
+        assertEq(fame.balanceOf(buyer), beforeState.buyerFame);
+        assertEq(mirror.balanceOf(buyer), beforeState.buyerMirror);
+        assertEq(usdc.balanceOf(address(venue)), beforeState.venueInput);
+        assertEq(fame.balanceOf(address(venue)), beforeState.venueFame);
+        assertEq(usdc.balanceOf(address(router)), beforeState.routerInput);
+        assertEq(fame.balanceOf(address(router)), beforeState.routerFame);
+        assertEq(usdc.balanceOf(address(checkout)), beforeState.checkoutInput);
+        assertEq(fame.balanceOf(address(checkout)), beforeState.checkoutFame);
+        assertEq(mirror.balanceOf(address(checkout)), beforeState.checkoutMirror);
+        assertEq(address(checkout).balance, beforeState.checkoutNative);
+        assertEq(fame.balanceOf(feeRecipient), beforeState.feeFame);
+        assertEq(market.inventory(), beforeState.inventory);
+        assertEq(market.artworkHash(shellId), beforeState.shellArtwork);
     }
 }

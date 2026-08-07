@@ -106,7 +106,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     error MarketplaceChargeMismatch(uint256 expected, uint256 actual);
     error RefundBalanceMismatch(address asset, uint256 expected, uint256 actual);
     error FameAccountingMismatch(uint256 routerOutput, uint256 marketplaceCharge, uint256 fameRefund);
-    error MirrorBalanceChanged(uint256 baseline, uint256 current);
+    error CheckoutMirrorBalanceNotZero(uint256 balance);
     error ZeroSocietyOwner();
     error InvalidSocietyTokenRange(uint256 startTokenId, uint256 endExclusive);
     error InvalidSocietyTokenCount(uint256 tokenCount);
@@ -275,19 +275,16 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         _validateRoute(route, request.maxPremium);
 
         (AssetSnapshot[] memory snapshots, uint256 snapshotCount) = _snapshotRouteAssets(route);
-        uint256 mirrorBaseline = market.mirror().balanceOf(address(this));
-
         uint256 fameBaseline = _snapshotBaseline(snapshots, snapshotCount, address(fame));
 
         accounting.routerFameOutput = _executeRoute(route, snapshots, snapshotCount, buyer);
         accounting.marketplaceFameCharge = _settleMarketplace(request, buyer);
-        uint256[] memory refundAmounts =
-            _refundSnapshottedBalances(snapshots, snapshotCount, buyer);
+        uint256[] memory refundAmounts = _refundSnapshottedBalances(snapshots, snapshotCount, buyer);
         accounting.fameRefund = _refundAmountForAsset(snapshots, snapshotCount, refundAmounts, address(fame));
         accounting.inputRefund = _refundAmountForAsset(snapshots, snapshotCount, refundAmounts, route.tokenIn);
 
         uint256 mirrorAfter = market.mirror().balanceOf(address(this));
-        if (mirrorAfter != mirrorBaseline) revert MirrorBalanceChanged(mirrorBaseline, mirrorAfter);
+        if (mirrorAfter != 0) revert CheckoutMirrorBalanceNotZero(mirrorAfter);
         // Boon: fameRefund includes ambient FAME (fameBaseline) plus route surplus above charge.
         if (fameBaseline + accounting.routerFameOutput != accounting.marketplaceFameCharge + accounting.fameRefund) {
             revert FameAccountingMismatch(
@@ -442,11 +439,10 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
 
     /// @dev Finders-keepers for snapshotted route assets: successful purchase or redemption
     ///      sends the full remaining balance of each asset to `to` (latent ambient + tx surplus).
-    function _refundSnapshottedBalances(
-        AssetSnapshot[] memory snapshots,
-        uint256 snapshotCount,
-        address to
-    ) private returns (uint256[] memory refundAmounts) {
+    function _refundSnapshottedBalances(AssetSnapshot[] memory snapshots, uint256 snapshotCount, address to)
+        private
+        returns (uint256[] memory refundAmounts)
+    {
         refundAmounts = new uint256[](snapshotCount);
         for (uint256 i; i < snapshotCount; ++i) {
             address asset = snapshots[i].asset;

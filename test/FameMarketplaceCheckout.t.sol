@@ -10,20 +10,18 @@ import {MockERC20, TransferTaxERC20} from "./router/mocks/MockERC20.sol";
 import {ForceNativeDonation} from "./mocks/PrefundedFameRouterVenue.sol";
 import {ReentrantFameMarketplaceCheckoutToken} from "./mocks/ReentrantFameMarketplaceCheckoutToken.sol";
 import {CreatorArtistMagic} from "../src/CreatorArtistMagic.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {
+    FameDonatingCheckoutRefundToken,
+    FameDonatingShellRecipient,
+    MismatchedOutputCheckoutRouter,
+    StickyCheckoutRefundToken
+} from "./mocks/CheckoutAccountingMocks.sol";
 
 contract RejectingNativeCheckoutBuyer is IERC721Receiver {
     receive() external payable {
         revert("NO_NATIVE_REFUND");
-    }
-
-    function buyHeld(
-        FameMarketplaceCheckout checkout,
-        FameRouterTypes.Route calldata route,
-        uint256 shellId,
-        bytes32 artwork,
-        uint256 maxPremium
-    ) external payable {
-        checkout.checkoutHeld{value: msg.value}(route, shellId, artwork, maxPremium, 1);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
@@ -32,6 +30,71 @@ contract RejectingNativeCheckoutBuyer is IERC721Receiver {
 }
 
 contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
+    bytes32 private constant CHECKOUT_SETTLED_TOPIC = keccak256(
+        "CheckoutSettled(address,address,uint256,bytes32,uint8,uint256,bytes32,uint256,uint256,uint256,uint256,uint256)"
+    );
+
+    struct CheckoutSettlementExpectation {
+        address buyer;
+        address inputAsset;
+        uint256 shellId;
+        bytes32 routeHash;
+        UniversalPoolArtMarketplace.FulfillmentPath fulfillmentPath;
+        uint256 sourceId;
+        bytes32 artwork;
+        uint256 inputAmount;
+        uint256 inputRefund;
+        uint256 routerFameOutput;
+        uint256 marketplaceFameCharge;
+        uint256 fameRefund;
+    }
+
+    struct RollbackSnapshot {
+        uint256 buyerInput;
+        uint256 buyerFame;
+        uint256 buyerMirror;
+        uint256 buyerCheckoutAllowance;
+        uint256 checkoutInput;
+        uint256 checkoutFame;
+        uint256 checkoutMirror;
+        uint256 checkoutNative;
+        uint256 checkoutRouterAllowance;
+        uint256 checkoutMarketAllowance;
+        uint256 routerInput;
+        uint256 routerFame;
+        uint256 venueInput;
+        uint256 venueFame;
+        uint256 venueOutputIndex;
+        address shellOwner;
+        bytes32 shellArtwork;
+        uint256 marketInventory;
+        uint256 marketProviderUnits;
+        uint256 providerFame;
+        uint256 communityFame;
+    }
+
+    struct RollbackContext {
+        FameMarketplaceCheckout testedCheckout;
+        MockERC20 inputToken;
+        address selectedBuyer;
+        address routeRouter;
+        uint256 shellId;
+        address provider;
+    }
+
+    struct NativeRollbackSnapshot {
+        uint256 buyerNative;
+        uint256 buyerFame;
+        uint256 buyerMirror;
+        uint256 venueWeth;
+        uint256 venueFame;
+        uint256 routerWeth;
+        uint256 routerFame;
+        uint256 communityFame;
+        uint256 inventory;
+        bytes32 shellArtwork;
+    }
+
     function testRoutedCheckoutPaysProvidersAndLeavesNoPayoutResidue() public {
         address provider = address(0xA001);
         fame.transfer(provider, fame.unit());
@@ -123,6 +186,103 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(fame.allowance(address(checkout), address(market)), 0);
         assertTrue(fame.getSkipNFT(address(checkout)));
         assertEq(mirror.balanceOf(address(checkout)), 0);
+    }
+
+    function testCheckoutHeldBoonsUnsolicitedSocietyAndEmitsCompleteReceipt() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 artwork = market.artworkHash(shellId);
+        _rawTransferSocietyToCheckout(1);
+        uint256 charge = _marketCharge();
+        uint256 maximumPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, charge);
+        uint256 buyerFameBefore = fame.balanceOf(buyer);
+        CheckoutSettlementExpectation memory expected;
+        expected.buyer = buyer;
+        expected.inputAsset = address(usdc);
+        expected.shellId = shellId;
+        expected.routeHash = keccak256(abi.encode(route));
+        expected.fulfillmentPath = UniversalPoolArtMarketplace.FulfillmentPath.Held;
+        expected.artwork = artwork;
+        expected.inputAmount = 100e6;
+        expected.routerFameOutput = charge;
+        expected.marketplaceFameCharge = charge;
+        expected.fameRefund = fame.unit();
+        market.unpause();
+
+        vm.recordLogs();
+        vm.prank(buyer);
+        (uint256 routerOutput, uint256 marketCharge, uint256 fameRefund, uint256 inputRefund) =
+            checkout.checkoutHeld(route, shellId, artwork, maximumPremium, 1);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(routerOutput, charge);
+        assertEq(marketCharge, charge);
+        assertEq(fameRefund, fame.unit());
+        assertEq(inputRefund, 0);
+        assertEq(fame.balanceOf(buyer), buyerFameBefore + 2 * fame.unit());
+        assertEq(mirror.ownerOf(shellId), buyer);
+        _assertCleanCheckout(checkout, address(usdc), address(router));
+        _assertCheckoutSettled(logs, checkout, expected);
+    }
+
+    function testCheckoutPoolBoonsUnsolicitedSocietyAndEmitsCompleteReceipt() public {
+        uint256 shellId = _seedShells(market, 2);
+        _rawTransferSocietyToCheckout(1);
+        uint256 sourceId = _findMintPoolToken();
+        bytes32 artwork = market.artworkHash(sourceId);
+        uint256 charge = _marketCharge();
+        uint256 maximumPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(weth), 1 ether, 1 ether, charge);
+        uint256 buyerFameBefore = fame.balanceOf(buyer);
+        CheckoutSettlementExpectation memory expected;
+        expected.buyer = buyer;
+        expected.inputAsset = address(weth);
+        expected.shellId = shellId;
+        expected.routeHash = keccak256(abi.encode(route));
+        expected.fulfillmentPath = UniversalPoolArtMarketplace.FulfillmentPath.MintPool;
+        expected.sourceId = sourceId;
+        expected.artwork = artwork;
+        expected.inputAmount = 1 ether;
+        expected.routerFameOutput = charge;
+        expected.marketplaceFameCharge = charge;
+        expected.fameRefund = fame.unit();
+        _enablePoolPurchases(market);
+
+        vm.recordLogs();
+        vm.prank(buyer);
+        (uint256 routerOutput, uint256 marketCharge, uint256 fameRefund, uint256 inputRefund) =
+            checkout.checkoutPool(route, shellId, sourceId, artwork, maximumPremium, 1);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+
+        assertEq(routerOutput, charge);
+        assertEq(marketCharge, charge);
+        assertEq(fameRefund, fame.unit());
+        assertEq(inputRefund, 0);
+        assertEq(fame.balanceOf(buyer), buyerFameBefore + 2 * fame.unit());
+        assertEq(mirror.ownerOf(shellId), buyer);
+        assertEq(market.artworkHash(shellId), artwork);
+        _assertCleanCheckout(checkout, address(weth), address(router));
+        _assertCheckoutSettled(logs, checkout, expected);
+    }
+
+    function testCheckoutCleansEightUnsolicitedSocietyWithinGasBudget() public {
+        uint256 shellId = _seedShells(market, 2);
+        bytes32 artwork = market.artworkHash(shellId);
+        _rawTransferSocietyToCheckout(8);
+        uint256 maximumPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, _marketCharge());
+        uint256 buyerFameBefore = fame.balanceOf(buyer);
+        market.unpause();
+
+        vm.prank(buyer);
+        uint256 gasBefore = gasleft();
+        checkout.checkoutHeld(route, shellId, artwork, maximumPremium, 1);
+        uint256 gasUsed = gasBefore - gasleft();
+
+        assertLt(gasUsed, 15_000_000, "eight-Society cleanup exceeds checkout gas budget");
+        assertEq(fame.balanceOf(buyer), buyerFameBefore + 9 * fame.unit());
+        assertEq(mirror.ownerOf(shellId), buyer);
+        _assertCleanCheckout(checkout, address(usdc), address(router));
     }
 
     function testCheckoutHeldWithWethExactOutputHasNoSurplusFameRefund() public {
@@ -321,6 +481,118 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(fame.allowance(address(checkout), address(market)), 0);
     }
 
+    function testRouterOutputMismatchRevertsCompleteCheckoutState() public {
+        (address provider, uint256 shellId, bytes32 artwork) = _prepareAccountingRollbackMarket();
+        uint256 charge = _marketCharge();
+        uint256 maximumPremium = market.premium();
+        MismatchedOutputCheckoutRouter faultRouter =
+            new MismatchedOutputCheckoutRouter(fame, feeRecipient, charge, charge + 1);
+        fame.transfer(address(faultRouter), 4 * fame.unit());
+        FameMarketplaceCheckout faultCheckout = _replaceCheckout(address(faultRouter), usdc);
+        vm.prank(buyer);
+        usdc.approve(address(faultCheckout), type(uint256).max);
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, charge);
+        route.recipient = address(faultCheckout);
+        market.unpause();
+        RollbackContext memory context =
+            RollbackContext(faultCheckout, usdc, buyer, address(faultRouter), shellId, provider);
+        RollbackSnapshot memory beforeState = _snapshotRollback(context);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(FameMarketplaceCheckout.RouterOutputMismatch.selector, charge + 1, charge)
+        );
+        vm.prank(buyer);
+        faultCheckout.checkoutHeld(route, shellId, artwork, maximumPremium, 1);
+
+        _assertRollback(context, beforeState);
+        assertEq(faultRouter.executionCount(), 0);
+    }
+
+    function testMarketplaceChargeMismatchRevertsCompleteCheckoutState() public {
+        (address provider, uint256 shellId, bytes32 artwork) = _prepareAccountingRollbackMarket();
+        uint256 donation = 7;
+        FameDonatingShellRecipient faultBuyer = new FameDonatingShellRecipient(fame);
+        faultBuyer.arm(address(checkout), donation);
+        fame.transfer(address(faultBuyer), donation);
+        usdc.mint(address(faultBuyer), 100e6);
+        vm.prank(address(faultBuyer));
+        usdc.approve(address(checkout), type(uint256).max);
+        uint256 charge = _marketCharge();
+        uint256 maximumPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, charge);
+        market.unpause();
+        RollbackContext memory context =
+            RollbackContext(checkout, usdc, address(faultBuyer), address(router), shellId, provider);
+        RollbackSnapshot memory beforeState = _snapshotRollback(context);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                FameMarketplaceCheckout.MarketplaceChargeMismatch.selector, charge, charge - donation
+            )
+        );
+        vm.prank(address(faultBuyer));
+        checkout.checkoutHeld(route, shellId, artwork, maximumPremium, 1);
+
+        _assertRollback(context, beforeState);
+    }
+
+    function testRefundBalanceMismatchRevertsCompleteCheckoutState() public {
+        (address provider, uint256 shellId, bytes32 artwork) = _prepareAccountingRollbackMarket();
+        StickyCheckoutRefundToken sticky = new StickyCheckoutRefundToken();
+        uint256 maximumPremium = market.premium();
+        FameMarketplaceCheckout faultCheckout = _replaceCheckout(address(router), sticky);
+        sticky.setCheckout(address(faultCheckout));
+        sticky.mint(buyer, 100e6);
+        vm.prank(buyer);
+        sticky.approve(address(faultCheckout), type(uint256).max);
+        FameRouterTypes.Route memory route = _singleLegRoute(address(sticky), 100e6, 40e6, _marketCharge());
+        route.recipient = address(faultCheckout);
+        market.unpause();
+        RollbackContext memory context =
+            RollbackContext(faultCheckout, sticky, buyer, address(router), shellId, provider);
+        RollbackSnapshot memory beforeState = _snapshotRollback(context);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                FameMarketplaceCheckout.RefundBalanceMismatch.selector, address(sticky), uint256(0), uint256(60e6)
+            )
+        );
+        vm.prank(buyer);
+        faultCheckout.checkoutHeld(route, shellId, artwork, maximumPremium, 1);
+
+        _assertRollback(context, beforeState);
+    }
+
+    function testFameAccountingMismatchRevertsCompleteCheckoutState() public {
+        (address provider, uint256 shellId, bytes32 artwork) = _prepareAccountingRollbackMarket();
+        uint256 donation = 7;
+        FameDonatingCheckoutRefundToken hooked = new FameDonatingCheckoutRefundToken(fame);
+        FameMarketplaceCheckout faultCheckout = _replaceCheckout(address(router), hooked);
+        hooked.arm(address(faultCheckout), donation);
+        hooked.mint(buyer, 100e6);
+        fame.transfer(address(hooked), donation);
+        vm.prank(buyer);
+        hooked.approve(address(faultCheckout), type(uint256).max);
+        uint256 charge = _marketCharge();
+        uint256 maximumPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(hooked), 100e6, 40e6, charge);
+        route.recipient = address(faultCheckout);
+        market.unpause();
+        RollbackContext memory context =
+            RollbackContext(faultCheckout, hooked, buyer, address(router), shellId, provider);
+        RollbackSnapshot memory beforeState = _snapshotRollback(context);
+        uint256 hookFameBefore = fame.balanceOf(address(hooked));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(FameMarketplaceCheckout.FameAccountingMismatch.selector, charge, charge, donation)
+        );
+        vm.prank(buyer);
+        faultCheckout.checkoutHeld(route, shellId, artwork, maximumPremium, 1);
+
+        _assertRollback(context, beforeState);
+        assertEq(fame.balanceOf(address(hooked)), hookFameBefore);
+    }
+
     function testTaxedInputIsRejectedBeforeRouterApproval() public {
         TransferTaxERC20 taxed = new TransferTaxERC20("Taxed", "TAX", 18, 1_000);
         FameMarketplaceCheckout taxedCheckout = new FameMarketplaceCheckout(
@@ -354,14 +626,22 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         bytes32 artwork = market.artworkHash(shellId);
         uint256 maxPremium = market.premium();
         FameRouterTypes.Route memory route = _nativeRoute(2 ether, 1 ether, _marketCharge());
+        vm.deal(address(rejectingBuyer), 2 ether);
         market.unpause();
+        NativeRollbackSnapshot memory beforeState = _snapshotNativeRollback(address(rejectingBuyer), shellId);
 
-        vm.expectRevert();
-        rejectingBuyer.buyHeld{value: 2 ether}(checkout, route, shellId, artwork, maxPremium);
+        vm.expectRevert(SafeTransferLib.ETHTransferFailed.selector);
+        vm.prank(address(rejectingBuyer));
+        checkout.checkoutHeld{value: 2 ether}(route, shellId, artwork, maxPremium, 1);
 
+        _assertNativeRollback(address(rejectingBuyer), shellId, beforeState);
         assertEq(venue.nextOutputIndex(), 0);
         assertEq(mirror.ownerOf(shellId), address(market));
         assertEq(address(checkout).balance, 0);
+        assertEq(weth.balanceOf(address(checkout)), 0);
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(mirror.balanceOf(address(checkout)), 0);
+        assertEq(weth.allowance(address(checkout), address(router)), 0);
         assertEq(fame.allowance(address(checkout), address(market)), 0);
     }
 
@@ -553,30 +833,11 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                FameMarketplaceCheckout.PremiumExceedsMaximum.selector, maxPremium, maxPremium - 1
-            )
+            abi.encodeWithSelector(FameMarketplaceCheckout.PremiumExceedsMaximum.selector, maxPremium, maxPremium - 1)
         );
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium - 1, 1);
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
-    }
-
-    function testCheckoutFeeRecipientConfigurationRevertsBeforeFunding() public {
-        uint256 shellId = _seedShells(market, 2);
-        bytes32 artwork = market.artworkHash(shellId);
-        uint256 maxPremium = market.premium();
-        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, _marketCharge());
-        market.setFeeRecipient(address(checkout));
-        market.unpause();
-        uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
-
-        vm.expectRevert(FameMarketplaceCheckout.CheckoutIsFeeRecipient.selector);
-        vm.prank(buyer);
-        checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
-
-        assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
-        assertEq(venue.nextOutputIndex(), 0);
     }
 
     function testPoolRejectsSameShellAndSourceBeforeFunding() public {
@@ -658,5 +919,193 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         assertEq(usdc.balanceOf(address(checkout)), 0);
         assertEq(fame.balanceOf(address(checkout)), 0);
         assertEq(venue.nextOutputIndex(), 0);
+    }
+
+    function _rawTransferSocietyToCheckout(uint256 count) private {
+        address donor = address(0xD011);
+        fame.transfer(donor, count * fame.unit());
+        uint256[] memory tokenIds = _ownedTokenIds(donor, count);
+        vm.startPrank(donor);
+        for (uint256 i; i < count; ++i) {
+            mirror.transferFrom(donor, address(checkout), tokenIds[i]);
+        }
+        vm.stopPrank();
+        assertEq(mirror.balanceOf(address(checkout)), count);
+        assertEq(fame.balanceOf(address(checkout)), count * fame.unit());
+    }
+
+    function _assertCleanCheckout(FameMarketplaceCheckout testedCheckout, address inputAsset, address routeRouter)
+        private
+        view
+    {
+        assertEq(mirror.balanceOf(address(testedCheckout)), 0);
+        assertEq(fame.balanceOf(address(testedCheckout)), 0);
+        assertEq(MockERC20(inputAsset).balanceOf(address(testedCheckout)), 0);
+        assertEq(MockERC20(inputAsset).allowance(address(testedCheckout), routeRouter), 0);
+        assertEq(fame.allowance(address(testedCheckout), address(market)), 0);
+    }
+
+    function _assertCheckoutSettled(
+        Vm.Log[] memory logs,
+        FameMarketplaceCheckout testedCheckout,
+        CheckoutSettlementExpectation memory expected
+    ) private pure {
+        uint256 matches;
+        for (uint256 i; i < logs.length; ++i) {
+            Vm.Log memory entry = logs[i];
+            if (
+                entry.emitter != address(testedCheckout) || entry.topics.length != 4
+                    || entry.topics[0] != CHECKOUT_SETTLED_TOPIC
+            ) continue;
+            ++matches;
+            assertEq(address(uint160(uint256(entry.topics[1]))), expected.buyer);
+            assertEq(address(uint160(uint256(entry.topics[2]))), expected.inputAsset);
+            assertEq(uint256(entry.topics[3]), expected.shellId);
+            (
+                bytes32 routeHash,
+                UniversalPoolArtMarketplace.FulfillmentPath fulfillmentPath,
+                uint256 sourceId,
+                bytes32 artwork,
+                uint256 inputAmount,
+                uint256 inputRefund,
+                uint256 routerFameOutput,
+                uint256 marketplaceFameCharge,
+                uint256 fameRefund
+            ) = abi.decode(
+                entry.data,
+                (
+                    bytes32,
+                    UniversalPoolArtMarketplace.FulfillmentPath,
+                    uint256,
+                    bytes32,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256,
+                    uint256
+                )
+            );
+            assertEq(routeHash, expected.routeHash);
+            assertEq(uint8(fulfillmentPath), uint8(expected.fulfillmentPath));
+            assertEq(sourceId, expected.sourceId);
+            assertEq(artwork, expected.artwork);
+            assertEq(inputAmount, expected.inputAmount);
+            assertEq(inputRefund, expected.inputRefund);
+            assertEq(routerFameOutput, expected.routerFameOutput);
+            assertEq(marketplaceFameCharge, expected.marketplaceFameCharge);
+            assertEq(fameRefund, expected.fameRefund);
+        }
+        assertEq(matches, 1);
+    }
+
+    function _prepareAccountingRollbackMarket() private returns (address provider, uint256 shellId, bytes32 artwork) {
+        provider = address(0xA004);
+        _depositUnits(market, provider, 1);
+        market.setCommunityFee(11);
+        market.setProviderFee(13);
+        shellId = _ownedTokenAt(address(market), 0);
+        artwork = market.artworkHash(shellId);
+    }
+
+    function _snapshotNativeRollback(address selectedBuyer, uint256 shellId)
+        private
+        view
+        returns (NativeRollbackSnapshot memory state)
+    {
+        state = NativeRollbackSnapshot({
+            buyerNative: selectedBuyer.balance,
+            buyerFame: fame.balanceOf(selectedBuyer),
+            buyerMirror: mirror.balanceOf(selectedBuyer),
+            venueWeth: weth.balanceOf(address(venue)),
+            venueFame: fame.balanceOf(address(venue)),
+            routerWeth: weth.balanceOf(address(router)),
+            routerFame: fame.balanceOf(address(router)),
+            communityFame: fame.balanceOf(feeRecipient),
+            inventory: market.inventory(),
+            shellArtwork: market.artworkHash(shellId)
+        });
+    }
+
+    function _assertNativeRollback(address selectedBuyer, uint256 shellId, NativeRollbackSnapshot memory beforeState)
+        private
+        view
+    {
+        assertEq(selectedBuyer.balance, beforeState.buyerNative);
+        assertEq(fame.balanceOf(selectedBuyer), beforeState.buyerFame);
+        assertEq(mirror.balanceOf(selectedBuyer), beforeState.buyerMirror);
+        assertEq(weth.balanceOf(address(venue)), beforeState.venueWeth);
+        assertEq(fame.balanceOf(address(venue)), beforeState.venueFame);
+        assertEq(weth.balanceOf(address(router)), beforeState.routerWeth);
+        assertEq(fame.balanceOf(address(router)), beforeState.routerFame);
+        assertEq(fame.balanceOf(feeRecipient), beforeState.communityFame);
+        assertEq(market.inventory(), beforeState.inventory);
+        assertEq(market.artworkHash(shellId), beforeState.shellArtwork);
+    }
+
+    function _replaceCheckout(address routeRouter, MockERC20 inputToken)
+        private
+        returns (FameMarketplaceCheckout replacement)
+    {
+        replacement = new FameMarketplaceCheckout(
+            routeRouter, address(market), payable(address(fame)), address(inputToken), address(weth)
+        );
+        market.setAuthorizedCheckout(address(replacement));
+    }
+
+    function _snapshotRollback(RollbackContext memory context) private view returns (RollbackSnapshot memory state) {
+        state = RollbackSnapshot({
+            buyerInput: context.inputToken.balanceOf(context.selectedBuyer),
+            buyerFame: fame.balanceOf(context.selectedBuyer),
+            buyerMirror: mirror.balanceOf(context.selectedBuyer),
+            buyerCheckoutAllowance: context.inputToken
+                .allowance(context.selectedBuyer, address(context.testedCheckout)),
+            checkoutInput: context.inputToken.balanceOf(address(context.testedCheckout)),
+            checkoutFame: fame.balanceOf(address(context.testedCheckout)),
+            checkoutMirror: mirror.balanceOf(address(context.testedCheckout)),
+            checkoutNative: address(context.testedCheckout).balance,
+            checkoutRouterAllowance: context.inputToken.allowance(address(context.testedCheckout), context.routeRouter),
+            checkoutMarketAllowance: fame.allowance(address(context.testedCheckout), address(market)),
+            routerInput: context.inputToken.balanceOf(context.routeRouter),
+            routerFame: fame.balanceOf(context.routeRouter),
+            venueInput: context.inputToken.balanceOf(address(venue)),
+            venueFame: fame.balanceOf(address(venue)),
+            venueOutputIndex: venue.nextOutputIndex(),
+            shellOwner: mirror.ownerAt(context.shellId),
+            shellArtwork: market.artworkHash(context.shellId),
+            marketInventory: market.inventory(),
+            marketProviderUnits: market.totalProviderUnits(),
+            providerFame: fame.balanceOf(context.provider),
+            communityFame: fame.balanceOf(feeRecipient)
+        });
+    }
+
+    function _assertRollback(RollbackContext memory context, RollbackSnapshot memory beforeState) private view {
+        assertEq(context.inputToken.balanceOf(context.selectedBuyer), beforeState.buyerInput);
+        assertEq(fame.balanceOf(context.selectedBuyer), beforeState.buyerFame);
+        assertEq(mirror.balanceOf(context.selectedBuyer), beforeState.buyerMirror);
+        assertEq(
+            context.inputToken.allowance(context.selectedBuyer, address(context.testedCheckout)),
+            beforeState.buyerCheckoutAllowance
+        );
+        assertEq(context.inputToken.balanceOf(address(context.testedCheckout)), beforeState.checkoutInput);
+        assertEq(fame.balanceOf(address(context.testedCheckout)), beforeState.checkoutFame);
+        assertEq(mirror.balanceOf(address(context.testedCheckout)), beforeState.checkoutMirror);
+        assertEq(address(context.testedCheckout).balance, beforeState.checkoutNative);
+        assertEq(
+            context.inputToken.allowance(address(context.testedCheckout), context.routeRouter),
+            beforeState.checkoutRouterAllowance
+        );
+        assertEq(fame.allowance(address(context.testedCheckout), address(market)), beforeState.checkoutMarketAllowance);
+        assertEq(context.inputToken.balanceOf(context.routeRouter), beforeState.routerInput);
+        assertEq(fame.balanceOf(context.routeRouter), beforeState.routerFame);
+        assertEq(context.inputToken.balanceOf(address(venue)), beforeState.venueInput);
+        assertEq(fame.balanceOf(address(venue)), beforeState.venueFame);
+        assertEq(venue.nextOutputIndex(), beforeState.venueOutputIndex);
+        assertEq(mirror.ownerAt(context.shellId), beforeState.shellOwner);
+        assertEq(market.artworkHash(context.shellId), beforeState.shellArtwork);
+        assertEq(market.inventory(), beforeState.marketInventory);
+        assertEq(market.totalProviderUnits(), beforeState.marketProviderUnits);
+        assertEq(fame.balanceOf(context.provider), beforeState.providerFame);
+        assertEq(fame.balanceOf(feeRecipient), beforeState.communityFame);
     }
 }

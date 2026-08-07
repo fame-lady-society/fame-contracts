@@ -84,6 +84,40 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         Vm.Log[] logs;
     }
 
+    struct CheckoutPathExpectation {
+        uint256 shellId;
+        UniversalPoolArtMarketplace.FulfillmentPath fulfillmentPath;
+        uint256 sourceId;
+        bytes32 artwork;
+    }
+
+    struct CheckoutSettlementExpectation {
+        address buyer;
+        address inputAsset;
+        uint256 shellId;
+        bytes32 routeHash;
+        UniversalPoolArtMarketplace.FulfillmentPath fulfillmentPath;
+        uint256 sourceId;
+        bytes32 artwork;
+        uint256 inputAmount;
+        uint256 inputRefund;
+        uint256 routerFameOutput;
+        uint256 marketplaceFameCharge;
+        uint256 fameRefund;
+    }
+
+    struct CheckoutSettlementData {
+        bytes32 routeHash;
+        UniversalPoolArtMarketplace.FulfillmentPath fulfillmentPath;
+        uint256 sourceId;
+        bytes32 artwork;
+        uint256 inputAmount;
+        uint256 inputRefund;
+        uint256 routerFameOutput;
+        uint256 marketplaceFameCharge;
+        uint256 fameRefund;
+    }
+
     address internal constant EXPECTED_ROUTER = 0xAdefa5860389E8936ebf2977e1Fb4a365aA39636;
     address internal constant EXPECTED_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address internal constant EXPECTED_WETH = 0x4200000000000000000000000000000000000006;
@@ -236,11 +270,19 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         assertEq(
             _eventCount(checkoutContext.logs, address(router), ROUTE_EXECUTED_TOPIC), 1, "RouteExecuted event mismatch"
         );
-        assertEq(
-            _eventCount(checkoutContext.logs, address(context.checkout), CHECKOUT_SETTLED_TOPIC),
-            1,
-            "CheckoutSettled event mismatch"
-        );
+        CheckoutSettlementExpectation memory expected;
+        expected.buyer = BUYER_ONE;
+        expected.inputAsset = checkoutContext.route.tokenIn;
+        expected.shellId = shellId;
+        expected.routeHash = keccak256(abi.encode(checkoutContext.route));
+        expected.fulfillmentPath = UniversalPoolArtMarketplace.FulfillmentPath.Held;
+        expected.artwork = checkoutContext.artwork;
+        expected.inputAmount = checkoutContext.route.amountIn;
+        expected.inputRefund = checkoutContext.inputRefund;
+        expected.routerFameOutput = checkoutContext.routerOutput;
+        expected.marketplaceFameCharge = checkoutContext.marketCharge;
+        expected.fameRefund = checkoutContext.fameRefund;
+        _assertCheckoutSettled(checkoutContext.logs, context.checkout, expected);
     }
 
     function _assertEmptyReleaseState(UniversalPoolArtMarketplace market) internal view {
@@ -483,7 +525,11 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         assertEq(routerOutput, quotedOutput, "same-state quote/output drift");
-        _assertSettlement(market, checkout, route, shellId, routerOutput, marketCharge, fameRefund, inputRefund, logs);
+        CheckoutPathExpectation memory purchase;
+        purchase.shellId = shellId;
+        purchase.fulfillmentPath = UniversalPoolArtMarketplace.FulfillmentPath.Held;
+        purchase.artwork = artwork;
+        _assertSettlement(market, checkout, route, purchase, routerOutput, marketCharge, fameRefund, inputRefund, logs);
         assertEq(mirror.ownerAt(shellId), BUYER_ONE, "held shell recipient mismatch");
         assertGt(fame.balanceOf(SAFE) - feeRecipientBefore, maximumPremium, "router fee was not routed");
     }
@@ -505,7 +551,12 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         assertEq(routerOutput, quotedOutput, "same-state quote/output drift");
-        _assertSettlement(market, checkout, route, shellId, routerOutput, marketCharge, fameRefund, inputRefund, logs);
+        CheckoutPathExpectation memory purchase;
+        purchase.shellId = shellId;
+        purchase.fulfillmentPath = UniversalPoolArtMarketplace.FulfillmentPath.MintPool;
+        purchase.sourceId = sourceId;
+        purchase.artwork = artwork;
+        _assertSettlement(market, checkout, route, purchase, routerOutput, marketCharge, fameRefund, inputRefund, logs);
         assertEq(mirror.ownerAt(shellId), BUYER_ONE, "Mint shell recipient mismatch");
         assertEq(market.artworkHash(shellId), artwork, "Mint artwork mismatch");
     }
@@ -527,7 +578,12 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         Vm.Log[] memory logs = vm.getRecordedLogs();
 
         assertEq(routerOutput, quotedOutput, "same-state quote/output drift");
-        _assertSettlement(market, checkout, route, shellId, routerOutput, marketCharge, fameRefund, inputRefund, logs);
+        CheckoutPathExpectation memory purchase;
+        purchase.shellId = shellId;
+        purchase.fulfillmentPath = UniversalPoolArtMarketplace.FulfillmentPath.BurnPool;
+        purchase.sourceId = sourceId;
+        purchase.artwork = artwork;
+        _assertSettlement(market, checkout, route, purchase, routerOutput, marketCharge, fameRefund, inputRefund, logs);
         assertEq(mirror.ownerAt(shellId), BUYER_ONE, "Burn shell recipient mismatch");
         assertEq(market.artworkHash(shellId), artwork, "Burn artwork mismatch");
     }
@@ -961,7 +1017,7 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         UniversalPoolArtMarketplace market,
         FameMarketplaceCheckout checkout,
         FameRouterTypes.Route memory route,
-        uint256 shellId,
+        CheckoutPathExpectation memory purchase,
         uint256 routerOutput,
         uint256 marketCharge,
         uint256 fameRefund,
@@ -985,8 +1041,51 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         assertEq(fame.allowance(address(checkout), address(market)), 0, "market allowance");
         assertEq(_purchaseEventCount(logs, address(market)), 1, "ArtworkPurchased event mismatch");
         assertEq(_eventCount(logs, address(router), ROUTE_EXECUTED_TOPIC), 1, "RouteExecuted event mismatch");
-        assertEq(_eventCount(logs, address(checkout), CHECKOUT_SETTLED_TOPIC), 1, "CheckoutSettled event mismatch");
-        assertGt(shellId, 0);
+        CheckoutSettlementExpectation memory expected;
+        expected.buyer = BUYER_ONE;
+        expected.inputAsset = route.tokenIn;
+        expected.shellId = purchase.shellId;
+        expected.routeHash = keccak256(abi.encode(route));
+        expected.fulfillmentPath = purchase.fulfillmentPath;
+        expected.sourceId = purchase.sourceId;
+        expected.artwork = purchase.artwork;
+        expected.inputAmount = route.amountIn;
+        expected.inputRefund = inputRefund;
+        expected.routerFameOutput = routerOutput;
+        expected.marketplaceFameCharge = marketCharge;
+        expected.fameRefund = fameRefund;
+        _assertCheckoutSettled(logs, checkout, expected);
+        assertGt(purchase.shellId, 0);
+    }
+
+    function _assertCheckoutSettled(
+        Vm.Log[] memory logs,
+        FameMarketplaceCheckout checkout,
+        CheckoutSettlementExpectation memory expected
+    ) private pure {
+        uint256 matches;
+        for (uint256 i; i < logs.length; ++i) {
+            Vm.Log memory entry = logs[i];
+            if (
+                entry.emitter != address(checkout) || entry.topics.length != 4
+                    || entry.topics[0] != CHECKOUT_SETTLED_TOPIC
+            ) continue;
+            ++matches;
+            assertEq(address(uint160(uint256(entry.topics[1]))), expected.buyer, "settled buyer");
+            assertEq(address(uint160(uint256(entry.topics[2]))), expected.inputAsset, "settled input asset");
+            assertEq(uint256(entry.topics[3]), expected.shellId, "settled shell");
+            CheckoutSettlementData memory settled = abi.decode(entry.data, (CheckoutSettlementData));
+            assertEq(settled.routeHash, expected.routeHash, "settled route hash");
+            assertEq(uint8(settled.fulfillmentPath), uint8(expected.fulfillmentPath), "settled fulfillment path");
+            assertEq(settled.sourceId, expected.sourceId, "settled source");
+            assertEq(settled.artwork, expected.artwork, "settled artwork");
+            assertEq(settled.inputAmount, expected.inputAmount, "settled input amount");
+            assertEq(settled.inputRefund, expected.inputRefund, "settled input refund");
+            assertEq(settled.routerFameOutput, expected.routerFameOutput, "settled router output");
+            assertEq(settled.marketplaceFameCharge, expected.marketplaceFameCharge, "settled marketplace charge");
+            assertEq(settled.fameRefund, expected.fameRefund, "settled FAME refund");
+        }
+        assertEq(matches, 1, "CheckoutSettled event mismatch");
     }
 
     function _eventCount(Vm.Log[] memory logs, address emitter, bytes32 topic) private pure returns (uint256 count) {
