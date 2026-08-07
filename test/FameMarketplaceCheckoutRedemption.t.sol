@@ -17,6 +17,7 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         uint256 tokenCount,
         uint256 quotedFameInput,
         uint256 actualFameInput,
+        bytes32 submittedRouteHash,
         bytes32 executedRouteHash,
         uint256 netAmountOut
     );
@@ -534,23 +535,33 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         uint256 netAmountOut
     ) private {
         bytes32 signature = keccak256(
-            "SocietyRedeemed(address,address,bytes32,uint256,uint256,uint256,bytes32,uint256)"
+            "SocietyRedeemed(address,address,bytes32,uint256,uint256,uint256,bytes32,bytes32,uint256)"
         );
         uint256 quotedFameInput = quotedRoute.amountIn;
-        FameRouterTypes.Route memory executedRoute = quotedRoute;
-        executedRoute.amountIn = actualFameInput;
+        // Hash submitted before mutating amountIn (memory struct assign is a reference).
+        bytes32 expectedSubmitted = keccak256(abi.encode(quotedRoute));
+        quotedRoute.amountIn = actualFameInput;
+        bytes32 expectedExecuted = keccak256(abi.encode(quotedRoute));
+        quotedRoute.amountIn = quotedFameInput;
 
         for (uint256 i; i < logs.length; ++i) {
             if (logs[i].emitter != address(checkout) || logs[i].topics[0] != signature) continue;
             assertEq(address(uint160(uint256(logs[i].topics[1]))), buyer);
             assertEq(address(uint160(uint256(logs[i].topics[2]))), quotedRoute.tokenOut);
             assertEq(logs[i].topics[3], keccak256(abi.encode(tokenIds)));
-            (uint256 count, uint256 quoted, uint256 actual, bytes32 routeHash, uint256 net) =
-                abi.decode(logs[i].data, (uint256, uint256, uint256, bytes32, uint256));
+            (
+                uint256 count,
+                uint256 quoted,
+                uint256 actual,
+                bytes32 submittedHash,
+                bytes32 executedHash,
+                uint256 net
+            ) = abi.decode(logs[i].data, (uint256, uint256, uint256, bytes32, bytes32, uint256));
             assertEq(count, tokenIds.length);
             assertEq(quoted, quotedFameInput);
             assertEq(actual, actualFameInput);
-            assertEq(routeHash, keccak256(abi.encode(executedRoute)));
+            assertEq(submittedHash, expectedSubmitted);
+            assertEq(executedHash, expectedExecuted);
             assertEq(net, netAmountOut);
             return;
         }

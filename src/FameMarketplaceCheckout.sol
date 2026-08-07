@@ -55,6 +55,8 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         uint256 indexed shellId,
         bytes32 routeHash,
         UniversalPoolArtMarketplace.FulfillmentPath fulfillmentPath,
+        uint256 sourceId,
+        bytes32 artwork,
         uint256 inputAmount,
         uint256 inputRefund,
         uint256 routerFameOutput,
@@ -68,6 +70,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         uint256 tokenCount,
         uint256 quotedFameInput,
         uint256 actualFameInput,
+        bytes32 submittedRouteHash,
         bytes32 executedRouteHash,
         uint256 netAmountOut
     );
@@ -309,6 +312,8 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
             request.shellId,
             keccak256(abi.encode(route)),
             fulfillmentPath,
+            request.poolPurchase ? request.sourceId : 0,
+            request.expectedArtworkHash,
             route.amountIn,
             accounting.inputRefund,
             accounting.routerFameOutput,
@@ -332,6 +337,7 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
             tokenIds.length,
             route.amountIn,
             actualFameInput,
+            keccak256(abi.encode(route)),
             executedRouteHash,
             netAmountOut
         );

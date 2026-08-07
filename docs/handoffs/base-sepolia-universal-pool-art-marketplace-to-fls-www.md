@@ -321,11 +321,18 @@ Path values:
 
 Held purchases report `sourceId = 0`.
 
+`premiumAmount` is the **measured** FAME premium debit from the payer (provider
+shares actually transferred + community leg), not necessarily equal to
+`marketplace.premium()` when provider self-shares are skipped.
+
+For multi-asset checkout, also project `CheckoutSettled` (includes `sourceId`,
+`artwork`, and measured `marketplaceFameCharge`).
+
 After confirmation, reconcile the receipt with canonical reads at the receipt
 block where supported:
 
-- event buyer, recipient, shell, path, source, artwork, unit, and premium match
-  the frozen purchase;
+- event buyer, recipient, shell, path, source, artwork, unit, and measured premium match
+  the frozen purchase / charge;
 - `inventoryAfter >= inventoryBefore`;
 - the mirror transfer moves `shellId` from the marketplace to `recipient`;
 - `mirror.ownerAt(shellId) == recipient`;

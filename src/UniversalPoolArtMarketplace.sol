@@ -388,7 +388,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         inventoryBefore = inventory();
 
         _enterSettlement();
-        _distributePremium(payer, address(0));
+        uint256 paidPremium = _distributePremium(payer, address(0));
 
         _requireStack();
         _requireShellArtwork(shellId, expectedArtworkHash);
@@ -411,6 +411,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         }
         _exitSettlement();
 
+        // premiumAmount is the measured FAME premium debit (not merely configured spot premium).
         emit ArtworkPurchased(
             buyer,
             recipient,
@@ -419,7 +420,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
             0,
             expectedArtworkHash,
             unitAmount,
-            currentPremium,
+            paidPremium,
             inventoryBefore,
             inventoryAfter
         );
@@ -499,7 +500,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         returns (uint256 inventoryBefore, uint256 inventoryAfter)
     {
         _enterSettlement();
-        _distributePremium(purchase.payer, address(0));
+        uint256 paidPremium = _distributePremium(purchase.payer, address(0));
 
         _requireStack();
         _requireShell(purchase.shellId);
@@ -544,7 +545,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
             purchase.sourceId,
             purchase.artworkHash,
             unitAmount,
-            purchase.premiumAmount,
+            paidPremium,
             purchase.inventoryBefore,
             inventoryAfter
         );
@@ -651,7 +652,8 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         revert IneligiblePoolSource(sourceId);
     }
 
-    function _distributePremium(address payer, address excludedProvider) internal {
+    /// @return paidPremium Measured FAME transferred from `payer` for premium legs (provider shares + community).
+    function _distributePremium(address payer, address excludedProvider) internal returns (uint256 paidPremium) {
         address communityRecipient = feeRecipient;
         _requireFeeRecipient(communityRecipient);
 
@@ -665,7 +667,10 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
                 uint256 share = _providerShare(provider, configuredProviderFee, providerUnits);
                 if (provider != excludedProvider) {
                     distributedProviderFee += share;
-                    if (share != 0 && provider != payer) _pullFame(payer, provider, share);
+                    if (share != 0 && provider != payer) {
+                        _pullFame(payer, provider, share);
+                        paidPremium += share;
+                    }
                 }
             }
         }
@@ -675,6 +680,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         uint256 communityAmount = configuredProviderFee - distributedProviderFee + uint256(communityFee);
         if (communityAmount != 0) {
             _pullFame(payer, communityRecipient, communityAmount);
+            paidPremium += communityAmount;
         }
     }
 

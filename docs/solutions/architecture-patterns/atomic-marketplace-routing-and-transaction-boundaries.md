@@ -136,7 +136,13 @@ Use the repository's existing `TransactionsModal` to present this lifecycle. Do 
 
 Domain receipt interpretation is still useful. A post-transaction page may use wagmi to fetch the canonical receipt and project marketplace, checkout, router, transfer, and metadata events for presentation. That projection is not a competing confirmation protocol and must not trigger a retry.
 
-Event projection must preserve measured settlement semantics. In particular, `CheckoutSettled.marketplaceFameCharge` is the actual charge; it cannot always be reconstructed as `fame.unit() + ArtworkPurchased.premiumAmount` because a buyer who is also the fee recipient does not pay the premium (`src/FameMarketplaceCheckout.sol:612-619`). The current WWW receipt projector still enforces that universal equality (`../../../../fls-www/src/features/fame-gallery/transactions/projectPurchaseReceipt.ts:328-355`) and must be corrected before the premium-waiver edge case is accurately displayed.
+Event projection must preserve measured settlement semantics. Prefer
+`CheckoutSettled.marketplaceFameCharge` for the full FAME charge and
+`ArtworkPurchased.premiumAmount` for the measured premium debit. Do not assume
+`premiumAmount == marketplace.premium()` when the payer is also a provider
+(self-share is not transferred). `SocietyRedeemed` emits both
+`submittedRouteHash` (quoted route) and `executedRouteHash` (`amountIn` adjusted
+to actual FAME).
 
 Read fallbacks are also different from transaction retries. Retrying a provider-limited ownership `eth_call` in smaller block-pinned ranges is safe read behavior. Resubmitting a wallet write because receipt waiting failed can duplicate user intent and is not allowed.
 

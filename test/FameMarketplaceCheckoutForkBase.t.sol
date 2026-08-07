@@ -94,10 +94,11 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
     address internal constant BATCH_PROVIDER = address(0xB0A8);
     bytes32 internal constant ROUTE_EXECUTED_TOPIC =
         keccak256("RouteExecuted(address,address,address,bytes32,uint16,address,uint256,uint256,uint256,uint256)");
-    bytes32 internal constant CHECKOUT_SETTLED_TOPIC =
-        keccak256("CheckoutSettled(address,address,uint256,bytes32,uint8,uint256,uint256,uint256,uint256,uint256)");
+    bytes32 internal constant CHECKOUT_SETTLED_TOPIC = keccak256(
+        "CheckoutSettled(address,address,uint256,bytes32,uint8,uint256,bytes32,uint256,uint256,uint256,uint256,uint256)"
+    );
     bytes32 internal constant SOCIETY_REDEEMED_TOPIC =
-        keccak256("SocietyRedeemed(address,address,bytes32,uint256,uint256,uint256,bytes32,uint256)");
+        keccak256("SocietyRedeemed(address,address,bytes32,uint256,uint256,uint256,bytes32,bytes32,uint256)");
 
     FameRouter internal router;
     IERC20CheckoutFork internal usdc;
