@@ -173,6 +173,28 @@ The frontend-friendly path is one `setApprovalForAll` approval followed by one
 atomic `depositInventoryBatch(uint256[])` for one through eight distinct valid
 Society IDs. `depositInventory(uint256)` remains the single-token path.
 
+### Intentional open-pool risk (deposit-to-snipe)
+
+The market is a **universal pool**, not a per-token listing book. Once a Society
+shell is deposited while the market is **unpaused** (or the market is later
+unpaused with inventory already held), that exact shell is immediately
+purchasable by anyone via `purchaseHeld` / `checkoutHeld` (or pool paths that
+consume the shell as fulfillment capacity).
+
+There is **no** deposit cooldown, exclusive listing lock, or free reclaim of a
+specific deposited token ID:
+
+- free `withdrawInventory` returns some market-owned Society unit, not
+  necessarily the artwork the provider deposited;
+- `withdrawInventorySelected` can target an ID but charges full premium and
+  still races public buyers.
+
+This is **product-intentional**. Operators and WWW copy should treat provider
+deposits as contributing fungible inventory units plus scarce art that can be
+bought immediately, not as private listings. Optional mitigations are
+operational only (deposit while paused, private coordination before unpause),
+not on-chain exclusivity.
+
 For the first credited deposit, record:
 
 - all deposited token IDs;

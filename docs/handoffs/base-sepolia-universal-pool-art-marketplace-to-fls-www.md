@@ -82,6 +82,21 @@ The unit sent to the non-skip marketplace generates replacement Society NFT
 inventory before the purchased shell leaves. Both purchase paths enforce
 `inventoryAfter >= inventoryBefore`.
 
+### Provider inventory and deposit-to-snipe (intentional)
+
+Provider `depositInventory` / `depositInventoryBatch` credit **units** in an
+open pool. While the market is unpaused, any deposited shell is immediately
+eligible for public purchase. The depositor does not retain exclusive rights to
+that artwork:
+
+- buyers (direct FAME or multi-asset checkout) can take the exact shell;
+- free provider exit does not guarantee return of the same token ID;
+- selected exit costs full premium and can still lose a race to a buyer.
+
+Do **not** present provider deposit as “list this NFT for sale only to me” or
+promise reclaim of a specific shell without paying selected-withdraw premium.
+UI copy may note scarcity risk if operators seed rare art into a live pool.
+
 ## Existing `fls-www` foundation
 
 The implemented TEST gallery foundation is on branch
@@ -442,7 +457,8 @@ Do not claim either one from the other.
 - No Art Pool purchases.
 - No per-token listings or premiums.
 - No frontend-maintained order book.
-- No marketplace contract support for ETH, WETH, or USDC.
+- No marketplace contract support for ETH, WETH, or USDC (use checkout for multi-asset).
+- No deposit cooldown / exclusive listing lock for provider inventory (open pool).
 - No background polling.
 - No exportable validation report.
 - No frontend restrictions that the contracts do not impose.

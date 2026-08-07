@@ -3,7 +3,7 @@
 **Branch:** `codex/closed-loop-gallery-swap`  
 **Review run:** `20260805-211740-f497` (vs `origin/main`)  
 **Started:** 2026-08-05  
-**Status:** In progress
+**Status:** Complete (implementation of accepted items finished 2026-08-07)
 
 Decision vocabulary:
 
@@ -131,7 +131,7 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | Event/receipt ABI | #6, #11, #13 Accept (a) | Done |
 | Drop feeRecipient skipNFT requirement | #7 Accept with updates | Done |
 | Remove fee-recipient buyer waiver | R5 Accept | Done |
-| Docs: deposit sniping intentional | #16 (b) | Not started |
+| Docs: deposit sniping intentional | #16 (b) | Done |
 | #18 shell contention | Reject | Closed |
 | #19 provider mint gas | Reject | Closed |
 | Checkout refund policy (boon + consolidate) | #14 + R1 surface 3 | Done |
@@ -160,3 +160,4 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | 2026-08-06 | #15 implemented: `_validateSharedRouteHeader` for purchase + redemption. |
 | 2026-08-06 | Test hardening #8/#9/#10/#12/#20 + AmbiguousPoolSource; pinned checkout expectRevert selectors; pool invariant lane; redeem reentrancy; exact SettlementInProgress/ReentrancyGuard asserts. |
 | 2026-08-07 | Event ABI #6/#11/#13: measured ArtworkPurchased.premiumAmount; CheckoutSettled sourceId+artwork; SocietyRedeemed dual route hashes. |
+| 2026-08-07 | #16 docs: intentional open-pool deposit-to-snipe risk in production + WWW handoffs. |
