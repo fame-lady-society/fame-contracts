@@ -9,7 +9,7 @@ severity: high
 applies_when:
   - A marketplace has a fixed FAME-denominated obligation but users fund purchases with ETH, WETH, or USDC.
   - An exact-input router must provide target-output checkout UX without adding exact-output execution.
-  - A checkout path can produce transaction-local surplus FAME or intentionally consume pre-existing FAME.
+  - A checkout path can produce transaction-local surplus or hold unsolicited route assets that become a boon after success.
   - A wallet flow must model submission, replacement, receipt, revert, and rejection without duplicating wagmi.
 related_components:
   - FameRouter
@@ -31,11 +31,11 @@ tags:
 
 ## Context
 
-The marketplace has a fixed FAME-denominated obligation: one `fame.unit()` plus the premium actually owed by the buyer. The router deliberately exposes a different contract. A route declares an exact `amountIn`, a post-fee `minAmountOutAfterFee`, a recipient, a deadline, and executable legs (`src/router/FameRouterTypes.sol:43-51`). The checkout coordinator bridges these two contracts without pretending that `FameRouter` is exact-output.
+The marketplace has a fixed FAME-denominated obligation: one `fame.unit()` plus the configured gross premium. The router deliberately exposes a different contract. A route declares an exact `amountIn`, a post-fee `minAmountOutAfterFee`, a recipient, a deadline, and executable legs (`src/router/FameRouterTypes.sol:43-51`). The checkout coordinator bridges these two contracts without pretending that `FameRouter` is exact-output.
 
-That distinction turns “buy enough FAME to settle this purchase” into an inverse-quote problem. WWW finds an exact input whose protected output reaches the marketplace obligation, then submits one atomic checkout call. Checkout swaps, pays only the marketplace charge, and returns transaction-local surplus. Society redemption uses the same router in the opposite direction, but intentionally includes all FAME already held by checkout as value for the next successful redeemer.
+That distinction turns “buy enough FAME to settle this purchase” into an inverse-quote problem. WWW finds an exact input whose protected output reaches the marketplace obligation, then submits one atomic checkout call. Checkout proves caller funding independently from ambient balances, swaps, pays only the marketplace charge, and after success boons the caller the full remaining balance of every snapshotted route asset. Society redemption uses the same successful-settlement boon policy while routing all available FAME into the chosen output.
 
-Earlier iterations treated target-output support as a possible router change, described ordinary overfill with “protected” or “residue” terminology, and accumulated local transaction retry/proof concepts. The implementation converged on narrower boundaries instead: invert the quote rather than execution, define balance policy per entrypoint, and let wagmi own transaction lifecycle truth. (session history)
+Earlier iterations treated target-output support as a possible router change, described ordinary overfill with “protected” or “residue” terminology, preserved ambient balances through refund baselines, and accumulated local transaction retry/proof concepts. The implementation converged on narrower boundaries instead: invert the quote rather than execution, separate caller funding proof from successful full-balance boon distribution, and let wagmi own transaction lifecycle truth. (session history)
 
 This implementation remains fork-only. Browser target sizing is the current fork-test implementation, while production deployment and moving target sizing behind a quote service remain separate release decisions (`docs/plans/2026-07-28-001-feat-atomic-marketplace-checkout-plan.md:16-34`).
 
@@ -72,23 +72,23 @@ Do not add an exact-output router entrypoint merely because the marketplace know
 
 These boundaries keep product-specific target sizing out of the shared router and wallet-protocol state out of gallery reducers.
 
-### Charge only the marketplace obligation and refund purchase surplus
+### Separate caller funding from the successful boon
 
 Purchase checkout separates three amounts:
 
 - the exact ETH, WETH, or USDC input funded for the route;
-- the marketplace's actual FAME charge;
-- transaction-local input residue and FAME output above that charge.
+- the marketplace's unit plus gross premium charge; and
+- the full post-settlement balance of every snapshotted route asset, including transaction-local surplus and ambient value.
 
 Checkout computes the current marketplace charge, grants the marketplace only that amount, calls the typed `purchaseHeldFor` or `purchasePoolFor` entrypoint, clears the allowance, and verifies the measured debit (`src/FameMarketplaceCheckout.sol:395-427`).
 
-Refunds are part of atomic settlement, not a later recovery action. Checkout snapshots route-asset balances before funding. After the purchase, it sends only positive per-call deltas to the buyer and requires every route asset to return to its original baseline (`src/FameMarketplaceCheckout.sol:430-456`). It also proves that router-produced FAME equals the marketplace charge plus the buyer's FAME refund (`src/FameMarketplaceCheckout.sol:274-285`).
+Snapshots prove funding isolation; they are not balances that must survive success. Ambient ETH or ERC-20 value cannot satisfy the caller's declared route input, and ambient FAME cannot satisfy the protected marketplace output. After a purchase succeeds, checkout sends the full remaining balance of every snapshotted route asset to the buyer. If settlement or any boon transfer fails, the transaction reverts and all funding, swap, purchase, allowance, NFT, and balance changes roll back.
 
-Therefore, if a route produces 1,040,000 FAME and the marketplace charges 1,030,000 FAME, the remaining 10,000 FAME belongs to the buyer. It is ordinary execution surplus, not a second charge and not value for checkout to retain.
+Therefore, if a route produces 1,040,000 FAME, the marketplace charges 1,030,000 FAME, and checkout already held 5,000 FAME, the successful buyer receives the full 15,000 FAME remainder. Only the route-produced 10,000 FAME participates in proving that this caller funded the charge; the ambient 5,000 FAME is a post-settlement boon.
 
-Purchase paths are delta-isolated. Pre-existing checkout balances do not subsidize a buyer and must remain at their baselines. This is intentionally different from Society redemption.
+Successful purchase must also finish with zero Society NFTs. Any directly donated Society NFT is consumed by settlement and its released backing FAME joins the same successful-caller boon. Failure at any point restores checkout's complete pre-call custody and every other pre-call balance; it does not return a prior donation to its sender.
 
-### Treat extra FAME as value, with policy defined per entrypoint
+### Treat extra route assets as a successful-settlement boon
 
 “Surplus” and “ambient balance” are not synonyms, and unsolicited FAME is not automatically an attack.
 
@@ -96,13 +96,16 @@ Purchase paths are delta-isolated. Pre-existing checkout balances do not subsidi
 
 After a **successful** `checkoutHeld` / `checkoutPool` or `redeemSociety`, checkout sends the **full remaining balance** of every asset in the route snapshot to the caller (latent ambient + transaction-local surplus). Assets not on the route stay put until a later successful call that snapshotted them. There is no owner rescue; dust is not buried forever on purpose.
 
-Purchase FAME accounting is:
+Purchase FAME accounting separates caller funding from final distribution:
 
 ```text
-fameBaseline + routerFameOutput == marketplaceFameCharge + fameRefund
+preFundingFameBalance + routerFameOutput == marketplaceFameCharge + fullFameBoon
 ```
 
-where `fameRefund` is the full post-settlement FAME balance transferred to the buyer (includes ambient FAME).
+`preFundingFameBalance` includes any directly donated Society NFT's FAME
+backing. Only `routerFameOutput` proves that the caller funded the protected
+output. `fullFameBoon` is the complete post-settlement FAME balance transferred
+after success.
 
 #### Society redemption: all-in FAME, then boon residual route assets
 
@@ -136,11 +139,11 @@ Use the repository's existing `TransactionsModal` to present this lifecycle. Do 
 
 Domain receipt interpretation is still useful. A post-transaction page may use wagmi to fetch the canonical receipt and project marketplace, checkout, router, transfer, and metadata events for presentation. That projection is not a competing confirmation protocol and must not trigger a retry.
 
-Event projection must preserve measured settlement semantics. Prefer
+Event projection must preserve normalized settlement semantics. Prefer
 `CheckoutSettled.marketplaceFameCharge` for the full FAME charge and
-`ArtworkPurchased.premiumAmount` for the measured premium debit. Do not assume
-`premiumAmount == marketplace.premium()` when the payer is also a provider
-(self-share is not transferred). `SocietyRedeemed` emits both
+`ArtworkPurchased.grossPremiumAmount` for the full configured premium executed
+through the premium-transfer path. Count payer-to-self community or provider
+legs in `grossPremiumAmount`; it is not the buyer's net debit. `SocietyRedeemed` emits both
 `submittedRouteHash` (quoted route) and `executedRouteHash` (`amountIn` adjusted
 to actual FAME).
 
@@ -152,7 +155,7 @@ Preserving exact-input execution keeps one router schema and one set of venue ad
 
 Atomic swap, charge, purchase, and refund behavior avoids the dangerous intermediate state of a two-transaction flow where the user owns newly swapped FAME after the artwork, premium, or eligible shell has changed. Any stale floor, artwork mismatch, failed payment, failed NFT transfer, or failed refund reverts the whole transaction.
 
-Path-specific balance policies make unsolicited tokens unsurprising. Purchase calls cannot consume old balances. Redemption deliberately converts old FAME into user output. The security boundary is not “nothing may ever be donated”; it is “each entrypoint states exactly which balances it may consume and proves that invariant.”
+The single boon policy makes unsolicited tokens unsurprising. Ambient balances cannot satisfy caller funding or protected marketplace output, but after a successful purchase or redemption every snapshotted route asset's full remainder belongs to that caller. The security boundary is success: any failure fully rolls back, while success leaves zero Society NFTs, zero FAME, and zero residual marketplace/router allowances in checkout.
 
 Finally, wagmi already models the wallet protocol. Duplicating it creates split-brain states where the application claims a transaction is pending, replaced, failed, or unverified while the connected wallet stack knows otherwise. Thin product state plus domain query invalidation is easier to reason about and more accurate.
 
@@ -180,9 +183,9 @@ refine amountIn downward on the same topology while budget remains
 
 checkout:
   execute exact-input route once
-  pay fame.unit() + actualPremium
+  pay fame.unit() + grossPremium
   purchase selected artwork
-  refund transaction-local ETH and FAME deltas
+  boon full remaining balances of all snapshotted route assets
 ```
 
 No exact-output route executes. The quote layer only found an exact input whose protected post-fee output is sufficient.
@@ -207,14 +210,13 @@ The extra 250,000 FAME is not trapped and is not swept to an administrator. It i
 
 ```text
 Wrong: rewrite FameRouter as exact-output for one marketplace feature.
-Wrong: refund a purchase with the checkout's entire asset balance.
 Wrong: add rescue roles because somebody can donate FAME.
 Wrong: retry a wallet transaction after a receipt error.
 Wrong: maintain local replacement or proof state beside wagmi.
 
 Right: exact-input route plus protected post-fee output.
-Right: transaction-local purchase refunds.
-Right: all-in FAME only on the explicitly defined redemption path.
+Right: prove caller funding without ambient balances, then boon all snapshotted route-asset remainders after success.
+Right: require zero checkout Society NFTs and FAME after successful settlement.
 Right: wagmi/viem receipt, replacement resolution, and error state is authoritative.
 ```
 

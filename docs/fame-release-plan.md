@@ -106,12 +106,6 @@ doppler run -- forge script --chain base script/DeployFameRouter.s.sol:DeployFam
 doppler run -- forge script --chain base script/ValidateFameRouterBase.s.sol:ValidateFameRouterBase --rpc-url base
 ```
 
-### Closed-Loop Gallery Swap (retired)
-
-`ClosedLoopGallerySwap` and its Base Sepolia gallery test stack were removed.
-Gallery product surface is **UniversalPoolArtMarketplace** (+ `FameMarketplaceCheckout`).
-See `docs/gallery/marketplace-checkout-review-decisions.md` (D1) and universal marketplace docs under `docs/gallery/` / `docs/handoffs/`.
-
 ## Fair Reveal
 
 deploy:

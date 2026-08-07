@@ -34,7 +34,7 @@ The buyer campaign uses the existing FAME swap widget to acquire FAME through lo
 
 ### Problem Frame
 
-Base Sepolia proved the marketplace model, but the production stack uses different canonical contracts, a real Base liquidity graph, a future threshold Safe owner, and a browser wallet on chain ID `8453`.
+Chain-independent tests and local prototypes proved the marketplace model, but the production stack uses canonical Base contracts, a real Base liquidity graph, a future threshold Safe owner, and a browser wallet on chain ID `8453`.
 The production inventory source and three-unit transfer are intentionally deferred until after fork testing.
 The fork therefore needs only one marketplace shell, a simple fork-only fixture transfer to the deployer, local-only quote reads, generated wagmi bindings, a plain contract address, and a disposable testing workflow.
 
@@ -216,9 +216,8 @@ The fork therefore needs only one marketplace shell, a simple fork-only fixture 
 ### Sources
 
 - `docs/handoffs/base-universal-pool-art-marketplace-production-implementation.md`
-- `docs/plans/2026-07-17-001-feat-universal-pool-art-marketplace-plan.md`
+- `docs/gallery/base-universal-pool-art-marketplace-fork-report.md`
 - `fls-www: docs/plans/2026-07-19-001-feat-universal-pool-art-marketplace-plan.md`
-- `docs/gallery/base-sepolia-universal-pool-art-marketplace.md`
 
 ---
 
@@ -226,8 +225,8 @@ The fork therefore needs only one marketplace shell, a simple fork-only fixture 
 
 ### Context and Research
 
-- `script/DeployBaseSepoliaUniversalPoolArtMarketplace.s.sol` and `script/ValidateBaseSepoliaUniversalPoolArtMarketplace.s.sol` provide the guarded deployment-prefix pattern, but production fork setup intentionally uses one shell and keeps the deployer as owner.
-- `test/UniversalPoolArtMarketplaceForkBaseSepolia.t.sol` provides the existing Sepolia purchase matrix to adapt for latest-state Base.
+- `script/DeployBaseUniversalPoolArtMarketplace.s.sol` and `script/ValidateBaseUniversalPoolArtMarketplace.s.sol` provide the canonical guarded Base deployment and validation patterns.
+- `test/UniversalPoolArtMarketplaceForkBase.t.sol` and `test/UniversalPoolArtMarketplaceContentionBase.t.sol` provide the canonical latest-state Base purchase and contention matrices.
 - `fls-www: wagmi.config.ts` already uses `foundry({ project: "../fame-contracts" })`; the marketplace needs to be added to the Foundry include list before generation.
 - `fls-www: src/app/api/fame/swap/quote/handler.ts` can use `BASE_RPC_URL` and live RPC quote adapters, while its external indexed helper must be disabled for fork runs.
 - `fls-www: src/features/fame-gallery/` already implements canonical catalog, fulfillment, purchase, and receipt behavior; this plan avoids replacing it with a combined swap flow.
@@ -345,7 +344,7 @@ stateDiagram-v2
 ### Sequencing
 
 1. Confirm the marketplace and gallery branches, then verify the current wagmi generation baseline.
-2. Adapt the existing Base Sepolia deployment, one-unit lifecycle, and purchase machinery for latest-state Base.
+2. Exercise the canonical Base deployment, one-unit lifecycle, and purchase machinery against latest-state local-fork state.
 3. Extend wagmi generation as needed and wire a plain fork marketplace address into the Base gallery route.
 4. Force app and quote RPC reads onto localhost and disable external indexed/public fallbacks in fork mode.
 5. Reuse the existing quoter/widget for ETH, USDC, and supported WETH funding, then run the existing FAME gallery purchase.
@@ -365,7 +364,7 @@ stateDiagram-v2
 
 ### U1. Add Base fork configuration and guarded lifecycle tooling
 
-- **Goal:** Adapt the existing Base Sepolia machinery to represent production Base facts and deploy, validate, seed one unit, and activate against a latest-state localhost fork.
+- **Goal:** Use the canonical Base tooling to deploy, validate, seed one unit, and activate against a latest-state localhost fork.
 - **Requirements:** R1, R2, R3, R4, R5, R6, R9
 - **Dependencies:** None
 - **Files:**
@@ -374,9 +373,9 @@ stateDiagram-v2
   - `script/ValidateBaseUniversalPoolArtMarketplace.s.sol`
   - `script/ActivateBaseUniversalPoolArtMarketplace.s.sol`
   - `test/UniversalPoolArtMarketplaceDeploymentValidationBase.t.sol`
-- **Approach:** Adapt the Base Sepolia deployment script for chain `8453`, production identities, separate role fields, paused deployment, exact premium, one required shell, `BANISHER`-only authority, and deployer activation. Use Anvil impersonation to transfer exactly one FAME unit from the Safe to the deployer, then seed from the deployer. The Solidity deployment script only deploys; fixture funding, role grant, seeding, validation, and activation remain separate script/test steps. Keep all checks in scripts/tests, change no marketplace runtime logic, load no production key, include no production broadcast command, and include no Safe handoff.
+- **Approach:** Keep the Base deployment script guarded to chain `8453`, production identities, separate role fields, paused deployment, exact premium, one required shell, `BANISHER`-only authority, and deployer activation. Use Anvil impersonation to transfer exactly one FAME unit from the Safe to the deployer, then seed from the deployer. The Solidity deployment script only deploys; fixture funding, role grant, seeding, validation, and activation remain separate script/test steps. Keep all checks in scripts/tests, change no marketplace runtime logic, load no production key, include no production broadcast command, and include no Safe handoff.
 - **Test scenarios:**
-  - Correct inputs reuse the existing Sepolia lifecycle to deploy paused and validate the canonical stack on Base.
+  - Correct inputs deploy paused and validate the canonical stack on a local Base fork.
   - Safe-to-deployer impersonated fixture transfer supplies exactly one unit; the deployer then seeds exactly one marketplace-owned shell.
   - Activation succeeds only from the deployer/owner and final validation shows active, deployer-owned state.
 - **Verification:** Focused deployment-validation tests pass and a local Anvil run reaches the exact one-shell active prefix without Base mutation.
@@ -389,7 +388,7 @@ stateDiagram-v2
 - **Files:**
   - `test/UniversalPoolArtMarketplaceForkBase.t.sol`
   - `test/UniversalPoolArtMarketplaceContentionBase.t.sol`
-- **Approach:** Reuse the Base Sepolia purchase matrix against the latest Base state selected when the test starts. Record the resolved block/hash, seed one shell, run held/Mint/Burn paths, and prepare two buyers against the same shell for ordered and near-concurrent settlement.
+- **Approach:** Run the canonical Base purchase matrix against the latest Base state selected when the test starts. Record the resolved block/hash, seed one shell, run held/Mint/Burn paths, and prepare two buyers against the same shell for ordered and near-concurrent settlement.
 - **Test scenarios:**
   - Latest-state canonical stack checks execute with zero required skips and record the selected block/hash.
   - Held, Mint Pool, and Burn Pool purchases preserve one-shell marketplace inventory; Art Pool is rejected.
@@ -435,7 +434,7 @@ stateDiagram-v2
   - `fls-www: src/app/fame/gallery/page.tsx`
   - `fls-www: src/features/appbar/components/SiteMenu.tsx`
   - `fls-www: src/features/appbar/components.app/SiteMenu.tsx`
-- **Approach:** Run the existing generation baseline when needed, add `UniversalPoolArtMarketplace.sol/**` to the Foundry include list, inspect the generated diff, and supply the fork address through ordinary local configuration. Reuse the Base Sepolia gallery code for the non-testnet route. Load Society metadata with existing client-side on-chain `tokenURI` read/decoding patterns; add no metadata server or image proxy.
+- **Approach:** Run the existing generation baseline when needed, add `UniversalPoolArtMarketplace.sol/**` to the Foundry include list, inspect the generated diff, and supply the fork address through ordinary local configuration. Reuse the canonical gallery components for the Base route. Load Society metadata with existing client-side on-chain `tokenURI` read/decoding patterns; add no metadata server or image proxy.
 - **Test scenarios:**
   - Wagmi generation produces the marketplace ABI/hooks without unrelated generated churn.
   - TEST keeps its existing address, labels, and metadata; Base uses production stack plus the local marketplace address.
@@ -489,7 +488,7 @@ stateDiagram-v2
 - **Files:**
   - `docs/gallery/base-universal-pool-art-marketplace-fork-report.md`
   - `fls-www: docs/fame-gallery/base-universal-pool-art-marketplace-browser-campaign.md`
-- **Approach:** Use a dedicated browser profile/key, restart from latest Base state for destructive scenarios, run direct-FAME and widget-funded cases, record concise receipts/events/state/screenshots or notes, then discard the fork and reset. Reuse existing Sepolia gallery presentation rather than adding new handoff, refresh-state, post-event, or accessibility frameworks. Keep production deployment and Safe handoff visibly outside the result.
+- **Approach:** Use a dedicated browser profile/key, restart from latest Base state for destructive scenarios, run direct-FAME and widget-funded cases, record concise receipts/events/state/screenshots or notes, then discard the fork and reset. Reuse the existing gallery presentation rather than adding new handoff, refresh-state, post-event, or accessibility frameworks. Keep production deployment and Safe handoff visibly outside the result.
 - **Test scenarios:**
   - Direct-FAME held, Mint, Burn, sufficient allowance, exact approval, and distinct-recipient flows pass.
   - ETH and USDC widget swaps fund later gallery purchases; WETH is tested when the existing route supports it.

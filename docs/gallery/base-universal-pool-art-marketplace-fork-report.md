@@ -38,7 +38,8 @@ The result must include:
   and real configured checkout;
 - the configured 88-provider checkout where every provider payout causes a
   DN404 mint;
-- the free withdrawal forced through the full 888-ID scan; and
+- selected provider withdrawal with per-unit timestamp decay and oldest-unit
+  consumption; and
 - the existing held, pool, contention, redemption, and routing regressions.
 
 A skipped or RPC-less run is not green. These are fork simulations only and do
@@ -450,15 +451,29 @@ cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "pause()" \
   --unlocked \
   --rpc-url "$LOCAL_BASE_RPC"
 
-cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "withdrawInventory()" \
+export WITHDRAW_TOKEN_ID="<currently marketplace-owned Society ID>"
+export WITHDRAW_MAX_PREMIUM="$(
+  cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+    "withdrawalPremium(address)(uint256)" "$FORK_PROVIDER" \
+    --rpc-url "$LOCAL_BASE_RPC"
+)"
+
+cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
+  "withdrawInventory(uint256,uint256)" \
+  "$WITHDRAW_TOKEN_ID" "$WITHDRAW_MAX_PREMIUM" \
   --from "$FORK_PROVIDER" \
   --unlocked \
   --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-The checkout must be paused while the provider exit succeeds. Rehearse selected
-withdrawal separately when required; it accepts direct FAME only and excludes
-the exiting unit from its own provider-fee distribution.
+The marketplace must be paused while the provider exit succeeds. The exit consumes
+the provider's oldest credited unit and transfers the selected marketplace-owned
+shell. Each unit retains its actual deposit timestamp; the required gross
+premium decays linearly with upward rounding from the current configured
+premium to zero at 24 hours. `maxPremium` is the consent bound. A nonzero
+premium uses direct FAME, removes the exiting unit before distribution so it
+cannot rebate itself, and executes the complete gross transfer path. There is
+no random withdrawal, inventory scan, or withdrawal gas release gate.
 
 This disposable fork never transfers marketplace ownership or asks the Safe to
 activate it. Keep all administrative test transactions on the deployer. The
@@ -475,7 +490,6 @@ Record concise run facts:
 | Fork block number and hash | |
 | Automated latest-Base suite | |
 | 88-provider all-mint benchmark gas | |
-| Full 888-ID free-exit scan gas | |
 | Empty paused deployer validation | |
 | Empty active deployer validation | |
 | Provider/community fee read-back | 25,000 / 25,000 FAME |
@@ -490,7 +504,7 @@ Record concise run facts:
 | Browser payment routes and transaction/route hashes | |
 | Browser Society redemption matrix | |
 | Checkout balances and allowances zero | |
-| Provider custody while checkout paused | |
+| Timestamped selected provider exit while checkout paused | |
 | Teardown and wallet RPC reset | |
 
 When the run ends—or immediately after a reload with a pending transaction, an

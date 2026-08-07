@@ -13,7 +13,7 @@ product_contract_source: ce-plan-bootstrap
 
 ## Goal Capsule
 
-Extend the existing ownerless Base checkout coordinator so buyers can pay for Universal Pool artwork with ETH, USDC, or WETH and Society holders can burn 1–32 selected NFTs for ETH, WETH, or USDC. Preserve the marketplace's direct-FAME purchase path, purchase-only delta isolation, and the deployed router schema. Keep the complete implementation fork-only.
+Extend the existing ownerless Base checkout coordinator so buyers can pay for Universal Pool artwork with ETH, USDC, or WETH and Society holders can burn 1–32 selected NFTs for ETH, WETH, or USDC. Preserve the marketplace's direct-FAME purchase path, transaction funding isolation, the full-balance boon after successful settlement, and the deployed router schema. Keep the complete implementation fork-only.
 
 Authority, in descending order:
 
@@ -27,7 +27,7 @@ Execution spans two repositories:
 - `fame-contracts` owns the marketplace seam, checkout contract, Foundry deployment tooling, and contract/fork proof.
 - `fls-www` owns browser-side target-output sizing for this fork phase, `wagmi generate`, its `contracts.ts` address registry, the gallery integration, and browser proof.
 
-Before WWW implementation begins, reconcile current `main` into `codex/feat-base-sepolia-test-gallery` without discarding the branch's marketplace-fork work. At planning time, that branch is at `943e152`, 21 commits behind and 37 commits ahead of `main`; re-check the relationship before integration.
+Before WWW implementation begins, reconcile current `main` into the active WWW marketplace feature branch without discarding its marketplace-fork work. Re-check the branch relationship before integration.
 
 Stop and return to planning if implementation would require changing `FameRouter` execution semantics, supporting an additional input asset, allowing an unauthorized caller to choose the marketplace buyer, or weakening the existing artwork, premium, or inventory checks.
 
@@ -39,7 +39,7 @@ Tail ownership includes contract tests, latest-state Base fork execution, a norm
 
 ### Summary
 
-The gallery will offer direct FAME checkout and an alternative atomic checkout for ETH, USDC, or WETH. It will also enumerate a connected wallet's Society NFTs and let the holder select 1–32 specific IDs to burn atomically into ETH, WETH, or USDC. During fork testing, WWW finds and sizes both route directions in the browser. Purchases retain transaction-local refunds; redemption intentionally converts the checkout's complete FAME inventory, including donations, for the next successful redeemer.
+The gallery will offer direct FAME checkout and an alternative atomic checkout for ETH, USDC, or WETH. It will also enumerate a connected wallet's Society NFTs and let the holder select 1–32 specific IDs to burn atomically into ETH, WETH, or USDC. During fork testing, WWW finds and sizes both route directions in the browser. Caller funding is isolated from ambient balances, while every successful purchase or redemption boons the caller the complete post-settlement balance of each snapshotted route asset.
 
 ### Problem Frame
 
@@ -61,7 +61,7 @@ The current router and WWW quote stack are exact-input: the user specifies an in
 - R2. The alternative checkout must accept only native ETH, canonical Base USDC, or canonical Base WETH as its input asset.
 - R3. An alternative checkout must execute the swap and marketplace purchase atomically, so any quote, route, funding, premium, artwork, shell, inventory, transfer, or refund failure reverts the entire transaction.
 - R4. The alternative checkout must fund the route's exact declared input as A1's authorized maximum; it must report measured input consumption and return any input residue that `FameRouter` returns rather than representing the route as exact-output execution.
-- R5. The checkout must return transaction-local surplus FAME and any route-local asset leftovers returned by `FameRouter` to A1 before the transaction completes.
+- R5. After successful settlement, the checkout must transfer the complete remaining balance of every snapshotted route asset to A1, including ambient balances and transaction-local FAME or route-asset surplus.
 
 #### Quote and purchase protection
 
@@ -80,18 +80,17 @@ The current router and WWW quote stack are exact-input: the user specifies an in
 
 #### Accounting and token safety
 
-- R15. Purchase-checkout refund accounting must use per-call balance deltas for every distinct route asset and must never transfer balances that existed before the purchase call.
-- R16. Native balance accounting must exclude the current call's `msg.value` from its baseline, and a failed native refund must revert the atomic checkout.
+- R15. Checkout must snapshot every distinct route asset so ambient balances cannot satisfy A1's required input or the marketplace's protected FAME charge. After a successful purchase or redemption, it must boon A1 the full post-settlement balance of every snapshotted route asset.
+- R16. Native funding accounting must distinguish the current call's exact `msg.value` from ambient native balance, and any failed boon transfer must revert the complete atomic checkout so all balances and state roll back.
 - R17. The checkout must remain in DN404 skip-NFT mode so receiving purchase-sized FAME cannot mint a Society shell into the coordinator.
-- R18. The checkout must grant `FameRouter` only the current exact route input and the marketplace only the current unit plus actual premium, then clear both residual allowances before returning.
+- R18. The checkout must grant `FameRouter` only the current exact route input and the marketplace only the current unit plus gross premium, then clear both residual allowances before returning.
 - R19. A1's ERC-20 payment approvals must target the checkout, not `FameRouter`; the checkout must receive the declared input delta, while native ETH requires no approval and exact `msg.value`.
-- R20. The checkout must remain ownerless and expose no rescue operation. Purchase paths exclude ambient balances, while Society redemption intentionally consumes the checkout's complete FAME and Society NFT inventory without consuming ambient non-FAME assets.
+- R20. The checkout must remain ownerless and expose no rescue operation. Ambient balances cannot fund a caller's route or marketplace charge, but after any successful purchase or redemption every snapshotted route asset's full remaining balance is booned to the caller. A successful checkout must also end with zero Society NFTs; directly donated Society backing FAME participates in the boon.
 
 #### Evidence and configuration
 
-- R21. The contracts must emit enough measured settlement data for deterministic tests and fork diagnostics, while WWW must use the repository-standard transaction modal and wagmi receipt handling rather than introducing a bespoke cross-contract proof or transaction-recovery state machine.
+- R21. The contracts must emit enough measured settlement data for deterministic tests and fork diagnostics. `ArtworkPurchased.grossPremiumAmount` is the full configured premium executed through the marketplace transfer path, including payer-to-self legs; it is not the buyer's net debit. WWW must use the repository-standard transaction modal and wagmi receipt handling rather than introducing a bespoke cross-contract proof or transaction-recovery state machine.
 - R22. For this fork-only phase, Foundry must emit temporary deployment addresses at runtime and WWW must consume them through its `contracts.ts` boundary without committing them or treating them as production facts. RPC URLs, keys, and explorer credentials remain in Doppler. Any later public deployment must follow the repository's curated public-configuration rules, but that deployment is outside this plan.
-- R23. Base Sepolia TEST must remain direct-FAME-only until a real checkout is intentionally deployed and configured there.
 - R24. Completion requires deterministic contract/WWW tests, latest-state Base fork proof for direct FAME and all three alternative inputs, and a real browser campaign using a normal operator-owned wallet.
 - R25. In this fork-only phase, target sizing must run in the browser against the configured local fork RPC and must not add a public marketplace quote endpoint. The solver boundary must remain reusable so it can later move behind the production quote router without changing its route-first sizing semantics.
 - R26. WWW must use its existing transaction modal and wagmi lifecycle for simulation, submission, replacement, receipt, revert, and error handling. It must not add automatic transaction retries, persisted `confirmed_unverified` recovery, or a parallel proof framework.
@@ -134,7 +133,7 @@ Covers R2, R4, R6-R8, and R25.
 2. For USDC or WETH, A1 approves the checkout for the exact input if needed; ETH skips approval.
 3. WWW submits through the repository-standard transaction modal and wagmi lifecycle.
 4. The checkout validates and funds the route, receives FAME, approves the exact marketplace charge, and invokes the authorized typed held or pool purchase-for seam with A1 as buyer and recipient.
-5. The checkout clears allowance and refunds per-call surplus assets to A1.
+5. The checkout clears allowance and boons A1 the complete post-settlement balance of every snapshotted route asset.
 6. WWW follows the standard receipt state and refreshes the normal marketplace/catalog data after success.
 
 Covers R2-R5 and R9-R21.
@@ -160,13 +159,12 @@ Covers R27-R34.
 
 ### Acceptance Examples
 
-- AE1. Given a held artwork where actual premium equals `maxPremium` and a protected ETH route that produces exactly the unit plus that premium, the transaction buys the selected shell for A1 and returns zero FAME. Covers R2-R6, R10-R12, and R21.
-- AE2. Given a USDC route that produces more FAME than the actual marketplace charge, the transaction buys the artwork and returns only the per-call FAME surplus to A1. Covers R3-R5, R15, and R19.
+- AE1. Given a held artwork where gross premium equals `maxPremium` and a protected ETH route that produces exactly the unit plus that premium, the transaction buys the selected shell for A1 and returns zero FAME. Covers R2-R6, R10-R12, and R21.
+- AE2. Given a USDC route that produces more FAME than the marketplace charge, the transaction buys the artwork and boons A1 the checkout's full post-settlement FAME balance. Covers R3-R5, R15, and R19.
 - AE3. Given a WETH route and a premium that decreased after quoting but remains below `maxPremium`, the purchase succeeds and the difference remains part of A1's FAME refund. Covers R5, R6, and R10.
 - AE4. Given a premium above `maxPremium`, changed artwork hash, unavailable shell, stale pool source, or protected output below the target, the entire checkout reverts and A1 retains the input asset. Covers R3, R6, and R10.
-- AE5. Given FAME, ETH, USDC, WETH, or native currency already stranded on the checkout, a later buyer can receive only deltas created by that buyer's call. Covers R15, R16, and R20.
+- AE5. Given FAME, ETH, USDC, WETH, or native currency already on checkout, none of it can satisfy the caller's route funding or protected marketplace output; after a successful settlement, the caller receives the full remaining balance of every such asset that the route snapshotted. A failed settlement or boon transfer rolls back all movement. Covers R15, R16, and R20.
 - AE6. Given a non-payable smart-account payer and a route that returns native leftovers, the checkout reverts atomically and WWW reports the refund failure rather than a purchase. Covers R3 and R16.
-- AE7. Given Base Sepolia TEST without a checkout address, the gallery continues to offer only direct FAME and never substitutes a fake or Base address. Covers R1 and R23.
 - AE8. Given a submitted checkout, WWW uses the existing transaction modal and wagmi lifecycle for replacement, receipt, revert, and wallet errors, performs no automatic retry, and refreshes the normal gallery state after success. Covers R21 and R26.
 - AE9. Given one selected Society NFT and no checkout bonus, redemption burns that exact ID, leaves A5's unselected IDs untouched, and sends the protected ETH, WETH, or USDC output to A5. Covers R28-R32.
 - AE10. Given existing FAME or directly donated Society NFTs in checkout, the next successful redemption consumes the complete checkout inventory and includes its value in A5's selected output. Covers R31 and R32.
@@ -177,7 +175,7 @@ Covers R27-R34.
 
 - A buyer can complete a held or pool artwork purchase in one transaction from each supported alternative asset on a current Base fork.
 - A redeemer can select specific owned Society NFTs and atomically receive ETH, WETH, or USDC while keeping unselected NFTs.
-- Purchase paths cannot drain ambient balances; redemption intentionally consumes all ambient FAME and checkout-owned Society NFTs while leaving ambient non-FAME assets untouched.
+- Ambient balances cannot satisfy caller funding or the protected marketplace charge. After successful purchase or redemption settlement, the caller receives every snapshotted route asset's full remaining balance, and checkout holds zero Society NFTs; any failure fully rolls back.
 - No tested path can redirect output, misattribute the buyer/redeemer, leave allowance behind, or finish redemption with FAME or Society NFTs in checkout.
 - The existing direct-FAME marketplace behavior remains green.
 
@@ -199,7 +197,6 @@ Out of scope:
 - Changing router fees, venue allowlists, or schema.
 - Additional payment assets, cross-chain checkout, bridging, fiat, or Permit2.
 - Delegated/meta-transaction buyers.
-- A Base Sepolia checkout deployment.
 - Production deployment or activation; this plan stops at deployable, fork-proven code.
 - Hosting target sizing behind the production quote router or adding a public marketplace quote endpoint.
 - General exact-output mode on the standalone swap page.
@@ -245,16 +242,16 @@ The current marketplace uses `msg.sender` as payer and buyer. Checkout support m
 
 - KTD1. Keep `FameRouter` exact-input and use the existing checkout coordinator for purchase conversion and Society redemption. (session-settled: user-approved — chosen over changing or redeploying the router: the existing post-fee floor already provides the execution guarantee both directions need.) Governs R2-R6, R14-R20, and R27-R32.
 - KTD2. Add one revocable marketplace-configured `authorizedCheckout` address and shared internal settlement logic for direct and purchase-for calls. Market entrypoints never accept a payer: payer is always `msg.sender`, and only the authorized checkout may supply the semantic buyer. This uses the marketplace's existing owner and a single address check, not a new role framework; configuration changes emit `AuthorizedCheckoutChanged`. (session-settled: user-approved — chosen over embedding swap behavior in the marketplace: the market should own artwork settlement while the coordinator owns payment conversion.) Governs R1, R10-R14, and R18.
-- KTD3. Offer target-output sizing but execute the returned route as exact-input, then refund surplus FAME. (session-settled: user-approved — chosen over venue-specific exact-output adapters: this reaches atomic checkout without redesigning every router venue.) Governs R4-R9.
+- KTD3. Offer target-output sizing but execute the returned route as exact-input, then boon the caller the checkout's full remaining snapshotted FAME balance. (session-settled: user-approved — chosen over venue-specific exact-output adapters: this reaches atomic checkout without redesigning every router venue.) Governs R4-R9.
 - KTD4. Present ETH and USDC as primary payment choices and support WETH as an additional ERC-20 choice. (session-settled: user-directed — chosen over a WETH-first interface: most buyers hold native ETH or USDC.) Governs R2 and R19.
 - KTD5. Use route-first, range-bounded sizing. WWW may discover a candidate topology speculatively when the page loads or the payment asset changes. After A1 locks the purchase selection, create one fresh pinned context, test the selected route within A1's maximum input, and retain the first sufficient witness. Refine that same route downward while budget remains; return the sufficient witness if refinement exhausts the budget. Try a different topology only when the selected route cannot reach the target within A1's cap, becomes invalid, or exhausts liquidity. Candidate evaluation is tri-state—insufficient, sufficient, or unavailable—and only numeric evidence moves a bound. Governs R6-R9.
 - KTD6. Keep the direct-FAME purchase controller intact and add a separate checkout controller that shares the existing fulfillment and route-encoding primitives while continuing to use the repository-standard transaction modal and wagmi lifecycle. Governs R1, R7-R9, R19, R21, and R26.
-- KTD7. Treat A1 as checkout caller, ERC-20 owner, marketplace buyer, shell recipient, and refund recipient. The checkout derives A1 from its caller rather than buyer calldata; market settlement carries payer and buyer separately so transfers use payer while events and buyer protections use A1. Do not expose delegated buyers or gifting in the first checkout release. Governs R11, R12, R15, and R16.
-- KTD8. Bind immutable execution dependencies in an ownerless checkout with no rescue surface. Purchases retain delta-only accounting; redemption is the one explicit path that consumes complete ambient FAME and checkout-owned Society inventory while excluding ambient non-FAME assets. Governs R14, R15, R17, R20, R29, and R32.
+- KTD7. Treat A1 as checkout caller, ERC-20 owner, marketplace buyer, shell recipient, and boon recipient. The checkout derives A1 from its caller rather than buyer calldata; market settlement carries payer and buyer separately so transfers use payer while events and buyer protections use A1. Do not expose delegated buyers or gifting in the first checkout release. Governs R11, R12, R15, and R16.
+- KTD8. Bind immutable execution dependencies in an ownerless checkout with no rescue surface. Ambient balances never satisfy caller funding or protected marketplace output. After any successful purchase or redemption, the caller receives the full remaining balance of every snapshotted route asset; a successful checkout also ends with zero Society NFTs, and every failure fully rolls back. Governs R14, R15, R17, R20, R29, and R32.
 - KTD9. Wire the marketplace to the checkout while paused, validate both contracts together, then use the existing activation gate. `fame-contracts` owns deployment and wiring; `fls-www` owns `wagmi generate` and its `contracts.ts` address registry. All execution in this plan remains fork-only. Because neither contract is deployed, no compatibility shim or migration path is warranted. Governs R13, R22, and R24.
 - KTD10. Run market-aware sizing in the browser against the local fork RPC for this phase. Keep it as a reusable module with explicit evaluation, RPC, and elapsed-time controls so the same route-first engine can later move behind the production quote router. Do not add a public marketplace quote endpoint now. Governs R7, R8, and R25.
 - KTD11. Expose separate typed, non-reentrant checkout entrypoints for held and pool purchases, with matching authorized marketplace entrypoints and one shared private settlement path. WWW chooses the entrypoint from catalog fulfillment data; each contract independently validates that choice. Do not accept opaque fulfillment bytes or fields that are inactive for the selected variant. Governs R2-R5 and R14-R21.
-- KTD12. Treat the first sufficient upper witness as a usable quote and refinement as an optimization that reduces expected surplus FAME. A1's maximum input is the economic bound; do not add arbitrary surplus thresholds or warnings. Keep surplus-FAME explanation without restoring deleted protected-FAME, input-residue, maximum-input, or duplicated-charge rows. Governs R4-R9.
+- KTD12. Treat the first sufficient upper witness as a usable quote and refinement as an optimization that reduces expected transaction-local surplus FAME. A1's maximum input is the economic bound; do not add arbitrary surplus thresholds or warnings. Explain that a successful call transfers the full remaining snapshotted FAME balance, including any ambient boon, without restoring deleted protected-FAME, input-residue, maximum-input, or duplicated-charge rows. Governs R4-R9.
 - KTD13. Extend `FameMarketplaceCheckout` with public redemption and enumeration rather than adding another coordinator or a marketplace redemption seam. (session-settled: user-directed — DN404 already moves the selected NFT and backing FAME together, so another custody layer buys nothing.) Governs R27-R34.
 - KTD14. Execute redemption against the checkout's complete actual FAME balance and require zero final FAME/NFT inventory. (session-settled: user-directed — chosen over stranding donations or returning bonus FAME: all donated value reaches the next redeemer in the selected output asset without minting Society NFTs back to the caller.) Governs R29-R32.
 - KTD15. Discover owned Society IDs through the checkout's bounded `ownerAt` scan, using one full read first and same-block range fallback only for provider limits. (session-settled: user-approved — chosen over hundreds of browser multicalls or a separate enumeration helper: the fixed 888-ID domain is small enough for one normal read.) Governs R27, R33, and R34.
@@ -277,7 +274,7 @@ flowchart LR
     Checkout -->|unit, pulled by market| Market
     Checkout -->|premium, pulled by market| FeeRecipient["fee recipient"]
     Market -->|Society shell| Buyer
-    Checkout -->|per-call surplus assets| Buyer
+    Checkout -->|full remaining snapshotted balances| Buyer
 ```
 
 ```mermaid
@@ -297,19 +294,19 @@ sequenceDiagram
     WWW-->>Buyer: Payment estimate, FAME refund explanation, expiry
     Buyer->>Input: Approve checkout if ERC-20
     Buyer->>Checkout: Submit protected route + purchase terms
-    Checkout->>Checkout: Validate identity, dependencies, funding, baselines
+    Checkout->>Checkout: Validate identity, dependencies, funding, snapshots
     Checkout->>Input: Pull exact ERC-20 input when applicable
     Checkout->>Input: Approve router for exact input
     Checkout->>Router: Execute exact-input route
     Router->>Fame: Transfer post-fee output to checkout
     Router-->>Checkout: Return measured FAME and route leftovers
-    Checkout->>Fame: Approve market for unit + actual premium
+    Checkout->>Fame: Approve market for unit + gross premium
     Checkout->>Market: Call authorized held/pool purchase-for for A1
     Market->>Fame: Pull unit and premium from checkout
     Market-->>Buyer: Transfer selected Society shell
     Market-->>Checkout: Return settlement result
-    Checkout->>Fame: Refund per-call FAME surplus to buyer
-    Checkout->>Input: Refund input residue when present
+    Checkout->>Fame: Boon full remaining snapshotted FAME balance
+    Checkout->>Input: Boon full remaining snapshotted input balance
     Buyer-->>WWW: Standard wagmi transaction lifecycle
     WWW->>WWW: Refresh normal marketplace and catalog state
 ```
@@ -348,11 +345,11 @@ flowchart TD
 
 ### State and Data Integrity
 
-- The checkout snapshots distinct route-asset baselines before funding. For native ETH, the baseline removes this call's `msg.value`.
+- The checkout snapshots every distinct route asset before funding. Those snapshots prove that ambient balances did not satisfy the caller's exact input or protected marketplace output; they do not preserve ambient balances after success.
 - It validates the submitted route against bound dependencies before transferring tokens or calling the router, and it requires measured ERC-20 input and router FAME output to match the declared/returned values.
-- The router event will name the checkout as payer and recipient; the checkout settlement event records A1 and measured deltas for contract tests and fork diagnostics; the marketplace event continues to record A1 as buyer.
+- The router event will name the checkout as payer and recipient; the checkout settlement event records A1 and measured settlement amounts for contract tests and fork diagnostics; the marketplace event continues to record A1 as buyer.
 - The marketplace snapshots current premium, fee recipient, fulfillment, artwork, and inventory using the same settlement lock for direct and authorized-checkout calls; charge is independent of buyer identity (no fee-recipient waiver).
-- Exact temporary allowance and DN404 skip-NFT posture prevent the coordinator from becoming a hidden inventory owner or durable spending authority.
+- Exact temporary allowances prevent the coordinator from becoming a durable spending authority. Successful settlement must additionally leave checkout with zero Society NFTs, zero FAME, and zero router/marketplace allowances; any failed settlement or boon transfer restores all prior state.
 
 ### System-Wide Impact
 
@@ -369,7 +366,7 @@ flowchart TD
 |---|---|---|
 | Target solver repeats expensive live reads | Browser quote work stalls | Discover a candidate early, reuse one block-scoped locked-selection context, cap evaluations mathematically, support cancellation, and retain the first sufficient witness. |
 | Route selection changes across candidate inputs | A naive inversion underfunds the purchase or thrashes between routes | Select one topology, prove it at or below A1's cap, range-refine that topology, and reroute only on proven inability, invalidity, or liquidity exhaustion. |
-| Ambient token or ETH balances exist | A later buyer drains unrelated funds | Use distinct-asset baselines and delta-only refunds; test forced native and donated tokens. |
+| Ambient token or ETH balances exist | They are mistaken for caller funding or produce ambiguous custody | Prove exact caller funding independently, then boon the full post-settlement balance of every snapshotted route asset only after success; test full rollback on failure. |
 | Checkout receives DN404 mirror NFTs | Inventory and artwork state mutate invisibly | Set and validate skip-NFT mode before any route can execute. |
 | Premium or fulfillment changes after quote | Buyer overpays or receives the wrong art | Keep `maxPremium`, artwork hash, source, shell, and inventory protections inside the atomic call. |
 | Native refund callback rejects ETH | Checkout cannot finish safely | Revert the whole transaction and show a legible WWW error; do not retain the refund. |
@@ -420,9 +417,9 @@ Use the Product Contract Sources plus these implementation seams:
 
 ### U1. Reconcile and baseline the WWW marketplace branch
 
-**Goal:** Bring current `main` changes into `codex/feat-base-sepolia-test-gallery` while preserving its 37 branch-only commits and establish a clean deterministic baseline.
+**Goal:** Bring current `main` changes into the active WWW marketplace feature branch while preserving its marketplace work and establish a clean deterministic baseline.
 
-**Requirements:** R1, R23, R24.
+**Requirements:** R1 and R24.
 
 **Decisions:** KTD6.
 
@@ -453,7 +450,7 @@ Use the Product Contract Sources plus these implementation seams:
 - `test/UniversalPoolArtMarketplace.t.sol`
 - `test/UniversalPoolArtMarketplaceFuzz.t.sol`
 - `test/UniversalPoolArtMarketplaceInvariant.t.sol`
-- `test/UniversalPoolArtMarketplaceDeploymentValidation.t.sol`
+- `test/UniversalPoolArtMarketplaceDeploymentValidationBase.t.sol`
 
 **Approach:** Add one `authorizedCheckout` address with an owner-only setter guarded by paused and no-active-settlement state. Emit `AuthorizedCheckoutChanged(previous, current)` on set, clear, or rotation; do not add an access-control role framework. External entrypoints derive payer from `msg.sender` and never accept payer calldata. Refactor held/pool execution around explicit internal payer, buyer, and recipient roles. Direct entrypoints use `msg.sender` as payer and buyer. Separate typed authorized held/pool entrypoints require `msg.sender == authorizedCheckout`, accept A1 as the semantic buyer/recipient, pull FAME from the checkout, preserve A1 in `ArtworkPurchased`, apply the mirror-balance floor to A1, and deliver to A1. Keep one settlement lock and one invariant path.
 
@@ -471,7 +468,7 @@ Use the Product Contract Sources plus these implementation seams:
 
 ### U3. Build the atomic checkout coordinator
 
-**Goal:** Convert one supported exact input to FAME, settle one market purchase, and refund only per-call surplus.
+**Goal:** Convert one supported exact input to FAME, settle one market purchase, and boon the caller every snapshotted route asset's full post-settlement balance.
 
 **Requirements:** R2-R5 and R11-R21.
 
@@ -484,23 +481,23 @@ Use the Product Contract Sources plus these implementation seams:
 - `test/FameMarketplaceCheckoutFuzz.t.sol`
 - `test/FameMarketplaceCheckoutInvariant.t.sol`
 
-**Approach:** Bind router, market, FAME, USDC, and WETH dependencies at deployment and expose no owner or rescue surface. Initialize and read back DN404 skip-NFT mode. Expose separate typed, non-reentrant `checkoutHeld` and `checkoutPool` entrypoints that derive A1 from `msg.sender`; WWW chooses between them from catalog fulfillment data and both contracts validate the choice. Share route validation, funding, swap, allowance, delta accounting, refund, and settlement cleanup through one private path without accepting opaque fulfillment bytes. Validate route asset, FAME output, checkout recipient, exact funding, protected floor, deadline, and marketplace terms before the first token call. Snapshot every distinct route asset, require the received ERC-20 delta to equal the declared input, approve the router for that exact input, execute it, and require the measured FAME delta to match its return value. Clear router allowance, approve only the current marketplace charge, call the matching authorized marketplace entrypoint, clear market allowance, then refund positive per-call deltas to A1. Emit measured settlement/refund amounts only after balances return to baseline.
+**Approach:** Bind router, market, FAME, USDC, and WETH dependencies at deployment and expose no owner or rescue surface. Initialize and read back DN404 skip-NFT mode. Expose separate typed, non-reentrant `checkoutHeld` and `checkoutPool` entrypoints that derive A1 from `msg.sender`; WWW chooses between them from catalog fulfillment data and both contracts validate the choice. Share route validation, funding, swap, allowance, boon distribution, and settlement cleanup through one private path without accepting opaque fulfillment bytes. Validate route asset, FAME output, checkout recipient, exact funding, protected floor, deadline, and marketplace terms before the first token call. Snapshot every distinct route asset, require the received ERC-20 delta to equal the declared input so ambient assets cannot fund the call, approve the router for that exact input, execute it, and require the measured FAME delta to match its return value. Clear router allowance, approve only the current marketplace charge, call the matching authorized marketplace entrypoint, clear market allowance, then transfer the full remaining balance of every snapshotted route asset to A1. Require zero checkout Society NFTs after settlement and emit measured settlement/boon amounts only after those transfers succeed.
 
 **Test scenarios:**
 
 - ETH, USDC, and WETH routes succeed for held, mint-pool, and burn-pool fulfillment with exact funding.
 - A delegated buyer, alternate recipient, or alternate refund recipient reverts before funding.
 - Held calls cannot encode pool fields; pool calls reject inconsistent shell/source/artwork data before funding.
-- Exact target output produces no FAME refund; overproduction and premium decreases produce the correct FAME refund.
-- Router-returned input/intermediate leftovers are refunded without touching pre-existing balances.
+- Exact target output with no ambient FAME produces no FAME boon; overproduction, premium decreases, and ambient FAME produce the correct full-balance boon.
+- Router-returned input/intermediate leftovers and ambient balances of snapshotted route assets are fully booned after successful settlement.
 - Wrong token in/out, route recipient, router/market dependency, amount, `msg.value`, protected floor, deadline, or premium cap reverts before durable state.
-- Donated FAME/ERC-20 balances and forced native ETH cannot be claimed by a later buyer.
-- The checkout stays in skip-NFT mode and never owns a Society shell after successful settlement.
+- Donated FAME/ERC-20 balances and forced native ETH cannot satisfy caller funding but are claimed by the next successful caller when the route snapshots those assets.
+- The checkout stays in skip-NFT mode and nevertheless handles raw Society NFT donations by requiring zero Society NFTs after successful settlement; their released backing FAME joins the boon.
 - Surplus FAME refunds may trigger normal DN404 effects for A1 without being mistaken for the selected marketplace shell.
 - Router and marketplace allowances are zero after success and after every reverting external callback path.
 - Reentrancy, hostile ERC-20 behavior, non-payable native refund recipients, and failed shell delivery revert atomically.
-- No owner or rescue entrypoint exists; purchase entrypoints keep ambient donations and forced native ETH excluded from caller deltas.
-- Final accounting proves router FAME output equals marketplace FAME paid plus FAME refunded, and every tracked asset ends at its pre-call baseline.
+- No owner or rescue entrypoint exists; ambient donations and forced native ETH remain unable to fund the caller's required input or protected marketplace output.
+- Final accounting separates caller funding from post-settlement boon distribution, proves the marketplace gross charge and router output, and leaves zero checkout Society NFTs, FAME, and residual allowances after success.
 
 **Verification:** Unit, fuzz, and invariant tests reconcile input, router output, market charge, allowance, refund, and ambient balances for every terminal state.
 
@@ -579,7 +576,7 @@ Use the Product Contract Sources plus these implementation seams:
 
 **Goal:** Let A1 choose FAME, ETH, USDC, or WETH and complete the correct purchase through the gallery's existing transaction handling.
 
-**Requirements:** R1-R12, R19, R21, R23, and R26.
+**Requirements:** R1-R12, R19, R21, and R26.
 
 **Decisions:** KTD3, KTD4, KTD6, KTD7, and KTD10-KTD12.
 
@@ -603,7 +600,7 @@ Use the Product Contract Sources plus these implementation seams:
 - `fls-www: src/features/fame-gallery/components/GalleryPurchaseModal.test.tsx`
 - `fls-www: src/features/fame-gallery/components/GalleryView.tsx`
 
-**Approach:** Run `wagmi generate` after the contract ABI stabilizes and make the gallery's `contracts.ts` the WWW-owned address boundary. Keep every address in this unit fork-only. Preserve the direct-FAME controller and extend the existing purchase queue/transaction modal for alternative checkout rather than creating a parallel transaction state machine. WWW selects the typed held or pool checkout entrypoint from catalog fulfillment data; the contracts independently reject a mismatched choice. Consent binds chain, account, buyer/recipient, artwork/fulfillment, payment asset, marketplace, checkout, maximum input, and `maxPremium`. Same-route input refinement within those caps does not require reconfirmation; increasing a cap, changing a bound field, or falling back to another route does. Simulate each newly produced quote once for useful pre-wallet diagnostics, but do not make a redundant immediate re-simulation a submission gate while that quote remains unexpired and unchanged. The modal defaults to FAME and keeps the approved compact payment presentation: do not restore protected-FAME, input-residue, maximum-input, or duplicated marketplace-charge rows. Use existing wagmi/modal handling for approval, submission, replacement, receipt, revert, and wallet errors. Do not add automatic retries, `confirmed_unverified`, or bespoke receipt proofs. Keep Base Sepolia TEST direct-only.
+**Approach:** Run `wagmi generate` after the contract ABI stabilizes and make the gallery's `contracts.ts` the WWW-owned address boundary. Keep every address in this unit fork-only. Preserve the direct-FAME controller and extend the existing purchase queue/transaction modal for alternative checkout rather than creating a parallel transaction state machine. WWW selects the typed held or pool checkout entrypoint from catalog fulfillment data; the contracts independently reject a mismatched choice. Consent binds chain, account, buyer/recipient, artwork/fulfillment, payment asset, marketplace, checkout, maximum input, and `maxPremium`. Same-route input refinement within those caps does not require reconfirmation; increasing a cap, changing a bound field, or falling back to another route does. Simulate each newly produced quote once for useful pre-wallet diagnostics, but do not make a redundant immediate re-simulation a submission gate while that quote remains unexpired and unchanged. The modal defaults to FAME and keeps the approved compact payment presentation: do not restore protected-FAME, input-residue, maximum-input, or duplicated marketplace-charge rows. Use existing wagmi/modal handling for approval, submission, replacement, receipt, revert, and wallet errors. Do not add automatic retries, `confirmed_unverified`, or bespoke receipt proofs.
 
 **Test scenarios:**
 
@@ -617,7 +614,7 @@ Use the Product Contract Sources plus these implementation seams:
 - Surplus copy says excess swap output returns as FAME depending on execution-time liquidity; it does not promise a refund in the original input asset or apply an arbitrary surplus warning threshold.
 - Standard wagmi receipt success refreshes the normal gallery/catalog state and never triggers an automatic transaction retry.
 - Held catalog fulfillment calls the typed held entrypoint; mint-pool and burn-pool fulfillment call the typed pool entrypoint.
-- Missing Base checkout config fails closed; Base Sepolia TEST remains direct-only.
+- Missing Base checkout config fails closed.
 
 **Verification:** Component, hook, request, queue, configuration, and existing transaction-modal tests prove both controllers, all payment branches, consent invalidation, typed fulfillment selection, and no lowered floor.
 
@@ -627,7 +624,7 @@ Use the Product Contract Sources plus these implementation seams:
 
 **Goal:** Prove the complete implementation against a current local Base fork and a normal operator-owned wallet.
 
-**Requirements:** R21-R24 and R26.
+**Requirements:** R21, R22, R24, and R26.
 
 **Decisions:** KTD9.
 
@@ -673,7 +670,7 @@ Use the Product Contract Sources plus these implementation seams:
 - `test/FameMarketplaceCheckoutInvariant.t.sol`
 - `test/helpers/FameMarketplaceCheckoutTestBase.sol`
 
-**Approach:** Add the bounded `[startTokenId, endTokenIdExclusive)` owner scan and a typed non-reentrant redemption entrypoint. Validate the sorted 1–32 ID set, FAME-input/output-asset/recipient/deadline/floor route header, quote basis, and exactly one final `All`-mode FAME-input leg before external state changes. Pull each ID from `msg.sender`, measure complete actual checkout FAME, copy the route with its header input increased to that actual balance, grant and clear one exact router allowance, and execute with output sent directly to A5. Refund only transaction-local non-FAME leftovers. Require zero checkout FAME and zero mirror balance after success, then emit measured redemption data.
+**Approach:** Add the bounded `[startTokenId, endTokenIdExclusive)` owner scan and a typed non-reentrant redemption entrypoint. Validate the sorted 1–32 ID set, FAME-input/output-asset/recipient/deadline/floor route header, quote basis, and exactly one final `All`-mode FAME-input leg before external state changes. Pull each ID from `msg.sender`, measure complete actual checkout FAME, copy the route with its header input increased to that actual balance, grant and clear one exact router allowance, and execute with output sent directly to A5. Boon A5 the full remaining balance of every snapshotted route asset. Require zero checkout FAME and zero mirror balance after success, then emit measured redemption data.
 
 **Test scenarios:**
 
@@ -685,7 +682,7 @@ Use the Product Contract Sources plus these implementation seams:
 - Wrong route input/output/recipient/version/deadline/floor or all-in leg shape reverts.
 - Failure at the first, middle, or final NFT pull and any router failure restores every selected ID.
 - Post-quote bonus growth succeeds; a consumed bonus fails the quote-basis check without losing NFTs.
-- Success leaves zero router allowance, zero checkout FAME, and zero checkout Society NFTs while purchase ambient-delta regressions remain green.
+- Success leaves zero router allowance, zero checkout FAME, and zero checkout Society NFTs while purchase funding-isolation and full-balance-boon regressions remain green.
 
 **Verification:** Focused unit/fuzz/invariant suites prove caller binding, rollback, all-in accounting, exact allowances, purchase isolation, and owner-range correctness; a Base fork proves the 32-ID cap fits safely.
 
@@ -749,7 +746,7 @@ Use the Product Contract Sources plus these implementation seams:
 
 **Goal:** Prove enumeration and 1–32 NFT redemption on the current local Base fork without publishing temporary deployment facts.
 
-**Requirements:** R21-R24 and R27-R34.
+**Requirements:** R21, R22, R24, and R27-R34.
 
 **Decisions:** KTD9 and KTD13-KTD15.
 
@@ -829,11 +826,10 @@ Use the Product Contract Sources plus these implementation seams:
 
 ### Global Completion
 
-- R1-R34 and AE1-AE12 are demonstrably satisfied.
+- R1-R22, R24-R34, AE1-AE6, and AE8-AE12 are demonstrably satisfied; the removed identifiers belonged only to the discarded testnet track.
 - Direct FAME, ETH, USDC, and WETH checkout work against a fresh Base fork with real transaction receipts.
-- No route can redirect output, underfund the maximum authorized charge, misattribute the buyer/redeemer, drain ambient non-FAME balances, retain allowance, or finish redemption with FAME or Society NFTs in checkout.
+- No route can redirect output, use ambient balances to satisfy caller funding or protected marketplace output, misattribute the buyer/redeemer, retain allowance, or finish a successful checkout with FAME or Society NFTs. Every failed settlement or boon transfer fully rolls back.
 - Quote and transaction failure states are legible and never produce a false purchase-success result.
-- Base Sepolia TEST remains direct-only unless separately deployed and configured.
 - Public config contains only real public deployment facts; secrets and temporary addresses remain out of git.
 - Required environment-backed gates ran rather than skipped.
 - Dead-end experiments, duplicate checkout paths, stale generated bindings, debug output, and unreferenced review artifacts are removed from the final diff.

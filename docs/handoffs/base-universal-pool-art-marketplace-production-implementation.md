@@ -64,12 +64,12 @@ without skips:
   activation, maximum eight-token provider provisioning, and a real configured
   checkout, with no fork ownership transfer;
 - latest-Base 88-provider payout benchmark where every payout causes a DN404
-  mint; and
-- latest-Base free withdrawal forced through the full 888-ID scan.
+  mint.
 
-Record the exact Base block number/hash, checkout gas, free-exit gas, block gas
-limit, configured budgets, and headroom assertions. An RPC-less or skipped fork
-test is `not executed`, never passing evidence.
+Record the exact Base block number/hash, checkout gas, block gas limit,
+configured budget, and headroom assertion. Provider withdrawal has no random
+scan or release gas gate. An RPC-less or skipped fork test is `not executed`,
+never passing evidence.
 
 The authoritative disposable manual sequence and evidence table are in
 `docs/gallery/base-universal-pool-art-marketplace-fork-report.md`.
@@ -181,13 +181,15 @@ unpaused with inventory already held), that exact shell is immediately
 purchasable by anyone via `purchaseHeld` / `checkoutHeld` (or pool paths that
 consume the shell as fulfillment capacity).
 
-There is **no** deposit cooldown, exclusive listing lock, or free reclaim of a
-specific deposited token ID:
-
-- free `withdrawInventory` returns some market-owned Society unit, not
-  necessarily the artwork the provider deposited;
-- `withdrawInventorySelected` can target an ID but charges full premium and
-  still races public buyers.
+There is **no** deposit cooldown, exclusive listing lock, or promise to return
+the deposited token ID. The sole exit is
+`withdrawInventory(tokenId, maxPremium)`: it transfers a currently
+marketplace-owned Society token selected by the provider and consumes the
+provider's oldest credited unit. Each credited unit keeps its actual deposit
+timestamp. Its required gross premium starts at the current configured premium,
+decays linearly with upward rounding, and reaches exactly zero at 24 hours. The
+`maxPremium` argument remains the provider's consent bound while fee and time
+state change. The selected shell still races public buyers.
 
 This is **product-intentional**. Operators and WWW copy should treat provider
 deposits as contributing fungible inventory units plus scarce art that can be
@@ -203,7 +205,7 @@ For the first credited deposit, record:
 - total provider units equal to the deposited batch length; and
 - live marketplace inventory equal to the received Society units.
 
-Then complete one real checkout and prove exact configured fee routing,
+Then complete one real checkout and prove exact configured gross fee routing,
 unchanged provider weight, inventory preservation, cleared marketplace/router
 allowances, and zero checkout ETH, USDC, WETH, FAME, and Society balances.
 
@@ -213,7 +215,7 @@ Go only when:
 
 - the current commit is reviewed and reproducibly built;
 - every mandatory local and latest-Base fork gate is green with no skips;
-- the 88-provider and 888-ID gas evidence remains inside configured budgets;
+- the 88-provider payout gas evidence remains inside its configured budget;
 - the disposable manual lifecycle passed in the exact empty-launch order;
 - deployer-owned live activation and initial acceptance passed before handoff;
 - production addresses and expected ownership have been independently checked;

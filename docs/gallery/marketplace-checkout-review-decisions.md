@@ -3,7 +3,14 @@
 **Branch:** `codex/closed-loop-gallery-swap`  
 **Review run:** `20260805-211740-f497` (vs `origin/main`)  
 **Started:** 2026-08-05  
-**Status:** Complete (implementation of accepted items finished 2026-08-07)
+**Status:** Historical acceptance record; the later final-acceptance record governs overlapping implementation
+
+`marketplace-final-acceptance-review-decisions.md` preserves this record's
+accepted history while superseding two active contracts: FA8 removes the whole
+Base Sepolia gallery/marketplace track instead of retaining historical or
+handoff artifacts, and FA7 defines `ArtworkPurchased.grossPremiumAmount` as the
+full executed premium, including payer-to-self transfer legs, rather than a
+measured net debit.
 
 Decision vocabulary:
 
@@ -32,14 +39,14 @@ Decision vocabulary:
 | Contract | `src/ClosedLoopGallerySwap.sol` |
 | Scripts | `script/DeployClosedLoopGallerySwap.s.sol`, `script/ValidateClosedLoopGallerySwapBase.s.sol` |
 | Tests | `test/ClosedLoopGallerySwap*.sol`, `test/mocks/ReentrantGalleryRecipient.sol` (if gallery-only) |
-| Docs | `docs/gallery/closed-loop-gallery-swap.md`, plan/brainstorm as historical or mark superseded |
+| Docs | `docs/gallery/closed-loop-gallery-swap.md`; later FA8 removes discarded Base Sepolia-only artifacts rather than retaining or repairing them |
 | Config / CONCEPTS | Any public env keys, release-plan bullets, CONCEPTS entries that still describe live ClosedLoop deployables |
 
 **Follow-ups when implementing removal:**
 
 - [x] Delete source, scripts, tests, gallery-only mocks (incl. Base Sepolia gallery test stack + `BaseSepoliaTestRenderer`)
 - [x] Clean `docs/fame-release-plan.md`, `config/fame-public.env`, operational gallery docs
-- [x] Mark plan/brainstorm superseded
+- [x] Historical D1 plan/brainstorm treatment recorded; later FA8 deletes the discarded Base Sepolia-only marketplace/gallery artifacts
 - [x] Handoffs that already say “do not preserve closed-loop assumptions” left as historical guidance
 
 **Review findings closed by D1 (no separate fix):**
@@ -73,7 +80,7 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | # | Sev | Item | Suggested action | Decision | Notes |
 |---|-----|------|------------------|----------|-------|
 | 2 | P1 | Checkout accounting fail-closed paths untested | Unit tests for `RouterOutputMismatch`, charge/accounting/ambient/mirror/refund mismatches | **Accept** | 2026-08-06 — tests only; exact selectors + full rollback |
-| 6 | P2 | `ArtworkPurchased.premiumAmount` ≠ amount paid | Emit measured paid premium (or add paid field) | **Accept (a)** | 2026-08-06 — ABI/semantic: emit actual premium debited, not only configured spot premium |
+| 6 | P2 | The original premium event field did not equal net payment | Emit measured paid premium (or add paid field) | **Accept (a), later superseded by FA7** | 2026-08-06 acceptance preserved; FA7 now requires `ArtworkPurchased.grossPremiumAmount` to report the full executed premium rather than net debit |
 | 7 | P2 | Fee recipient skipNFT flip freezes settlement | Remove `FeeRecipientNotSkippingNFT` / skip requirement on fee recipient | **Accept with updates** | 2026-08-06 — do not reject fee recipients that can mint NFTs; drop skipNFT gate on feeRecipient |
 | 8 | P2 | `AmbiguousPoolSource` never exercised | Unit test dual mint+burn eligibility | **Accept** | 2026-08-06 — market + checkout |
 | 9 | P2 | Bare `expectRevert` in checkout tests | Pin exact selectors | **Accept** | 2026-08-06 |
@@ -128,7 +135,7 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | Delete ClosedLoopGallerySwap stack | D1, #1, #5, #17 | Done (removal commit) |
 | Checkout accounting + selector tests | #2, #8, #9, #12, #20 Accept | Done (selectors + AmbiguousPoolSource + redeem reentrancy; mid-settlement mock charge paths deferred) |
 | Invariant pool coverage | #10 Accept | Done |
-| Event/receipt ABI | #6, #11, #13 Accept (a) | Done |
+| Event/receipt ABI | #6, #11, #13 Accept (a) | Historical result; premium semantics later superseded by FA7 gross accounting |
 | Drop feeRecipient skipNFT requirement | #7 Accept with updates | Done |
 | Remove fee-recipient buyer waiver | R5 Accept | Done |
 | Docs: deposit sniping intentional | #16 (b) | Done |
@@ -145,7 +152,7 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 |------|--------|
 | 2026-08-05 | Doc created. D1 accept: remove ClosedLoopGallerySwap. Applied #3/#4/#17 recorded. Open items pending walk-through. |
 | 2026-08-06 | #2 Accept — checkout accounting fail-closed path unit tests. |
-| 2026-08-06 | #6/#11/#13 Accept (a) — measured premium on ArtworkPurchased; CheckoutSettled source/artwork fields; dual redemption route hashes. |
+| 2026-08-06 | #6/#11/#13 Accept (a) — original measured-premium decision on ArtworkPurchased; CheckoutSettled source/artwork fields; dual redemption route hashes. The premium interpretation was later superseded by FA7 gross accounting. |
 | 2026-08-06 | #7 Accept with updates — remove FeeRecipientNotSkippingNFT (allow fee recipients that mint NFTs). #16 Accept (b) docs. #18 Discuss. #19 Reject. |
 | 2026-08-06 | #18 Reject — open-market shell contention is gas/UX only under atomic checkout; no code change. |
 | 2026-08-06 | #8/#9/#10/#12/#20 Accept — test hardening batch. |
@@ -159,5 +166,5 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | 2026-08-06 | #14 + R1 implemented: consolidated `_refundSnapshottedBalances` boons full route-asset balances on purchase/redemption success. |
 | 2026-08-06 | #15 implemented: `_validateSharedRouteHeader` for purchase + redemption. |
 | 2026-08-06 | Test hardening #8/#9/#10/#12/#20 + AmbiguousPoolSource; pinned checkout expectRevert selectors; pool invariant lane; redeem reentrancy; exact SettlementInProgress/ReentrancyGuard asserts. |
-| 2026-08-07 | Event ABI #6/#11/#13: measured ArtworkPurchased.premiumAmount; CheckoutSettled sourceId+artwork; SocietyRedeemed dual route hashes. |
+| 2026-08-07 | Event ABI #6/#11/#13: original measured-premium field; CheckoutSettled sourceId+artwork; SocietyRedeemed dual route hashes. FA7 later renamed and normalized the premium field as `grossPremiumAmount`. |
 | 2026-08-07 | #16 docs: intentional open-pool deposit-to-snipe risk in production + WWW handoffs. |
