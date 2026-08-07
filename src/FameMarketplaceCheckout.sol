@@ -497,21 +497,26 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
         }
     }
 
-    function _validateRedemptionRoute(FameRouterTypes.Route calldata route, address caller, uint256 tokenCount)
-        private
-        view
-    {
+    /// @dev Shared header gates for purchase and redemption routes.
+    function _validateSharedRouteHeader(FameRouterTypes.Route calldata route) private view {
         if (IFameCheckoutRouter(router).feeRecipient() == address(this)) revert RouterFeeRecipientIsCheckout();
         if (route.version != FameRouterTypes.SCHEMA_VERSION) revert BadRouteVersion(route.version);
         if (route.amountIn == 0) revert ZeroInputAmount();
         if (route.legs.length == 0) revert EmptyRoute();
         if (route.legs.length > FameRouterTypes.MAX_ROUTE_LEGS) revert TooManyRouteLegs(route.legs.length);
+        if (block.timestamp > route.deadline) revert DeadlineExpired(route.deadline, block.timestamp);
+    }
+
+    function _validateRedemptionRoute(FameRouterTypes.Route calldata route, address caller, uint256 tokenCount)
+        private
+        view
+    {
+        _validateSharedRouteHeader(route);
         if (route.tokenIn != address(fame)) revert WrongRedemptionInputAsset(route.tokenIn, address(fame));
         if (route.tokenOut != FameRouterTypes.NATIVE_ETH && route.tokenOut != weth && route.tokenOut != usdc) {
             revert UnsupportedRedemptionOutputAsset(route.tokenOut);
         }
         if (route.recipient != caller) revert WrongRouteRecipient(route.recipient, caller);
-        if (block.timestamp > route.deadline) revert DeadlineExpired(route.deadline, block.timestamp);
 
         uint256 tokenBasis = tokenCount * fame.unit();
         if (route.amountIn < tokenBasis) revert RedemptionQuoteBelowTokenBasis(route.amountIn, tokenBasis);
@@ -533,17 +538,12 @@ contract FameMarketplaceCheckout is ReentrancyGuard {
     }
 
     function _validateRoute(FameRouterTypes.Route calldata route, uint256 maxPremium) private view {
-        if (IFameCheckoutRouter(router).feeRecipient() == address(this)) revert RouterFeeRecipientIsCheckout();
-        if (route.version != FameRouterTypes.SCHEMA_VERSION) revert BadRouteVersion(route.version);
-        if (route.amountIn == 0) revert ZeroInputAmount();
-        if (route.legs.length == 0) revert EmptyRoute();
-        if (route.legs.length > FameRouterTypes.MAX_ROUTE_LEGS) revert TooManyRouteLegs(route.legs.length);
+        _validateSharedRouteHeader(route);
         if (route.tokenIn != FameRouterTypes.NATIVE_ETH && route.tokenIn != usdc && route.tokenIn != weth) {
             revert UnsupportedInputAsset(route.tokenIn);
         }
         if (route.tokenOut != address(fame)) revert WrongOutputAsset(route.tokenOut, address(fame));
         if (route.recipient != address(this)) revert WrongRouteRecipient(route.recipient, address(this));
-        if (block.timestamp > route.deadline) revert DeadlineExpired(route.deadline, block.timestamp);
 
         uint256 requiredOutput = fame.unit() + maxPremium;
         if (route.minAmountOutAfterFee < requiredOutput) {
