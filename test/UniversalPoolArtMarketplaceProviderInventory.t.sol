@@ -496,7 +496,7 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
 
         assertEq(mirror.ownerAt(withdrawnId), address(provider));
         assertFalse(provider.attemptedActionSucceeded());
-        assertGt(provider.attemptedActionRevertData().length, 0);
+        assertEq(bytes4(provider.attemptedActionRevertData()), bytes4(0xab143c06));
         (uint256 units,) = market.providerPosition(address(provider));
         assertEq(units, 1);
         assertEq(market.totalProviderUnits(), 1);

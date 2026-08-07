@@ -2,12 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {FameMarketplaceCheckout} from "../src/FameMarketplaceCheckout.sol";
+import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.sol";
 import {FameRouterTypes} from "../src/router/FameRouterTypes.sol";
 import {FameMarketplaceCheckoutTestBase} from "./helpers/FameMarketplaceCheckoutTestBase.sol";
 import {IERC721Receiver} from "@openzeppelin5/contracts/token/ERC721/IERC721Receiver.sol";
 import {MockERC20, TransferTaxERC20} from "./router/mocks/MockERC20.sol";
 import {ForceNativeDonation} from "./mocks/PrefundedFameRouterVenue.sol";
 import {ReentrantFameMarketplaceCheckoutToken} from "./mocks/ReentrantFameMarketplaceCheckoutToken.sol";
+import {CreatorArtistMagic} from "../src/CreatorArtistMagic.sol";
 
 contract RejectingNativeCheckoutBuyer is IERC721Receiver {
     receive() external payable {
@@ -307,7 +309,7 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
         uint256 venueFameBefore = fame.balanceOf(address(venue));
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.BuyerMirrorBalanceTooLow.selector, 2, 1));
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 2);
 
@@ -399,7 +401,9 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
 
         route.recipient = buyer;
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(FameMarketplaceCheckout.WrongRouteRecipient.selector, buyer, address(checkout))
+        );
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
@@ -407,14 +411,20 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
 
         route.recipient = address(checkout);
         route.tokenOut = address(weth);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(FameMarketplaceCheckout.WrongOutputAsset.selector, address(weth), address(fame))
+        );
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
 
         route.tokenOut = address(fame);
         route.minAmountOutAfterFee = _marketCharge() - 1;
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                FameMarketplaceCheckout.ProtectedOutputTooLow.selector, route.minAmountOutAfterFee, _marketCharge()
+            )
+        );
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
@@ -507,12 +517,12 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         uint256 maxPremium = market.premium();
 
         route.tokenIn = address(other);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(FameMarketplaceCheckout.UnsupportedInputAsset.selector, address(other)));
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
 
         route.tokenIn = address(usdc);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(FameMarketplaceCheckout.UnexpectedNativeValue.selector, uint256(1)));
         vm.prank(buyer);
         checkout.checkoutHeld{value: 1}(route, shellId, artwork, maxPremium, 1);
     }
@@ -526,7 +536,7 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
 
         market.setAuthorizedCheckout(address(0));
         market.unpause();
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(FameMarketplaceCheckout.CheckoutNotAuthorized.selector, address(0)));
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium, 1);
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
@@ -534,12 +544,19 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         market.pause();
         market.setAuthorizedCheckout(address(checkout));
         market.unpause();
-        vm.expectRevert();
+        bytes32 stale = bytes32(uint256(1));
+        vm.expectRevert(
+            abi.encodeWithSelector(FameMarketplaceCheckout.ArtworkMismatch.selector, shellId, stale, artwork)
+        );
         vm.prank(buyer);
-        checkout.checkoutHeld(route, shellId, bytes32(uint256(1)), maxPremium, 1);
+        checkout.checkoutHeld(route, shellId, stale, maxPremium, 1);
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                FameMarketplaceCheckout.PremiumExceedsMaximum.selector, maxPremium, maxPremium - 1
+            )
+        );
         vm.prank(buyer);
         checkout.checkoutHeld(route, shellId, artwork, maxPremium - 1, 1);
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
@@ -570,12 +587,45 @@ contract FameMarketplaceCheckoutTest is FameMarketplaceCheckoutTestBase {
         uint256 maxPremium = market.premium();
         uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(FameMarketplaceCheckout.SourceEqualsShell.selector, shellId));
         vm.prank(buyer);
         checkout.checkoutPool(route, shellId, shellId, artwork, maxPremium, 1);
 
         assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
         assertEq(venue.nextOutputIndex(), 0);
+    }
+
+    function testAmbiguousPoolSourceRevertsBeforeFundingOnCheckoutAndMarket() public {
+        uint256 shellId = _seedShells(market, 2);
+        uint256 sourceId = _findMintPoolToken();
+        bytes32 artwork = market.artworkHash(sourceId);
+        _enablePoolPurchases(market);
+        uint256 maxPremium = market.premium();
+        FameRouterTypes.Route memory route = _singleLegRoute(address(usdc), 100e6, 100e6, _marketCharge());
+        uint256 buyerUsdcBefore = usdc.balanceOf(buyer);
+
+        vm.mockCall(
+            address(creatorMagic),
+            abi.encodeWithSelector(CreatorArtistMagic.isTokenInMintPool.selector, sourceId),
+            abi.encode(true)
+        );
+        vm.mockCall(
+            address(creatorMagic),
+            abi.encodeWithSelector(CreatorArtistMagic.isTokenInBurnedPool.selector, sourceId),
+            abi.encode(true)
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(FameMarketplaceCheckout.AmbiguousPoolSource.selector, sourceId));
+        vm.prank(buyer);
+        checkout.checkoutPool(route, shellId, sourceId, artwork, maxPremium, 1);
+        assertEq(usdc.balanceOf(buyer), buyerUsdcBefore);
+
+        _fundAndApprove(buyer, market, fame.unit() + maxPremium);
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.AmbiguousPoolSource.selector, sourceId));
+        vm.prank(buyer);
+        market.purchasePool(shellId, sourceId, artwork, maxPremium, 0, recipient);
+
+        vm.clearMockedCalls();
     }
 
     function testContractHasNoOwnerOrRescueSurface() public {

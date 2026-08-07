@@ -6,6 +6,7 @@ import {DN404} from "../src/DN404.sol";
 import {FameRouter} from "../src/FameRouter.sol";
 import {FameRouterTypes} from "../src/router/FameRouterTypes.sol";
 import {FameMarketplaceCheckoutTestBase} from "./helpers/FameMarketplaceCheckoutTestBase.sol";
+import {ReentrantRedeemVenue} from "./mocks/CheckoutAccountingMocks.sol";
 import {Vm} from "forge-std/Vm.sol";
 
 contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBase {
@@ -462,6 +463,30 @@ contract FameMarketplaceCheckoutRedemptionTest is FameMarketplaceCheckoutTestBas
         assertEq(fame.balanceOf(address(checkout)), 0);
         assertEq(fame.balanceOf(buyer), buyerFameBefore + fame.unit() + ambientFame);
         assertEq(mirror.balanceOf(address(checkout)), 0);
+    }
+
+    function testRedeemSocietyCannotReenterViaVenueCallback() public {
+        ReentrantRedeemVenue reentrantVenue = new ReentrantRedeemVenue();
+        router.setVenueTargetEnabled(FameRouterTypes.VenueFamily.UniswapV2, address(reentrantVenue), true);
+        weth.mint(address(reentrantVenue), 10 ether);
+
+        uint256[] memory tokenIds = _mintSocietyTokens(buyer, 1);
+        _approveSocietyTokens(buyer);
+        uint256 output = 1 ether;
+        FameRouterTypes.Route memory route = _redemptionRoute(address(weth), fame.unit(), output);
+        // Point the redemption leg at the reentrant venue instead of the default mock venue.
+        route.legs[0].target = address(reentrantVenue);
+        reentrantVenue.arm(checkout, route, tokenIds, output);
+
+        vm.prank(buyer);
+        checkout.redeemSociety(route, tokenIds);
+
+        assertTrue(reentrantVenue.attemptedReentry());
+        assertTrue(reentrantVenue.blockedByGuard());
+        assertEq(mirror.balanceOf(address(checkout)), 0);
+        assertEq(fame.balanceOf(address(checkout)), 0);
+        assertEq(fame.allowance(address(checkout), address(router)), 0);
+        assertEq(weth.balanceOf(buyer), 1_000 ether + output);
     }
 
     function _assertRedemptionRejected(

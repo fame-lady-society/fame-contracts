@@ -48,6 +48,7 @@ contract FameMarketplaceCheckoutHandler is Test {
     uint256 public usdcSuccesses;
     uint256 public wethSuccesses;
     uint256 public nativeSuccesses;
+    uint256 public poolSuccesses;
     uint256 public redemptionSuccesses;
     uint256 public donationActions;
 
@@ -126,6 +127,17 @@ contract FameMarketplaceCheckoutHandler is Test {
         ++nativeSuccesses;
     }
 
+    function checkoutPoolMint(uint256 buyerSeed, uint64 amountSeed, uint64 spendSeed, uint96 surplusSeed, uint16 shellSeed)
+        external
+    {
+        address selectedBuyer = _buyers[buyerSeed % _buyers.length];
+        uint256 amountIn = 1 + (uint256(amountSeed) % 1_000e6);
+        uint256 spend = 1 + (uint256(spendSeed) % amountIn);
+        uint256 surplus = uint256(surplusSeed) % (fame.unit() / 10);
+        _checkoutPool(CheckoutCase(selectedBuyer, address(usdc), amountIn, spend, surplus, shellSeed, false));
+        ++poolSuccesses;
+    }
+
     function donateAmbient(uint64 usdcSeed, uint96 wethSeed, uint96 fameSeed, uint96 nativeSeed) external {
         uint256 usdcAmount = uint256(usdcSeed) % 10e6;
         uint256 wethAmount = uint256(wethSeed) % 0.1 ether;
@@ -173,6 +185,23 @@ contract FameMarketplaceCheckoutHandler is Test {
     function _checkoutHeld(CheckoutCase memory purchase) private {
         uint256 shellId = _marketShell(purchase.shellSeed);
         bytes32 artwork = market.artworkHash(shellId);
+        _runCheckout(purchase, shellId, artwork, false, 0);
+    }
+
+    function _checkoutPool(CheckoutCase memory purchase) private {
+        uint256 shellId = _marketShell(purchase.shellSeed);
+        uint256 sourceId = _mintPoolSource(purchase.shellSeed);
+        bytes32 artwork = market.artworkHash(sourceId);
+        _runCheckout(purchase, shellId, artwork, true, sourceId);
+    }
+
+    function _runCheckout(
+        CheckoutCase memory purchase,
+        uint256 shellId,
+        bytes32 artwork,
+        bool poolPurchase,
+        uint256 sourceId
+    ) private {
         uint256 premium = market.premium();
         uint256 fameOutput = fame.unit() + premium + purchase.surplus;
         venue.queueOutput(fameOutput);
@@ -190,10 +219,16 @@ contract FameMarketplaceCheckoutHandler is Test {
             fameBalance: fame.balanceOf(purchase.buyer)
         });
         vm.prank(purchase.buyer);
-        checkout.checkoutHeld{value: purchase.nativeInput ? purchase.amountIn : 0}(route, shellId, artwork, premium, 1);
+        if (poolPurchase) {
+            checkout.checkoutPool{value: purchase.nativeInput ? purchase.amountIn : 0}(
+                route, shellId, sourceId, artwork, premium, 1
+            );
+        } else {
+            checkout.checkoutHeld{value: purchase.nativeInput ? purchase.amountIn : 0}(
+                route, shellId, artwork, premium, 1
+            );
+        }
 
-        // Boon clears every snapshotted route asset (input, intermediates such as WETH on
-        // native wrap routes, and FAME output).
         if (purchase.nativeInput) {
             expectedNative = 0;
             expectedWeth = 0;
@@ -205,6 +240,17 @@ contract FameMarketplaceCheckoutHandler is Test {
         expectedFame = 0;
 
         _assertCheckout(purchase, shellId, beforeState, ambientInput, ambientFame);
+    }
+
+    function _mintPoolSource(uint256 seed) private view returns (uint256 sourceId) {
+        uint256 start = market.creatorMagic().getMintPoolStart();
+        uint256 end = market.creatorMagic().getMintPoolEnd();
+        uint256 span = end > start ? end - start : 1;
+        for (uint256 offset; offset < span; ++offset) {
+            uint256 candidate = start + ((seed + offset) % span);
+            if (market.creatorMagic().isTokenInMintPool(candidate)) return candidate;
+        }
+        revert("MINT_POOL_SOURCE_NOT_FOUND");
     }
 
     function _assertCheckout(
@@ -366,13 +412,15 @@ contract FameMarketplaceCheckoutInvariantTest is StdInvariant, FameMarketplaceCh
         address[3] memory buyers = [address(0x5101), address(0x5102), address(0x5103)];
         handler = new FameMarketplaceCheckoutHandler(checkout, router, market, fame, mirror, usdc, weth, venue, buyers);
         fame.transfer(address(handler), 128 * fame.unit());
+        creatorMagic.grantRoles(address(market), 1 << 2); // BANISHER for pool materialization
 
-        bytes4[] memory selectors = new bytes4[](5);
+        bytes4[] memory selectors = new bytes4[](6);
         selectors[0] = handler.checkoutUsdc.selector;
         selectors[1] = handler.checkoutWeth.selector;
         selectors[2] = handler.checkoutNative.selector;
-        selectors[3] = handler.donateAmbient.selector;
-        selectors[4] = handler.redeemWeth.selector;
+        selectors[3] = handler.checkoutPoolMint.selector;
+        selectors[4] = handler.donateAmbient.selector;
+        selectors[5] = handler.redeemWeth.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
     }
@@ -402,8 +450,10 @@ contract FameMarketplaceCheckoutInvariantTest is StdInvariant, FameMarketplaceCh
         handler.checkoutUsdc(0, 100e6, 40e6, 1, 0);
         handler.checkoutWeth(1, 1 ether, 0.5 ether, 2, 1);
         handler.checkoutNative(2, 2 ether, 1 ether, 3, 2);
+        handler.checkoutPoolMint(0, 100e6, 40e6, 1, 0);
         handler.donateAmbient(1e6, 1e15, 1e18, 1e15);
         handler.redeemWeth(0, 1 ether);
+        assertGt(handler.poolSuccesses(), 0);
 
         assertEq(handler.usdcSuccesses(), 1);
         assertEq(handler.wethSuccesses(), 1);

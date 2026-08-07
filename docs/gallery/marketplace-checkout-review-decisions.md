@@ -126,8 +126,8 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | Workstream | Decision refs | Status |
 |------------|---------------|--------|
 | Delete ClosedLoopGallerySwap stack | D1, #1, #5, #17 | Done (removal commit) |
-| Checkout accounting + selector tests | #2, #8, #9, #12, #20 Accept | Not started |
-| Invariant pool coverage | #10 Accept | Not started |
+| Checkout accounting + selector tests | #2, #8, #9, #12, #20 Accept | Done (selectors + AmbiguousPoolSource + redeem reentrancy; mid-settlement mock charge paths deferred) |
+| Invariant pool coverage | #10 Accept | Done |
 | Event/receipt ABI | #6, #11, #13 Accept (a) | Not started |
 | Drop feeRecipient skipNFT requirement | #7 Accept with updates | Done |
 | Remove fee-recipient buyer waiver | R5 Accept | Done |
@@ -158,3 +158,4 @@ Fill **Decision** / **Notes** as we walk. Implementation status tracked separate
 | 2026-08-06 | R5 + #7 implemented: no buyer fee waiver; no fee-recipient skipNFT gate; scripts/tests/handoffs updated. |
 | 2026-08-06 | #14 + R1 implemented: consolidated `_refundSnapshottedBalances` boons full route-asset balances on purchase/redemption success. |
 | 2026-08-06 | #15 implemented: `_validateSharedRouteHeader` for purchase + redemption. |
+| 2026-08-06 | Test hardening #8/#9/#10/#12/#20 + AmbiguousPoolSource; pinned checkout expectRevert selectors; pool invariant lane; redeem reentrancy; exact SettlementInProgress/ReentrancyGuard asserts. |

@@ -497,7 +497,10 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         ownedMarket.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, address(ownerRecipient));
 
         assertFalse(ownerRecipient.attemptedActionSucceeded());
-        assertGt(ownerRecipient.attemptedActionRevertData().length, 0);
+        assertEq(
+            bytes4(ownerRecipient.attemptedActionRevertData()),
+            UniversalPoolArtMarketplace.SettlementInProgress.selector
+        );
         assertEq(ownedMarket.premium(), market.premium());
     }
 
@@ -523,7 +526,10 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         ownedMarket.purchaseHeld(shellId, expectedArtwork, currentPremium, 0, address(ownerRecipient));
 
         assertFalse(ownerRecipient.attemptedActionSucceeded());
-        assertGt(ownerRecipient.attemptedActionRevertData().length, 0);
+        assertEq(
+            bytes4(ownerRecipient.attemptedActionRevertData()),
+            UniversalPoolArtMarketplace.SettlementInProgress.selector
+        );
         assertEq(ownedMarket.authorizedCheckout(), address(this));
     }
 
@@ -544,7 +550,10 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         ownedMarket.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, address(ownerRecipient));
 
         assertFalse(ownerRecipient.attemptedActionSucceeded());
-        assertGt(ownerRecipient.attemptedActionRevertData().length, 0);
+        assertEq(
+            bytes4(ownerRecipient.attemptedActionRevertData()),
+            UniversalPoolArtMarketplace.SettlementInProgress.selector
+        );
         assertEq(ownedMarket.owner(), address(ownerRecipient));
     }
 
@@ -563,7 +572,8 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         market.purchaseHeld(shellId, expectedArtwork, maxPremium, 0, address(reentrantRecipient));
 
         assertFalse(reentrantRecipient.attemptedActionSucceeded());
-        assertGt(reentrantRecipient.attemptedActionRevertData().length, 0);
+        // Solady ReentrancyGuard custom error selector
+        assertEq(bytes4(reentrantRecipient.attemptedActionRevertData()), bytes4(0xab143c06));
         assertEq(mirror.ownerOf(shellId), address(reentrantRecipient));
     }
 
