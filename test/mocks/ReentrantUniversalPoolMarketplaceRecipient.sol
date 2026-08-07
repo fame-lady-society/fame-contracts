@@ -52,13 +52,9 @@ contract ReentrantUniversalPoolMarketplaceRecipient {
         fame.setSkipNFT(status);
     }
 
-    function withdrawFree() external returns (uint256 tokenId) {
-        return market.withdrawInventory();
-    }
-
-    function withdrawSelected(Fame fame, uint256 tokenId, uint256 maxPremium) external {
+    function withdraw(Fame fame, uint256 tokenId, uint256 maxPremium) external {
         fame.approve(address(market), maxPremium);
-        market.withdrawInventorySelected(tokenId, maxPremium);
+        market.withdrawInventory(tokenId, maxPremium);
     }
 
     function onERC721Received(address, address, uint256 tokenId, bytes calldata) external returns (bytes4) {
@@ -94,7 +90,7 @@ contract ReentrantUniversalPoolMarketplaceRecipient {
         } else if (action == Action.Reject) {
             return bytes4(0);
         } else if (action == Action.ReenterWithdrawal) {
-            try market.withdrawInventory() {
+            try market.withdrawInventory(tokenId, type(uint256).max) {
                 attemptedActionSucceeded = true;
             } catch (bytes memory reason) {
                 attemptedActionRevertData = reason;

@@ -62,8 +62,7 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
     uint256 public handoffChecks;
     uint256 public providerDeposits;
     uint256 public providerBatchDeposits;
-    uint256 public freeWithdrawals;
-    uint256 public selectedWithdrawals;
+    uint256 public withdrawals;
     uint256 public minimumObservedInventory;
 
     constructor(
@@ -258,35 +257,25 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         ++providerBatchDeposits;
     }
 
-    function withdrawProvider(uint256 providerSeed) external {
-        address provider = _provider(providerSeed);
-        (uint256 units,) = market.providerPosition(provider);
-        if (units == 0) return;
-        vm.prank(provider);
-        market.withdrawInventory();
-        _observeInventory();
-        ++freeWithdrawals;
-    }
-
-    function withdrawProviderSelected(uint256 providerSeed, uint256 tokenSeed) external {
+    function withdrawProvider(uint256 providerSeed, uint256 tokenSeed) external {
         address provider = _provider(providerSeed);
         (uint256 units,) = market.providerPosition(provider);
         if (units == 0) return;
 
-        uint256 premiumAmount = market.premium();
+        uint256 grossPremiumAmount = market.withdrawalPremium(provider);
         uint256 balance = fame.balanceOf(provider);
-        if (balance < premiumAmount) {
-            uint256 shortfall = premiumAmount - balance;
+        if (balance < grossPremiumAmount) {
+            uint256 shortfall = grossPremiumAmount - balance;
             if (fame.balanceOf(address(this)) < shortfall) return;
             fame.transfer(provider, shortfall);
         }
         uint256 tokenId = _marketShell(tokenSeed);
         vm.startPrank(provider);
-        fame.approve(address(market), premiumAmount);
-        market.withdrawInventorySelected(tokenId, premiumAmount);
+        fame.approve(address(market), grossPremiumAmount);
+        market.withdrawInventory(tokenId, grossPremiumAmount);
         vm.stopPrank();
         _observeInventory();
-        ++selectedWithdrawals;
+        ++withdrawals;
     }
 
     function attemptInvalidPurchase(uint256 buyerSeed, uint256 shellSeed, uint8 failureSeed) external {
@@ -496,7 +485,7 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         fame.transfer(address(handler), 400 * fame.unit());
         initialArtPoolNext = creatorMagic.artPoolNext();
 
-        bytes4[] memory selectors = new bytes4[](11);
+        bytes4[] memory selectors = new bytes4[](10);
         selectors[0] = handler.fundBuyer.selector;
         selectors[1] = handler.purchaseHeld.selector;
         selectors[2] = handler.purchaseMint.selector;
@@ -506,8 +495,7 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         selectors[6] = handler.attemptInvalidPurchase.selector;
         selectors[7] = handler.depositProvider.selector;
         selectors[8] = handler.withdrawProvider.selector;
-        selectors[9] = handler.withdrawProviderSelected.selector;
-        selectors[10] = handler.depositProviderBatch.selector;
+        selectors[9] = handler.depositProviderBatch.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
     }
@@ -565,10 +553,10 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         handler.purchaseAndForward(0, 0);
         handler.attemptInvalidPurchase(1, 0, 0);
         handler.depositProvider(2);
-        handler.withdrawProviderSelected(2, 0);
+        handler.withdrawProvider(2, 0);
         handler.depositProviderBatch(0, 7);
         handler.depositProvider(3);
-        handler.withdrawProvider(3);
+        handler.withdrawProvider(3, 0);
 
         assertGt(handler.fundingSuccesses(), 0);
         assertGt(handler.adminSuccesses(), 0);
@@ -582,7 +570,6 @@ contract UniversalPoolArtMarketplaceInvariantTest is StdInvariant, UniversalPool
         assertGt(handler.buyerMinimumChecks(), 0);
         assertGt(handler.providerDeposits(), 0);
         assertGt(handler.providerBatchDeposits(), 0);
-        assertGt(handler.freeWithdrawals(), 0);
-        assertGt(handler.selectedWithdrawals(), 0);
+        assertGt(handler.withdrawals(), 0);
     }
 }

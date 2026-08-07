@@ -29,7 +29,7 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         uint256 sourceId,
         bytes32 artwork,
         uint256 unitAmount,
-        uint256 premiumAmount,
+        uint256 grossPremiumAmount,
         uint256 inventoryBefore,
         uint256 inventoryAfter
     );
@@ -147,6 +147,28 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         market.unpause();
         vm.expectRevert(UniversalPoolArtMarketplace.MarketNotPaused.selector);
         market.setAuthorizedCheckout(address(this));
+    }
+
+    function testSetFeeRecipientRejectsCurrentAuthorizedCheckout() public {
+        market.setAuthorizedCheckout(address(this));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(UniversalPoolArtMarketplace.CheckoutIsFeeRecipient.selector, address(this))
+        );
+        market.setFeeRecipient(address(this));
+
+        assertEq(market.authorizedCheckout(), address(this));
+        assertEq(market.feeRecipient(), feeRecipient);
+    }
+
+    function testSetAuthorizedCheckoutRejectsCurrentFeeRecipientBeforeContractValidation() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(UniversalPoolArtMarketplace.CheckoutIsFeeRecipient.selector, feeRecipient)
+        );
+        market.setAuthorizedCheckout(feeRecipient);
+
+        assertEq(market.authorizedCheckout(), address(0));
+        assertEq(market.feeRecipient(), feeRecipient);
     }
 
     function testOwnershipTransferAndHandoverWorkButRenunciationIsDisabled() public {

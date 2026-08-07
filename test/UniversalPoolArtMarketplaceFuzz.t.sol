@@ -57,6 +57,22 @@ contract UniversalPoolArtMarketplaceFuzzTest is UniversalPoolArtMarketplaceTestB
         }
     }
 
+    function testFuzzWithdrawalPremiumUsesCeilingDecay(uint96 rawPremium, uint32 rawElapsed) public {
+        uint256 configuredPremium = bound(uint256(rawPremium), 1, fame.unit() / 10);
+        uint256 elapsed = bound(uint256(rawElapsed), 0, 48 hours);
+        address provider = address(0xD009);
+        market.setCommunityFee(configuredPremium);
+        _depositUnits(market, provider, 1);
+        uint256 depositedAt = block.timestamp;
+
+        vm.warp(depositedAt + elapsed);
+
+        uint256 expected = elapsed >= 24 hours
+            ? 0
+            : (configuredPremium * (24 hours - elapsed) + 24 hours - 1) / 24 hours;
+        assertEq(market.withdrawalPremium(provider), expected);
+    }
+
     function testFeeAcceptsTenPercentMaximumAndRejectsNextValue() public {
         uint256 maximum = fame.unit() / 10;
         market.setCommunityFee(maximum);
