@@ -1,65 +1,127 @@
 ---
 chain: base-fork
-status: structural-safe-rehearsal-passed-manual-product-run-pending
+status: ready-for-final-predeployment-run
 contracts: UniversalPoolArtMarketplace + FameMarketplaceCheckout
 ---
 
-# Base Universal Pool Art Marketplace fork run
+# Final predeployment Base fork run
 
-This is the current manual release rehearsal. A fresh fork deployment starts
-empty, but validation and activation do not require an exact inventory or
-provider count. Seeded, donated, and valid provider-backed state is observed
-rather than treated as drift. The rehearsal does not transfer ownership to the
-Society Safe. There is no operator or Safe seed transfer.
+This is the last disposable fork rehearsal before the production procedure in
+[`base-universal-pool-art-marketplace-production-implementation.md`](../handoffs/base-universal-pool-art-marketplace-production-implementation.md).
+It has three jobs:
 
-Every transaction below must target the literal loopback RPC
+1. run the complete automated latest-Base end-to-end contract campaign;
+2. deploy the receipt-aware marketplace and checkout stack on a fresh Base fork
+   and leave the marketplace active under the deployer; and
+3. provide that temporary stack to `fls-www` for human browser testing.
+
+Provider, staking, unstaking, checkout, redemption, and other product testing
+are intentionally not scripted here. Exercise those flows through the browser.
+This document only prepares the fork, proves the automated contract coverage,
+and exposes two Anvil helpers useful during browser testing.
+
+Every transaction in this rehearsal must target the literal loopback RPC
 `http://127.0.0.1:8545`. Never substitute a Base RPC, load a production signing
-key, commit temporary addresses, or preserve Foundry `broadcast/` output.
+key, publish the temporary addresses, or preserve Foundry `broadcast/` output.
+The fork deployment remains deployer-owned; no Society Safe handoff is part of
+this run.
 
-## 1. Pass the automated fork preflight
+## 1. Record the candidate revisions
 
-From `fame-contracts`:
+Run from `fame-contracts`. Fail closed if either candidate checkout is dirty;
+only then record both revisions in the evidence table:
+
+```sh
+(
+  assert_clean() {
+    local repo="$1"
+    if test -n "$(git -C "$repo" status --porcelain)"; then
+      git -C "$repo" status --short
+      echo "Refusing to record a dirty candidate revision: $repo" >&2
+      return 1
+    fi
+  }
+
+  assert_clean /Users/user/Development/fame-contracts || exit 1
+  assert_clean /Users/user/Development/fls-www || exit 1
+
+  printf 'fame-contracts revision: '
+  git -C /Users/user/Development/fame-contracts rev-parse HEAD
+  printf 'fls-www revision: '
+  git -C /Users/user/Development/fls-www rev-parse HEAD
+)
+```
+
+Use a reviewed `fame-contracts` commit. The production deployment state machine
+pins that source and the exact release-profile artifacts, so do not change
+contract sources, deployment code, public configuration, or compiler settings
+between this rehearsal and the final deployment without rerunning the relevant
+gates.
+
+## 2. Run automated end-to-end fork coverage
+
+First prove the receipt/recovery state machine locally:
+
+```sh
+yarn marketplace:deployment:test
+```
+
+Then run the complete environment-backed latest-Base campaign:
 
 ```sh
 set -a
 source config/fame-public.env
 set +a
 
-doppler run --config prd -- sh -c '
+printf 'Configured checkout gas budget: %s\n' \
+  "$BASE_UNIVERSAL_MARKETPLACE_CHECKOUT_GAS_BUDGET"
+
+doppler run --config prd --only-secrets=RPC_URL -- sh -c '
   BASE_RPC="$RPC_URL" FOUNDRY_PROFILE=universal_marketplace \
     forge test --isolate \
       --match-contract "^(UniversalPoolArtMarketplaceForkBaseTest|FameMarketplaceCheckoutForkBaseTest|UniversalPoolArtMarketplaceContentionBaseTest)$" \
-      --summary
+      --summary -vv
 '
 ```
 
-The result must include:
+This campaign currently covers:
 
-- the release lifecycle, eight-token provider batch, and real configured
-  checkout;
-- the configured 88-provider checkout where every provider payout causes a
-  DN404 mint;
-- selected provider withdrawal with per-unit timestamp decay and oldest-unit
-  consumption; and
-- the existing held, pool, contention, redemption, and routing regressions.
+- latest-Base held, mint-pool, burn-pool, and rejected art-pool settlement;
+- paused, stale-artwork, changed-premium, expired-quote, unavailable-shell, and
+  competing-buyer rejection paths;
+- a fresh paused marketplace plus checkout deployment, exact authorization,
+  independent validation, deployer activation, an empty-market rejection, an
+  eight-token provider batch, and the first configured routed checkout;
+- the 88-provider worst-case payout campaign where each payout causes a DN404
+  mint;
+- ETH, WETH, and USDC checkout paths with complete settlement receipts, fee
+  routing, refund behavior, and zero checkout residue/allowances;
+- one-, multi-, and 32-Society redemption, direct-donation bonus consumption,
+  and rollback of a failed redemption;
+- immediate nonzero-premium and 24-hour zero-premium selected provider exits
+  against the canonical forked FAME and Society contracts; and
+- ordered and same-block contention with exactly one settlement.
 
-A skipped or RPC-less run is not green. These are fork simulations only and do
-not authorize a Base transaction.
+The release-profile local provider, fuzz, and invariant suites retain the
+boundary-level timestamp-decay coverage. A skipped, RPC-less, or partially
+selected fork run is `not executed`, never green.
 
-## 2. Start a latest-state Base fork
+## 3. Start a fresh latest-state Base fork
+
+In the first terminal:
 
 ```sh
 set -a
 source config/fame-public.env
 set +a
 
-doppler run --config prd -- zsh -c '
+doppler run --config prd --only-secrets=RPC_URL -- zsh -c '
   export BASE_RPC="$RPC_URL"
   FOUNDRY_PROFILE=universal_marketplace exec anvil --fork-url base --host 127.0.0.1 --port 8545 --chain-id "$BASE_CHAIN_ID" --quiet
 '
 ```
 
-Leave Anvil running. In a second terminal:
+Leave Anvil running. In a second `fame-contracts` terminal:
 
 ```sh
 set -a
@@ -67,7 +129,9 @@ source config/fame-public.env
 set +a
 
 export LOCAL_BASE_RPC=http://127.0.0.1:8545
-export CREATOR_MAGIC_BANISHER_ROLE=4
+export RPC_URL="$LOCAL_BASE_RPC"
+export MARKETPLACE_DEPLOYMENT_MODE=fork-rehearsal
+export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"
 
 export FORK_BLOCK_NUMBER="$(cast block-number --rpc-url "$LOCAL_BASE_RPC")"
 export FORK_BLOCK_HASH="$(cast block "$FORK_BLOCK_NUMBER" --field hash --rpc-url "$LOCAL_BASE_RPC")"
@@ -75,42 +139,62 @@ echo "Fork block: $FORK_BLOCK_NUMBER"
 echo "Fork hash:  $FORK_BLOCK_HASH"
 ```
 
-Record both values. Give the deployer disposable Anvil gas and impersonate it.
-Do not transfer FAME to the deployer or marketplace.
+Record the block number and hash before mutating the fork.
+
+## 4. Browser-testing Anvil helpers
+
+Set any address to exactly 10 ETH:
 
 ```sh
-cast rpc anvil_setBalance "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" 0x56BC75E2D63100000 --rpc-url "$LOCAL_BASE_RPC"
-cast rpc anvil_impersonateAccount "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --rpc-url "$LOCAL_BASE_RPC"
-
-export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"
+cast rpc anvil_setBalance "<address>" 0x8AC7230489E80000 --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-## 3. Deploy the paused stack
-
-Use the same receipt-aware state machine as production in its loopback-only
-fork mode. It uses the already impersonated JSON-RPC account and rejects a
-non-loopback RPC. The manifest lives outside the repository and contains no
-RPC URL or signing secret:
+Advance the fork by 24 hours and mine the new timestamp into one block:
 
 ```sh
-export RPC_URL="$LOCAL_BASE_RPC"
-export MARKETPLACE_DEPLOYMENT_MODE=fork-rehearsal
-export MARKETPLACE_DEPLOYMENT_MANIFEST=/tmp/base-universal-pool-art-marketplace-fork-manifest.json
+cast rpc anvil_mine 0x1 0x15180 --rpc-url "$LOCAL_BASE_RPC"
+```
+
+The time-warp command is useful for mature provider exits and any other
+timestamp-sensitive browser state. It advances the chain, not the operator's
+wall clock. Repeat either one-liner with a different address or at another
+point in the browser campaign as needed.
+
+## 5. Deploy the paused marketplace and checkout
+
+Give the configured deployer disposable fork gas and unlock it only on Anvil:
+
+```sh
+cast rpc anvil_setBalance "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" 0x8AC7230489E80000 --rpc-url "$LOCAL_BASE_RPC"
+cast rpc anvil_impersonateAccount "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --rpc-url "$LOCAL_BASE_RPC"
+```
+
+Build the exact release profile, then choose a new manifest path for this run.
+Do not reuse a manifest from another Anvil process:
+
+```sh
+FOUNDRY_PROFILE=universal_marketplace forge build
+
+export MARKETPLACE_DEPLOYMENT_RUN_DIR="$(
+  mktemp -d "${TMPDIR:-/tmp}/base-universal-pool-art-marketplace-fork.XXXXXX"
+)"
+export MARKETPLACE_DEPLOYMENT_MANIFEST="$MARKETPLACE_DEPLOYMENT_RUN_DIR/manifest.json"
+echo "Manifest path: $MARKETPLACE_DEPLOYMENT_MANIFEST"
 
 FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment prepare \
   "$MARKETPLACE_DEPLOYMENT_MANIFEST"
 
 export BASE_UNIVERSAL_MARKETPLACE_ADDRESS="$(
-  jq -r '.intent.marketplace' "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+  jq -er '.intent.marketplace' "$MARKETPLACE_DEPLOYMENT_MANIFEST"
 )"
 export BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS="$(
-  jq -r '.intent.checkout' "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+  jq -er '.intent.checkout' "$MARKETPLACE_DEPLOYMENT_MANIFEST"
 )"
 ```
 
-Force a process boundary after every prefix. Each `advance` submits exactly one
-transaction; each following `reconcile` must identify the next prefix from
-canonical receipts, code hashes, immutables/configuration, and authorization:
+Review the two predicted addresses and the pinned source/compiler/artifact
+facts. Advance exactly one nonce-pinned transaction per command, reconciling
+from canonical receipts after each process boundary:
 
 ```sh
 FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance \
@@ -127,500 +211,152 @@ FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance \
   "$MARKETPLACE_DEPLOYMENT_MANIFEST"
 FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment reconcile \
   "$MARKETPLACE_DEPLOYMENT_MANIFEST"
-```
 
-The observed prefixes must be marketplace only, marketplace plus checkout, and
-the fully authorized stack. Run a final fourth-prefix replay check; it must fail
-before submission because the deployment is complete:
-
-```sh
-FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance \
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment status \
   "$MARKETPLACE_DEPLOYMENT_MANIFEST"
 ```
 
-Do not continue after a missing, replaced, reverted, or otherwise uncertain
-receipt. Inspect the manifest and reconcile the canonical nonce transaction.
-Only an exact same-sender, same-nonce, same-target, same-data replacement is
-accepted. After explicit approval it uses:
+The confirmed prefixes are marketplace deployed, checkout deployed, and
+checkout authorized. Stop on any uncertain, replaced, reverted, or missing
+receipt and reconcile the recorded sender plus nonce; never replay a confirmed
+prefix.
 
-```sh
-FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment replace \
-  "$MARKETPLACE_DEPLOYMENT_MANIFEST" "<deployment-step-id>"
-```
-
-No confirmed prefix is replayed.
-
-### Recorded state-machine rehearsal
-
-The receipt-aware deployment and lifecycle paths were exercised on a disposable
-latest-Base Anvil fork after the Solidity `0.8.36` build:
-
-- UTC: `2026-08-08T02:01Z`
-- Source commit: `98a8853997e07940d33f121ac52eb88dee806be4`
-- Fork block: `49682393`
-- Fork block hash:
-  `0xebb6f68532f177f48c3a1f130ff0a60f1d67d7002333b0f8dcd6419d2c4468b9`
-- Predicted marketplace: `0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e`
-- Predicted checkout: `0x1905B4a633074243f3D9FDB59596fB7419adce2c`
-- Prefix observations: `0` ready for marketplace, `1` ready for checkout, `2`
-  ready for authorization, and `3` complete
-- Each step ran in a fresh Node process and recorded a canonical successful
-  receipt plus a verified code/configuration result before the next send
-- Replaying `advance` at prefix `3` exited nonzero with “deployment is already
-  complete; no transaction was submitted”
-- Deployer activation and the later paused ownership handoff each recorded a
-  successful, event-bound lifecycle receipt
-- The forked production Society Safe retained its real 7-of-14 threshold. Seven
-  fork-only owner approvals executed the reviewed `unpause()` intent through
-  `execTransaction`; reconciliation required the outer call to target the Safe,
-  matched the Safe's `ExecutionSuccess` hash
-  `0xfa905ae6348220fa72c1b90919bf7b081ee049e157eded4eb79a7be1bb114f6f`,
-  and bound canonical execution transaction
-  `0x4345835d76987afc1a22bc64325a295eb5df33dda80ea9babb25e3d3527a7853`
-- Final manifest status was `activated`, and the independent validator passed
-  against the Safe-owned active stack with zero inventory and clean checkout
-  balances and allowances
-
-This proves the structural four-prefix, deployer-authorized lifecycle, and
-receipt-bound Safe governance recovery paths. It does not replace the manual
-provider, checkout, browser, or wallet matrix below.
-
-The authorization read-back must equal the manifest checkout:
-
-```sh
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "authorizedCheckout()(address)" --rpc-url "$LOCAL_BASE_RPC"
-```
-
-Grant only the CreatorMagic `BANISHER` role. This block intentionally has no
-FAME or Society-unit transfer:
+Grant the marketplace its only CreatorMagic role, then validate the complete
+paused stack independently:
 
 ```sh
 cast send "$BASE_CREATOR_ARTIST_MAGIC_ADDRESS" \
   "grantRoles(address,uint256)" \
-  "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
-  "$CREATOR_MAGIC_BANISHER_ROLE" \
-  --from "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
-  --unlocked \
-  --rpc-url "$LOCAL_BASE_RPC"
-```
-
-While the marketplace is still paused, explicitly set both fee components to
-2.5% of the 1,000,000 FAME Society unit. A fresh deployment reads these same
-values from `config/fame-public.env`; the owner calls make the manual fork state
-unambiguous and also repair a fork stack deployed with stale fee exports:
-
-```sh
-export BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE=25000000000000000000000
-export BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE=25000000000000000000000
-
-cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
-  "setProviderFee(uint256)" "$BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE" \
+  "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" 4 \
   --from "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
   --unlocked \
   --rpc-url "$LOCAL_BASE_RPC"
 
-cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
-  "setCommunityFee(uint256)" "$BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE" \
-  --from "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
-  --unlocked \
-  --rpc-url "$LOCAL_BASE_RPC"
-
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "providerFee()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "communityFee()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "premium()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-```
-
-The read-backs must be 25,000 FAME, 25,000 FAME, and 50,000 FAME respectively
-(`25000000000000000000000`, `25000000000000000000000`, and
-`50000000000000000000000`). With one credited provider unit, WWW must show
-25,000 FAME per marketplace sale before rounding or additional providers.
-
-Record the observed permissionless pool state:
-
-```sh
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "inventory()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "activeProviderCount()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "totalProviderUnits()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-```
-
-For this fresh isolated deployment the values should initially be zero. A
-nonzero value is not a release failure by itself: every active provider must be
-unique and consistently indexed with nonzero units; the unit sum must equal
-`totalProviderUnits`; and inventory and raw FAME must cover credited units.
-
-## 4. Validate and activate from the deployer
-
-Validate the deployer-owned paused stack first:
-
-```sh
-export BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=true
-export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"
-
-FOUNDRY_PROFILE=universal_marketplace forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
+BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=true \
+FOUNDRY_PROFILE=universal_marketplace forge script \
+  script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
   --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-The validator records inventory through live reads and does not consume a
-configured inventory target. It fails only when provider structure or credited
-inventory/FAME backing is inconsistent, or when checkout retains Society,
-ETH, FAME, USDC, WETH, or a marketplace/router allowance.
+## 6. Activate and prove the browser stack
 
-Prepare a distinct receipt-aware activation from the impersonated deployer and
-validate the active stack:
+Prepare and submit the separately receipt-bound deployer activation:
 
 ```sh
 FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment prepare-operation \
   "$MARKETPLACE_DEPLOYMENT_MANIFEST" deployer-activation
 
+export ACTIVATION_OPERATION_ID="$(
+  jq -er '.operations[-1].id' "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+)"
+
 FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance-operation \
-  "$MARKETPLACE_DEPLOYMENT_MANIFEST" deployer-activation-1
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST" "$ACTIVATION_OPERATION_ID"
 
-export BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=false
-
-FOUNDRY_PROFILE=universal_marketplace forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
-  --rpc-url "$LOCAL_BASE_RPC"
-```
-
-Use the operation ID printed by `prepare-operation`. Its manifest entry must
-contain the successful canonical receipt, `MarketUnpaused` event result, and
-active deployer-owned final state before validation. If the process is
-interrupted after submission, restart with:
-
-```sh
 FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment reconcile-operation \
-  "$MARKETPLACE_DEPLOYMENT_MANIFEST" "<operation-id>"
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST" "$ACTIVATION_OPERATION_ID"
 ```
 
-The command checks known hashes and then scans from the recorded operation
-block for the deployer's pinned nonce. It accepts only the exact sender, nonce,
-target, and calldata, records canonical replacements, and persists a conflicting
-payload as a no-go observation. `advance-operation` and `replace-operation`
-also rerun the manifest's pinned source/compiler/profile/artifact/configuration
-checks immediately before sending. Recent recovery scans at most 10,000 blocks
-directly; older recovery first locates the nonce-consumption block with
-historical nonce reads and then inspects that canonical block. An RPC without
-the required historical state fails closed. An unknown transaction that is
-still only pending remains uncertain until it mines or the pending nonce clears.
-
-The manual browser fork in this section never transfers marketplace ownership.
-Production ownership transfer begins only after the live deployment has been
-activated and tested successfully by the deployer. The unlocked activation
-above tests that deployer path only and does not authorize a production
-transaction.
-
-If the observed active market is empty, it is intentionally not checkout-ready.
-The automated lifecycle test proves an attempted checkout rejects before buyer
-funding in that empty-state rehearsal.
-
-## 5. Add the first provider inventory after launch
-
-Use a disposable provider wallet distinct from the buyer and Safe. Give it
-Anvil ETH and transfer one through eight real fork Society NFTs to it from
-their current fork owners. For each selected ID, resolve `ownerAt`, impersonate
-that owner, and transfer the NFT to the provider. These setup transfers are
-fork-only; the provider approval and deposit remain the behavior under test.
+Validate the active deployer-owned stack and read back the minimum browser
+preconditions:
 
 ```sh
-export FORK_PROVIDER="<disposable provider wallet>"
-export PROVIDER_IDS="[<one through eight distinct Society IDs>]"
-
-cast rpc anvil_setBalance "$FORK_PROVIDER" 0x56BC75E2D63100000 --rpc-url "$LOCAL_BASE_RPC"
-cast rpc anvil_impersonateAccount "$FORK_PROVIDER" --rpc-url "$LOCAL_BASE_RPC"
-
-cast send "$BASE_FAME_NFT_ADDRESS" \
-  "setApprovalForAll(address,bool)" \
-  "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" true \
-  --from "$FORK_PROVIDER" \
-  --unlocked \
+BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=false \
+FOUNDRY_PROFILE=universal_marketplace forge script \
+  script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
   --rpc-url "$LOCAL_BASE_RPC"
 
-cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
-  "depositInventoryBatch(uint256[])" "$PROVIDER_IDS" \
-  --from "$FORK_PROVIDER" \
-  --unlocked \
-  --rpc-url "$LOCAL_BASE_RPC"
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "paused()(bool)" --rpc-url "$LOCAL_BASE_RPC"
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "owner()(address)" --rpc-url "$LOCAL_BASE_RPC"
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "authorizedCheckout()(address)" --rpc-url "$LOCAL_BASE_RPC"
+cast code "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-For a single-ID-specific acceptance pass, approve that ID and call
-`depositInventory(uint256)` instead. A raw NFT or FAME transfer is an
-irreversible uncredited donation and must not be used for provider setup.
+`paused()` must be `false`, the owner must remain the configured deployer, the
+authorized checkout must equal the manifest checkout, and checkout code must be
+nonempty. `FameMarketplaceCheckout` has no independent pause switch; an active
+authorized marketplace is what makes the deployed checkout usable.
 
-Read the credited state:
+## 7. Start `fls-www` and test in the browser
 
-```sh
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
-  "providerPosition(address)(uint256,uint256)" "$FORK_PROVIDER" \
-  --rpc-url "$LOCAL_BASE_RPC"
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "activeProviderCount()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "totalProviderUnits()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "inventory()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
-```
-
-The provider unit count and total provider units must equal the batch length,
-the provider index must be nonzero, and exactly one active-provider slot must
-be consumed.
-
-## 6. Start `fls-www` against the fork
-
-Run wagmi generation only when the ABI bindings need refreshing:
+In a `fls-www` terminal, pass the loopback RPC and both temporary addresses
+through to server and browser code:
 
 ```sh
 cd /Users/user/Development/fls-www
-doppler run -- yarn wagmi generate
-```
 
-Then start the app in another `fls-www` terminal. Supply the same literal
-loopback RPC to server and browser code, enable fork-only quote routing, and
-pass both temporary contract addresses through the shell:
-
-```sh
 export LOCAL_BASE_RPC=http://127.0.0.1:8545
 export BASE_RPC_URL="$LOCAL_BASE_RPC"
 export NEXT_PUBLIC_BASE_RPC_URL_1="$LOCAL_BASE_RPC"
 export NEXT_PUBLIC_FAME_FORK_MODE=1
-export NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS="<temporary address from the Forge terminal>"
-export NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS="<temporary checkout address from the Forge terminal>"
+export NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS="<manifest marketplace address>"
+export NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS="<manifest checkout address>"
 
 doppler run \
   --preserve-env="BASE_RPC_URL,NEXT_PUBLIC_BASE_RPC_URL_1,NEXT_PUBLIC_FAME_FORK_MODE,NEXT_PUBLIC_BASE_UNIVERSAL_MARKETPLACE_ADDRESS,NEXT_PUBLIC_BASE_FAME_CHECKOUT_ADDRESS" \
   -- yarn dev
 ```
 
-The explicit `--preserve-env` list lets Doppler supply the rest of WWW's local
-configuration without replacing the five public fork overrides. Do not use
-`--preserve-env=true`.
-
-Connect an operator-owned test account through the normal injected wallet.
-Configure that wallet's Base RPC as `http://127.0.0.1:8545` before connecting.
-The fork and Base mainnet both use chain ID `8453`, so verify the wallet's
-active RPC endpoint before every signing campaign; chain ID alone cannot
-distinguish them. Open `/fame/gallery` directly or use the `FAME Marketplace`
-menu item.
-
-In fork mode, WWW must reject non-loopback RPCs, disable public Base fallback,
-and bypass the external indexed quote service. Artwork metadata must continue
-through the normal token URI path. Do not begin wallet signing until the page
-loads from the loopback fork and shows the temporary marketplace state.
-
-## 7. Run the browser provider and checkout acceptance
-
-Section 5 is the command-line provider acceptance. For the browser campaign,
-use an operator-owned provider wallet and seed it with one through eight real
-Society NFTs before opening `/fame/gallery/stake/deposit`. If the CLI campaign
-already consumed the chosen IDs, select different live IDs. For each ID,
-resolve its current fork owner and transfer it to the provider only on Anvil:
+Configure each test wallet's Base network RPC as
+`http://127.0.0.1:8545`. Base mainnet and the fork both report chain ID `8453`,
+so chain ID alone is not proof that the wallet is using Anvil. Immediately
+before the first signature, print Anvil's current latest block hash in the
+`fame-contracts` terminal:
 
 ```sh
-export FORK_PROVIDER="<operator-owned provider wallet>"
-export SOCIETY_TOKEN_ID="<1 through 888>"
-export SOCIETY_OWNER="$(
-  cast call "$BASE_FAME_NFT_ADDRESS" \
-    "ownerAt(uint256)(address)" "$SOCIETY_TOKEN_ID" \
-    --rpc-url "$LOCAL_BASE_RPC"
+export PRE_SIGN_LOCAL_BLOCK_HASH="$(
+  cast block latest --field hash --rpc-url "$LOCAL_BASE_RPC"
 )"
-
-cast rpc anvil_setBalance "$FORK_PROVIDER" 0x56BC75E2D63100000 --rpc-url "$LOCAL_BASE_RPC"
-cast rpc anvil_setBalance "$SOCIETY_OWNER" 0xDE0B6B3A7640000 --rpc-url "$LOCAL_BASE_RPC"
-cast rpc anvil_impersonateAccount "$SOCIETY_OWNER" --rpc-url "$LOCAL_BASE_RPC"
-cast send "$BASE_FAME_NFT_ADDRESS" \
-  "transferFrom(address,address,uint256)" \
-  "$SOCIETY_OWNER" "$FORK_PROVIDER" "$SOCIETY_TOKEN_ID" \
-  --from "$SOCIETY_OWNER" --unlocked --rpc-url "$LOCAL_BASE_RPC"
-cast rpc anvil_stopImpersonatingAccount "$SOCIETY_OWNER" --rpc-url "$LOCAL_BASE_RPC"
+echo "Pre-sign local block hash: $PRE_SIGN_LOCAL_BLOCK_HASH"
 ```
 
-Repeat the owner-transfer block for every selected ID. These are fork-only
-setup transfers. The provider approval and deposit must be normal wallet-signed
-WWW transactions:
+Then run this one-liner in the browser console, replacing the placeholder with
+the printed hash:
 
-1. Connect `FORK_PROVIDER` and open `/fame/gallery/stake/deposit`.
-2. Confirm the page discovers the wallet's Society NFTs through the live mirror.
-3. Select up to eight distinct cards and confirm the `N selected / 8 maximum`
-   count and projected per-sale provider share.
-4. Click `Approve Society NFTs`, wait for one confirmation, then click
-   `Stake N Society NFTs`.
-5. Confirm the transaction modal reports one atomic batch deposit and the
-   liquidity overview shows the resulting credited position.
-
-Do not transfer a Society NFT or FAME directly to the marketplace address.
-Those transfers are irreversible, uncredited donations and are not provider
-setup.
-
-Read back the browser-created position with the commands in section 5. The
-unit count and total-provider-unit delta must equal the selected batch length,
-and a new provider consumes exactly one active-provider slot.
-
-Next complete one normal routed checkout for a live market-owned ID from
-`/fame/gallery`. Record:
-
-- route, checkout, and `ArtworkPurchased` events;
-- inventory before and after;
-- the provider position and FAME balance before and after;
-- the Society Safe FAME balance before and after; and
-- checkout ETH, USDC, WETH, FAME, and marketplace allowance after settlement.
-
-Inventory and provider position weight must be preserved, the configured
-community/provider fees must route exactly, and all checkout transient balances
-and allowances must be zero. The broader browser payment matrix is direct FAME
-held purchase, native ETH pool checkout, USDC pool checkout, and WETH held
-checkout. Record the transaction and route hashes for each route actually run;
-mark every unrun row `not executed`. Automated fork tests are contract-level
-proof, not browser-wallet proof.
-
-## 8. Run the browser Society-redemption matrix
-
-Use the same normal wallet account that will sign in the browser. Give it ETH
-only on Anvil and ensure receiving FAME may auto-mint Society NFTs:
-
-```sh
-export FORK_BUYER="<operator-owned buyer wallet>"
-
-cast rpc anvil_setBalance "$FORK_BUYER" 0x56BC75E2D63100000 --rpc-url "$LOCAL_BASE_RPC"
-cast rpc anvil_impersonateAccount "$FORK_BUYER" --rpc-url "$LOCAL_BASE_RPC"
-cast send "$BASE_FAME_ADDRESS" \
-  "setSkipNFT(bool)" false \
-  --from "$FORK_BUYER" --unlocked --rpc-url "$LOCAL_BASE_RPC"
-cast rpc anvil_stopImpersonatingAccount "$FORK_BUYER" --rpc-url "$LOCAL_BASE_RPC"
+```js
+await (async (expected) => { const block = await window.ethereum.request({ method: "eth_getBlockByNumber", params: ["latest", false] }); return { local: expected, wallet: block.hash, matches: block.hash.toLowerCase() === expected.toLowerCase() }; })("<PRE_SIGN_LOCAL_BLOCK_HASH>")
 ```
 
-If the wallet does not own enough Society NFTs, seed it from real fork holders
-using the `ownerAt` and impersonated `transferFrom` procedure in section 7,
-substituting `FORK_BUYER` for `FORK_PROVIDER`. Seed 42 transferable IDs for the
-complete matrix without reusing an NFT: three one-ID runs, three two-ID runs,
-one 32-ID run, and one direct checkout donation.
+Do not sign unless `matches` is `true` and the displayed `local` and `wallet`
+hashes are identical. If Anvil mines another block before signing, repeat both
+reads. Stop on any mismatch and record the two hashes and result in the evidence
+table. Once this proof passes, open `/fame/market` directly or use the `FAME
+Marketplace` menu item.
 
-For the pre-funded bonus only, transfer the extra Society ID to
-`BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS` instead of the buyer. That raw transfer
-is intentionally an irreversible checkout donation; it becomes one unit of
-checkout FAME and must be consumed by the next successful redemption.
+All remaining provider, staking, unstaking, marketplace checkout, Society
+redemption, wallet rejection, and product-state testing is browser-led. Use the
+10-ETH and 24-hour helpers above when needed. This runbook deliberately does
+not prescribe feature-by-feature transaction sequences or duplicate the UI's
+workflow.
 
-Reload `/fame/gallery` with the wallet connected to the literal loopback RPC.
-Open `Your Society NFTs` and confirm its ascending ID list matches both reads:
+## 8. Record evidence and tear down
 
-```sh
-cast call "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" \
-  "ownedSocietyTokenIds(address,uint256,uint256)(uint256[])" \
-  "$FORK_BUYER" 1 889 --rpc-url "$LOCAL_BASE_RPC"
-
-cast call "$BASE_FAME_NFT_ADDRESS" \
-  "balanceOf(address)(uint256)" "$FORK_BUYER" \
-  --rpc-url "$LOCAL_BASE_RPC"
-```
-
-Run this browser matrix:
-
-| Selection | Receive | Expected evidence |
-|---|---|---|
-| 1 ID | ETH | Shows and consumes the pre-funded checkout bonus |
-| 1 ID | WETH | No bonus after the first success |
-| 1 ID | USDC | No bonus after the first success |
-| 2 IDs | ETH | Burns the exact selected IDs |
-| 2 IDs | WETH | Burns the exact selected IDs |
-| 2 IDs | USDC | Burns the exact selected IDs |
-| 32 IDs | WETH | Record receipt gas and compare with the fork block gas limit |
-
-The first run should show `Approve NFT redemption`. Wait for that approval to
-confirm and verify that WWW does not submit the redemption automatically.
-Review the selected IDs, estimate, minimum output, and irreversible-burn copy,
-then submit `Burn N NFTs` yourself. Later rows should reuse the approval.
-
-After every success, wait for one confirmation and verify the selected IDs are
-gone and the wallet output balance increased. Record the transaction hash,
-selected IDs, quote basis and actual FAME, route hash, output, and receipt gas.
-Both final checkout custody reads must return zero:
-
-```sh
-cast call "$BASE_FAME_ADDRESS" \
-  "balanceOf(address)(uint256)" \
-  "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" \
-  --rpc-url "$LOCAL_BASE_RPC"
-
-cast call "$BASE_FAME_NFT_ADDRESS" \
-  "balanceOf(address)(uint256)" \
-  "$BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS" \
-  --rpc-url "$LOCAL_BASE_RPC"
-```
-
-Record a wallet rejection, simulation failure, or mined revert once. Do not
-retry automatically or invent a recovery flow.
-
-## 9. Prove checkout-only pause and provider custody
-
-Pause from the deployer and prove provider custody remains open:
-
-```sh
-cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "pause()" \
-  --from "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
-  --unlocked \
-  --rpc-url "$LOCAL_BASE_RPC"
-
-export WITHDRAW_TOKEN_ID="<currently marketplace-owned Society ID>"
-export WITHDRAW_MAX_PREMIUM="$(
-  cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
-    "withdrawalPremium(address)(uint256)" "$FORK_PROVIDER" \
-    --rpc-url "$LOCAL_BASE_RPC"
-)"
-
-cast send "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" \
-  "withdrawInventory(uint256,uint256)" \
-  "$WITHDRAW_TOKEN_ID" "$WITHDRAW_MAX_PREMIUM" \
-  --from "$FORK_PROVIDER" \
-  --unlocked \
-  --rpc-url "$LOCAL_BASE_RPC"
-```
-
-The marketplace must be paused while the provider exit succeeds. The exit consumes
-the provider's oldest credited unit and transfers the selected marketplace-owned
-shell. Each unit retains its actual deposit timestamp; the required gross
-premium decays linearly with upward rounding from the current configured
-premium to zero at 24 hours. `maxPremium` is the consent bound. A nonzero
-premium uses direct FAME, removes the exiting unit before distribution so it
-cannot rebate itself, and executes the complete gross transfer path. There is
-no random withdrawal, inventory scan, or withdrawal gas release gate.
-
-For the manual browser matrix, keep administrative test transactions on the
-deployer and do not require a Safe handoff. The separate CLI-only recovery fork
-recorded above did complete the ownership handoff and Safe activation, then was
-torn down without any production write.
-
-## 10. Evidence and teardown
-
-Record concise run facts:
+Record only the facts needed to judge the final deployment candidate:
 
 | Evidence | Result |
 |---|---|
-| Git revision | |
-| Fork block number and hash | |
-| Automated latest-Base suite | |
-| 88-provider all-mint benchmark gas | |
-| Paused deployer validation and observed pool state | |
-| Active deployer validation and observed pool state | |
-| Provider/community fee read-back | 25,000 / 25,000 FAME |
-| Total marketplace premium read-back | 50,000 FAME |
+| `fame-contracts` revision | |
 | `fls-www` revision | |
-| WWW startup with loopback fork overrides | |
-| Wallet active RPC verified as loopback | |
-| Gallery route and normal token URI metadata | |
-| First post-launch provider batch | |
-| Browser batch approval and atomic stake | |
-| First real checkout after provisioning | |
-| Browser payment routes and transaction/route hashes | |
-| Browser Society redemption matrix | |
-| Checkout balances and allowances zero | |
-| Timestamped selected provider exit while checkout paused | |
-| Teardown and wallet RPC reset | |
+| Fork block number and hash | |
+| Deployment state-machine tests | |
+| Latest-Base automated fork campaign | |
+| 88-provider checkout gas and configured budget | |
+| Manifest path and final status | |
+| Temporary marketplace address | |
+| Temporary checkout address | |
+| Paused validation | |
+| Active validation | |
+| Active owner and authorized-checkout read-back | |
+| WWW started with loopback-only fork overrides | |
+| Injected-wallet latest block hash equals local Anvil | |
+| Browser campaign result and issue links | |
+| Wallet RPC restored and fork stopped | |
 
-When the run ends—or immediately after a reload with a pending transaction, an
-uncertain receipt, or loss of the local node—stop `fls-www`, stop Anvil, restore
-the operator wallet's normal Base RPC, and close the shells containing
-temporary addresses. The temporary deployment manifest is the recovery
-journal for the current fork only. Reconcile it while that exact fork remains
-available; if the node is lost, retain it as failure evidence, discard that
-fork, and prepare a new manifest for the new run. Do not copy temporary
-addresses, signing material, or Foundry `broadcast/` output into tracked
-configuration.
+When testing ends—or immediately after an uncertain receipt or loss of the
+local node—stop `fls-www`, stop Anvil, and restore every test wallet's normal
+Base RPC. The manifest is a recovery journal only for this exact Anvil process.
+If the fork is lost, keep the manifest only as failure evidence and start a new
+fork with a new manifest path.
 
-No production write, deployment, activation, ownership transfer, or Safe
-transaction is authorized by this rehearsal. Browser rows remain `not
-executed` until a human runs them; the automated fork suite does not substitute
-for injected-wallet and rendered-UI evidence.
+This rehearsal authorizes no production write, deployment, activation,
+ownership transfer, Safe transaction, or public configuration publication.

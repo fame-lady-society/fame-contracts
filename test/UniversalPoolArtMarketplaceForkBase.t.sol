@@ -216,6 +216,88 @@ abstract contract UniversalPoolArtMarketplaceForkBaseTestBase is Test {
 }
 
 contract UniversalPoolArtMarketplaceForkBaseTest is UniversalPoolArtMarketplaceForkBaseTestBase {
+    function testLatestBaseSelectedProviderExitChargesImmediatePremiumThenAllowsMatureFreeExit() public {
+        _selectLatestBaseFork();
+        UniversalPoolArtMarketplace market = _deployOneShellMarket();
+        uint256 unit = fame.unit();
+        uint256 premium = market.premium();
+        {
+            address immediateProvider = address(0xB101);
+            vm.prank(SAFE);
+            fame.transfer(immediateProvider, unit);
+            uint256 immediateTokenId = _ownedTokenAt(immediateProvider, 0);
+            vm.startPrank(immediateProvider);
+            mirror.approve(address(market), immediateTokenId);
+            market.depositInventory(immediateTokenId);
+            vm.stopPrank();
+
+            assertEq(market.withdrawalPremium(immediateProvider), premium, "immediate exit premium mismatch");
+            assertEq(mirror.ownerAt(immediateTokenId), address(market), "immediate shell was not deposited");
+            assertEq(fame.balanceOf(immediateProvider), 0, "immediate deposit did not move its unit");
+            assertEq(market.inventory(), 2, "immediate deposit inventory mismatch");
+            assertEq(market.totalProviderUnits(), 1, "immediate provider units mismatch");
+
+            vm.prank(SAFE);
+            fame.transfer(immediateProvider, premium);
+            vm.prank(immediateProvider);
+            fame.approve(address(market), premium);
+            uint256 immediateSafeBefore = fame.balanceOf(SAFE);
+            uint256 immediateMarketBefore = fame.balanceOf(address(market));
+
+            vm.prank(immediateProvider);
+            market.withdrawInventory(immediateTokenId, premium);
+
+            (uint256 immediateUnits, uint256 immediateIndex) = market.providerPosition(immediateProvider);
+            assertEq(mirror.ownerAt(immediateTokenId), immediateProvider, "immediate shell was not returned");
+            assertEq(fame.balanceOf(immediateProvider), unit, "immediate provider FAME balance mismatch");
+            assertEq(fame.balanceOf(SAFE) - immediateSafeBefore, premium, "immediate premium routing mismatch");
+            assertEq(fame.balanceOf(address(market)), immediateMarketBefore - unit, "immediate market balance mismatch");
+            assertEq(fame.allowance(immediateProvider, address(market)), 0, "immediate premium allowance remained");
+            assertEq(immediateUnits, 0, "immediate provider units remained");
+            assertEq(immediateIndex, 0, "immediate provider index remained");
+            assertEq(market.activeProviderCount(), 0, "immediate provider remained active");
+            assertEq(market.totalProviderUnits(), 0, "immediate total provider units remained");
+            assertEq(market.inventory(), 1, "immediate withdrawal inventory mismatch");
+        }
+
+        {
+            address matureProvider = address(0xB102);
+            vm.prank(SAFE);
+            fame.transfer(matureProvider, unit);
+            uint256 matureTokenId = _ownedTokenAt(matureProvider, 0);
+            vm.startPrank(matureProvider);
+            mirror.approve(address(market), matureTokenId);
+            market.depositInventory(matureTokenId);
+            vm.stopPrank();
+
+            assertEq(market.withdrawalPremium(matureProvider), premium, "mature fixture premium mismatch");
+            assertEq(mirror.ownerAt(matureTokenId), address(market), "mature shell was not deposited");
+            assertEq(fame.balanceOf(matureProvider), 0, "mature deposit did not move its unit");
+            assertEq(market.inventory(), 2, "mature deposit inventory mismatch");
+            assertEq(market.totalProviderUnits(), 1, "mature provider units mismatch");
+
+            vm.warp(block.timestamp + 24 hours);
+            assertEq(market.withdrawalPremium(matureProvider), 0, "mature exit premium was not zero");
+            uint256 matureSafeBefore = fame.balanceOf(SAFE);
+            uint256 matureMarketBefore = fame.balanceOf(address(market));
+
+            vm.prank(matureProvider);
+            market.withdrawInventory(matureTokenId, 0);
+
+            (uint256 matureUnits, uint256 matureIndex) = market.providerPosition(matureProvider);
+            assertEq(mirror.ownerAt(matureTokenId), matureProvider, "mature shell was not returned");
+            assertEq(fame.balanceOf(matureProvider), unit, "mature provider FAME balance mismatch");
+            assertEq(fame.balanceOf(SAFE), matureSafeBefore, "mature exit charged a premium");
+            assertEq(fame.balanceOf(address(market)), matureMarketBefore - unit, "mature market balance mismatch");
+            assertEq(fame.allowance(matureProvider, address(market)), 0, "mature exit changed allowance");
+            assertEq(matureUnits, 0, "mature provider units remained");
+            assertEq(matureIndex, 0, "mature provider index remained");
+            assertEq(market.activeProviderCount(), 0, "mature provider remained active");
+            assertEq(market.totalProviderUnits(), 0, "mature total provider units remained");
+            assertEq(market.inventory(), 1, "mature withdrawal inventory mismatch");
+        }
+    }
+
     function testLatestBaseOneShellHeldMintBurnAndArtPoolMatrix() public {
         _selectLatestBaseFork();
         UniversalPoolArtMarketplace market = _deployOneShellMarket();
