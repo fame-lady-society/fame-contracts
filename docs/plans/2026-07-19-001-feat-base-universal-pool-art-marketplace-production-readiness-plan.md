@@ -511,7 +511,7 @@ stateDiagram-v2
 | Unit and deployment | `FOUNDRY_PROFILE=universal_marketplace forge test --match-path 'test/UniversalPoolArtMarketplace*.t.sol' -vvv` | Marketplace, deployment, and one-shell tests pass |
 | Fuzz | `FOUNDRY_PROFILE=universal_marketplace forge test --match-path test/UniversalPoolArtMarketplaceFuzz.t.sol -vvv` | The configured 10,000 cases pass |
 | Invariant | `FOUNDRY_PROFILE=universal_marketplace forge test --match-path test/UniversalPoolArtMarketplaceInvariant.t.sol -vvv` | The configured 512 runs by 128 depth pass |
-| Repository regression | `FOUNDRY_PROFILE=ci forge test` | The separate full-repository suite remains green; unrelated existing failures are reported precisely |
+| Repository regression | `FOUNDRY_PROFILE=default forge test` with the workflow's explicit RPC-backed contract exclusion | The separate full-repository local suite remains green; RPC-backed suites run in their environment-backed gates, and unrelated existing failures are reported precisely |
 
 ### Environment-Backed Fork Gates
 

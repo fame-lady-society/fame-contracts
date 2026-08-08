@@ -3,7 +3,7 @@ name: test
 on: workflow_dispatch
 
 env:
-  FOUNDRY_PROFILE: ci
+  FOUNDRY_PROFILE: default
 
 jobs:
   check:
@@ -65,7 +65,7 @@ jobs:
 
       - name: Run full repository Forge regression
         env:
-          FOUNDRY_PROFILE: ci
+          FOUNDRY_PROFILE: default
         run: |
-          forge test -vvv
+          forge test --no-match-contract '.*(ForkBase|BaseFork|ContentionBase).*' -vvv
         id: test
