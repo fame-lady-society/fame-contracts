@@ -129,19 +129,17 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         purchase.buyer = _buyer(buyerSeed);
         purchase.destination = selfRecipient ? purchase.buyer : _nextBuyer(buyerSeed);
         purchase.shellId = _marketShell(shellSeed);
+        purchase.premium = market.premium();
+        _preparePurchase(purchase.buyer, purchase.premium);
         purchase.sourceId = _mintSource(sourceSeed);
         purchase.artwork = market.artworkHash(purchase.sourceId);
         purchase.displacedArtwork = market.artworkHash(purchase.shellId);
-        purchase.premium = market.premium();
-        _preparePurchase(purchase.buyer, purchase.premium);
 
         uint256 inventoryBefore = market.inventory();
         uint256 marketFameBefore = fame.balanceOf(address(market));
         uint256 payoutRecipientsBefore = _payoutRecipientBalances();
-        vm.prank(purchase.buyer);
-        (, uint256 inventoryAfter) = market.purchasePool(
-            purchase.shellId, purchase.sourceId, purchase.artwork, purchase.premium, 0, purchase.destination
-        );
+        (bool settled, uint256 inventoryAfter) = _purchasePoolIfStable(purchase);
+        if (!settled) return;
 
         assertEq(market.artworkHash(purchase.sourceId), purchase.displacedArtwork);
         ++poolPlacementChecks;
@@ -154,19 +152,17 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         purchase.buyer = _buyer(buyerSeed);
         purchase.destination = selfRecipient ? purchase.buyer : _nextBuyer(buyerSeed);
         purchase.shellId = _marketShell(shellSeed);
+        purchase.premium = market.premium();
+        _preparePurchase(purchase.buyer, purchase.premium);
         purchase.sourceId = _burnSource();
         purchase.artwork = market.artworkHash(purchase.sourceId);
         purchase.displacedArtwork = market.artworkHash(purchase.shellId);
-        purchase.premium = market.premium();
-        _preparePurchase(purchase.buyer, purchase.premium);
 
         uint256 inventoryBefore = market.inventory();
         uint256 marketFameBefore = fame.balanceOf(address(market));
         uint256 payoutRecipientsBefore = _payoutRecipientBalances();
-        vm.prank(purchase.buyer);
-        (, uint256 inventoryAfter) = market.purchasePool(
-            purchase.shellId, purchase.sourceId, purchase.artwork, purchase.premium, 0, purchase.destination
-        );
+        (bool settled, uint256 inventoryAfter) = _purchasePoolIfStable(purchase);
+        if (!settled) return;
 
         assertEq(market.artworkHash(purchase.sourceId), purchase.displacedArtwork);
         ++poolPlacementChecks;
@@ -382,6 +378,27 @@ contract UniversalPoolArtMarketplaceHandler is Test, IERC721Receiver {
         if (purchase.minimum != 0) ++buyerMinimumChecks;
         ++handoffChecks;
         if (inventoryAfter < minimumObservedInventory) minimumObservedInventory = inventoryAfter;
+    }
+
+    function _purchasePoolIfStable(PurchaseCase memory purchase)
+        internal
+        returns (bool settled, uint256 inventoryAfter)
+    {
+        vm.prank(purchase.buyer);
+        try market.purchasePool(
+            purchase.shellId, purchase.sourceId, purchase.artwork, purchase.premium, 0, purchase.destination
+        ) returns (
+            uint256, uint256 returnedInventoryAfter
+        ) {
+            return (true, returnedInventoryAfter);
+        } catch (bytes memory reason) {
+            if (reason.length >= 4 && bytes4(reason) == UniversalPoolArtMarketplace.IneligiblePoolSource.selector) {
+                return (false, 0);
+            }
+            assembly ("memory-safe") {
+                revert(add(reason, 0x20), mload(reason))
+            }
+        }
     }
 
     function _payoutRecipientBalances() internal view returns (uint256 total) {

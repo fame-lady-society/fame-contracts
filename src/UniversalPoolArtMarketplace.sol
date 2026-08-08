@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Ownable} from "solady/auth/Ownable.sol";
+import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol";
 import {ReentrancyGuard} from "solady/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {IERC721} from "@openzeppelin5/contracts/token/ERC721/IERC721.sol";
@@ -12,6 +13,7 @@ import {FameMirror} from "./FameMirror.sol";
 
 contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     using SafeTransferLib for address;
+    using FixedPointMathLib for uint256;
 
     uint256 internal constant SOCIETY_TOKEN_ID_START = 1;
     uint256 internal constant SOCIETY_TOKEN_ID_COUNT = 888;
@@ -38,7 +40,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     }
 
     mapping(address => ProviderPosition) internal _providerPositions;
-    mapping(address => uint64[]) internal _providerUnitDepositTimestamps;
+    mapping(address => mapping(uint256 => uint64)) internal _providerUnitDepositTimestamps;
     mapping(address => uint256) internal _providerUnitHead;
     address[] internal _activeProviders;
 
@@ -84,10 +86,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
     event InventoryDeposited(address indexed provider, uint256 indexed tokenId, uint256 providerUnits);
     event InventoryBatchDeposited(address indexed provider, uint256[] tokenIds, uint256 providerUnits);
     event InventoryWithdrawn(
-        address indexed provider,
-        uint256 indexed tokenId,
-        uint256 providerUnits,
-        uint256 grossPremiumAmount
+        address indexed provider, uint256 indexed tokenId, uint256 providerUnits, uint256 grossPremiumAmount
     );
 
     error ZeroAddress();
@@ -201,12 +200,16 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         ProviderPosition memory position = _providerPositions[provider];
         if (position.unitCount == 0) revert NoProviderPosition(provider);
 
+        return _withdrawalPremium(provider, premium());
+    }
+
+    function _withdrawalPremium(address provider, uint256 configuredGrossPremium) internal view returns (uint256) {
         uint256 depositedAt = _providerUnitDepositTimestamps[provider][_providerUnitHead[provider]];
         uint256 elapsed = block.timestamp - depositedAt;
         if (elapsed >= WITHDRAWAL_PREMIUM_DECAY_PERIOD) return 0;
 
         uint256 remaining = WITHDRAWAL_PREMIUM_DECAY_PERIOD - elapsed;
-        return (premium() * remaining + WITHDRAWAL_PREMIUM_DECAY_PERIOD - 1) / WITHDRAWAL_PREMIUM_DECAY_PERIOD;
+        return (configuredGrossPremium * remaining).divUp(WITHDRAWAL_PREMIUM_DECAY_PERIOD);
     }
 
     function activeProviderCount() public view returns (uint256) {
@@ -237,7 +240,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
 
     /// @dev `buyer` is retained for ABI stability; charge does not depend on buyer identity.
     function purchaseCharge(address) external view returns (uint256) {
-        return fame.unit() + uint256(providerFee) + uint256(communityFee);
+        return fame.unit() + premium();
     }
 
     function depositInventory(uint256 tokenId) external nonReentrant {
@@ -245,7 +248,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         ProviderPosition storage position = _providerPositionForDeposit(msg.sender);
         _enterSettlement();
         _transferInventoryToken(msg.sender, tokenId);
-        _providerUnitDepositTimestamps[msg.sender].push(uint64(block.timestamp));
+        _recordProviderUnitDeposit(msg.sender, position.unitCount);
         ++position.unitCount;
         ++totalProviderUnits;
         _exitSettlement();
@@ -272,7 +275,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         _enterSettlement();
         for (uint256 i; i < count; ++i) {
             _transferInventoryToken(msg.sender, tokenIds[i]);
-            _providerUnitDepositTimestamps[msg.sender].push(uint64(block.timestamp));
+            _recordProviderUnitDeposit(msg.sender, uint256(position.unitCount) + i);
         }
         position.unitCount = uint32(resultingProviderUnits);
         totalProviderUnits += count;
@@ -286,12 +289,13 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         _requireInventoryTokenId(tokenId);
         if (mirror.ownerAt(tokenId) != address(this)) revert UnavailableShell(tokenId);
 
-        uint256 currentPremium = withdrawalPremium(msg.sender);
+        uint256 configuredGrossPremium = premium();
+        uint256 currentPremium = _withdrawalPremium(msg.sender, configuredGrossPremium);
         if (currentPremium > maxPremium) revert PremiumExceedsMaximum(currentPremium, maxPremium);
 
         _enterSettlement();
         uint256 remainingUnits = _removeProviderUnit(msg.sender);
-        _distributePremium(msg.sender, currentPremium);
+        _distributePremium(msg.sender, currentPremium, configuredGrossPremium);
         mirror.safeTransferFrom(address(this), msg.sender, tokenId);
         _exitSettlement();
 
@@ -375,7 +379,7 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         inventoryBefore = inventory();
 
         _enterSettlement();
-        uint256 grossPremiumAmount = _distributePremium(payer, currentPremium);
+        uint256 grossPremiumAmount = _distributePremium(payer, currentPremium, currentPremium);
 
         _requireStack();
         _requireShellArtwork(shellId, expectedArtworkHash);
@@ -486,7 +490,8 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         returns (uint256 inventoryBefore, uint256 inventoryAfter)
     {
         _enterSettlement();
-        uint256 grossPremiumAmount = _distributePremium(purchase.payer, purchase.grossPremiumAmount);
+        uint256 grossPremiumAmount =
+            _distributePremium(purchase.payer, purchase.grossPremiumAmount, purchase.grossPremiumAmount);
 
         _requireStack();
         _requireShell(purchase.shellId);
@@ -638,17 +643,15 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         revert IneligiblePoolSource(sourceId);
     }
 
-    function _distributePremium(address payer, uint256 grossPremiumAmount)
+    function _distributePremium(address payer, uint256 grossPremiumAmount, uint256 configuredGrossPremium)
         internal
         returns (uint256 transferredPremium)
     {
         address communityRecipient = feeRecipient;
         _requireFeeRecipient(communityRecipient);
 
-        uint256 configuredGrossPremium = premium();
-        uint256 providerPremium = configuredGrossPremium == 0
-            ? 0
-            : uint256(providerFee) * grossPremiumAmount / configuredGrossPremium;
+        uint256 providerPremium =
+            configuredGrossPremium == 0 ? 0 : uint256(providerFee) * grossPremiumAmount / configuredGrossPremium;
 
         uint256 providerUnits = totalProviderUnits;
         uint256 distributedProviderFee;
@@ -679,7 +682,9 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
 
         remainingUnits = unitCount - 1;
         --totalProviderUnits;
-        ++_providerUnitHead[provider];
+        uint256 head = _providerUnitHead[provider];
+        delete _providerUnitDepositTimestamps[provider][head];
+        _providerUnitHead[provider] = (head + 1) % SOCIETY_TOKEN_ID_COUNT;
         if (remainingUnits != 0) {
             position.unitCount = uint32(remainingUnits);
             return remainingUnits;
@@ -694,8 +699,12 @@ contract UniversalPoolArtMarketplace is Ownable, ReentrancyGuard {
         }
         _activeProviders.pop();
         delete _providerPositions[provider];
-        delete _providerUnitDepositTimestamps[provider];
         delete _providerUnitHead[provider];
+    }
+
+    function _recordProviderUnitDeposit(address provider, uint256 existingUnits) internal {
+        uint256 slot = (uint256(_providerUnitHead[provider]) + existingUnits) % SOCIETY_TOKEN_ID_COUNT;
+        _providerUnitDepositTimestamps[provider][slot] = uint64(block.timestamp);
     }
 
     function _providerPositionForDeposit(address provider) internal returns (ProviderPosition storage position) {

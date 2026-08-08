@@ -293,6 +293,29 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
         assertEq(market.withdrawalPremium(provider), 0);
     }
 
+    function testProviderTimestampRingWrapsWithoutLosingFifoAge() public {
+        address provider = address(0x903B);
+        _depositUnits(market, provider, 2);
+
+        vm.pauseGasMetering();
+        vm.startPrank(provider);
+        for (uint256 i; i < 889; ++i) {
+            vm.warp(block.timestamp + 24 hours);
+            uint256 selectedId = _ownedTokenAt(address(market), 0);
+            market.withdrawInventory(selectedId, 0);
+            mirror.approve(address(market), selectedId);
+            market.depositInventory(selectedId);
+        }
+        vm.stopPrank();
+        vm.resumeGasMetering();
+
+        (uint256 unitCount,) = market.providerPosition(provider);
+        assertEq(unitCount, 2);
+        assertEq(market.totalProviderUnits(), 2);
+        assertEq(market.inventory(), 2);
+        assertEq(market.withdrawalPremium(provider), 0);
+    }
+
     function testWithdrawalConsumesOldestUnitWithoutResettingOrBorrowingAge() public {
         address provider = address(0x9037);
         market.setCommunityFee(86_400);
@@ -362,9 +385,7 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
         vm.prank(provider);
         market.withdrawInventory(marketTokenId, 23);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(UniversalPoolArtMarketplace.UnavailableShell.selector, externalTokenId)
-        );
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.UnavailableShell.selector, externalTokenId));
         vm.prank(provider);
         market.withdrawInventory(externalTokenId, 24);
 
@@ -395,9 +416,7 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
         vm.prank(buyer);
         market.purchaseHeld(purchasedFirst, purchasedArtwork, currentPremium, 0, buyer);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(UniversalPoolArtMarketplace.UnavailableShell.selector, purchasedFirst)
-        );
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.UnavailableShell.selector, purchasedFirst));
         vm.prank(provider);
         market.withdrawInventory(purchasedFirst, 0);
         (uint256 unitsAfterPurchaseWin,) = market.providerPosition(provider);
@@ -406,9 +425,7 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
         vm.prank(provider);
         market.withdrawInventory(withdrawnFirst, 0);
         uint256 feeBefore = fame.balanceOf(feeRecipient);
-        vm.expectRevert(
-            abi.encodeWithSelector(UniversalPoolArtMarketplace.UnavailableShell.selector, withdrawnFirst)
-        );
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplace.UnavailableShell.selector, withdrawnFirst));
         vm.prank(buyer);
         market.purchaseHeld(withdrawnFirst, withdrawnArtwork, currentPremium, 0, buyer);
 
@@ -512,16 +529,7 @@ contract UniversalPoolArtMarketplaceProviderInventoryTest is UniversalPoolArtMar
 
         vm.expectEmit(true, true, true, true, address(market));
         emit ArtworkPurchased(
-            provider,
-            provider,
-            shellId,
-            UniversalPoolArtMarketplace.FulfillmentPath.Held,
-            0,
-            artwork,
-            unit,
-            24,
-            1,
-            1
+            provider, provider, shellId, UniversalPoolArtMarketplace.FulfillmentPath.Held, 0, artwork, unit, 24, 1, 1
         );
         vm.prank(provider);
         market.purchaseHeld(shellId, artwork, 24, 0, provider);

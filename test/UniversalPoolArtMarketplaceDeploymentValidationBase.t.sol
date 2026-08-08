@@ -5,13 +5,9 @@ import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.so
 import {FameMarketplaceCheckout} from "../src/FameMarketplaceCheckout.sol";
 import {FameRouter} from "../src/FameRouter.sol";
 import {FameRouterTypes} from "../src/router/FameRouterTypes.sol";
-import {ActivateBaseUniversalPoolArtMarketplace} from "../script/ActivateBaseUniversalPoolArtMarketplace.s.sol";
-import {DeployBaseUniversalPoolArtMarketplace} from "../script/DeployBaseUniversalPoolArtMarketplace.s.sol";
-import {
-    TransferBaseUniversalPoolArtMarketplaceOwnership
-} from "../script/TransferBaseUniversalPoolArtMarketplaceOwnership.s.sol";
 import {ValidateBaseUniversalPoolArtMarketplace} from "../script/ValidateBaseUniversalPoolArtMarketplace.s.sol";
 import {UniversalPoolArtMarketplaceTestBase} from "./helpers/UniversalPoolArtMarketplaceTestBase.sol";
+import {UniversalPoolArtMarketplaceDeploymentFixture} from "./helpers/UniversalPoolArtMarketplaceDeploymentFixture.sol";
 import {MockERC20, MockWETH} from "./router/mocks/MockERC20.sol";
 import {FameRouterFixtureManifest} from "./router/fixtures/FameRouterFixtureManifest.sol";
 
@@ -22,9 +18,9 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     address internal constant DEPLOYER = 0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9;
     address internal constant SAFE = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;
 
-    DeployBaseUniversalPoolArtMarketplace internal deployer;
+    UniversalPoolArtMarketplaceDeploymentFixture internal deployer;
     ValidateBaseUniversalPoolArtMarketplace internal validator;
-    ActivateBaseUniversalPoolArtMarketplace internal activator;
+    UniversalPoolArtMarketplaceDeploymentFixture internal activator;
     FameRouter internal router;
     MockERC20 internal usdc;
     MockWETH internal weth;
@@ -33,9 +29,9 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         super.setUp();
         vm.chainId(BASE_CHAIN_ID);
 
-        deployer = new DeployBaseUniversalPoolArtMarketplace();
+        deployer = new UniversalPoolArtMarketplaceDeploymentFixture();
         validator = new ValidateBaseUniversalPoolArtMarketplace();
-        activator = new ActivateBaseUniversalPoolArtMarketplace();
+        activator = new UniversalPoolArtMarketplaceDeploymentFixture();
         router = new FameRouter(SAFE);
         usdc = new MockERC20("USD Coin", "USDC", 6);
         weth = new MockWETH();
@@ -72,8 +68,7 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         _assertEmptyInventoryAndProviderState(deployed);
         _validateStack(deployed, checkout, DEPLOYER, true);
 
-        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
-            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+        UniversalPoolArtMarketplaceDeploymentFixture handoff = new UniversalPoolArtMarketplaceDeploymentFixture();
         vm.etch(SAFE, hex"00");
         handoff.validateHandoff(deployed, DEPLOYER, SAFE);
         vm.prank(DEPLOYER);
@@ -385,19 +380,18 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
             deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         vm.etch(SAFE, hex"00");
 
-        new TransferBaseUniversalPoolArtMarketplaceOwnership().validateHandoff(deployed, DEPLOYER, SAFE);
+        new UniversalPoolArtMarketplaceDeploymentFixture().validateHandoff(deployed, DEPLOYER, SAFE);
     }
 
     function testHandoffRejectsArbitraryEoa() public {
         (UniversalPoolArtMarketplace deployed,) =
             deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         address arbitraryEoa = address(0xBEEF);
-        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
-            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+        UniversalPoolArtMarketplaceDeploymentFixture handoff = new UniversalPoolArtMarketplaceDeploymentFixture();
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerMismatch.selector, SAFE, arbitraryEoa
+                UniversalPoolArtMarketplaceDeploymentFixture.FutureOwnerMismatch.selector, SAFE, arbitraryEoa
             )
         );
         handoff.validateHandoff(deployed, DEPLOYER, arbitraryEoa);
@@ -406,12 +400,11 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     function testHandoffRejectsZeroFutureOwner() public {
         (UniversalPoolArtMarketplace deployed,) =
             deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
-        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
-            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+        UniversalPoolArtMarketplaceDeploymentFixture handoff = new UniversalPoolArtMarketplaceDeploymentFixture();
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerMismatch.selector, SAFE, address(0)
+                UniversalPoolArtMarketplaceDeploymentFixture.FutureOwnerMismatch.selector, SAFE, address(0)
             )
         );
         handoff.validateHandoff(deployed, DEPLOYER, address(0));
@@ -421,12 +414,11 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         (UniversalPoolArtMarketplace deployed,) =
             deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
         address arbitraryContract = address(router);
-        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
-            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+        UniversalPoolArtMarketplaceDeploymentFixture handoff = new UniversalPoolArtMarketplaceDeploymentFixture();
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerMismatch.selector, SAFE, arbitraryContract
+                UniversalPoolArtMarketplaceDeploymentFixture.FutureOwnerMismatch.selector, SAFE, arbitraryContract
             )
         );
         handoff.validateHandoff(deployed, DEPLOYER, arbitraryContract);
@@ -435,12 +427,9 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     function testHandoffRejectsCodeLessSocietySafe() public {
         (UniversalPoolArtMarketplace deployed,) =
             deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
-        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
-            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+        UniversalPoolArtMarketplaceDeploymentFixture handoff = new UniversalPoolArtMarketplaceDeploymentFixture();
 
-        vm.expectRevert(
-            abi.encodeWithSelector(TransferBaseUniversalPoolArtMarketplaceOwnership.CodeMissing.selector, SAFE)
-        );
+        vm.expectRevert(abi.encodeWithSelector(UniversalPoolArtMarketplaceDeploymentFixture.CodeMissing.selector, SAFE));
         handoff.validateHandoff(deployed, DEPLOYER, SAFE);
     }
 
@@ -450,12 +439,11 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         vm.etch(SAFE, hex"00");
         vm.prank(DEPLOYER);
         deployed.transferOwnership(SAFE);
-        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
-            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+        UniversalPoolArtMarketplaceDeploymentFixture handoff = new UniversalPoolArtMarketplaceDeploymentFixture();
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerIsCurrentOwner.selector, SAFE
+                UniversalPoolArtMarketplaceDeploymentFixture.FutureOwnerIsCurrentOwner.selector, SAFE
             )
         );
         handoff.validateHandoff(deployed, SAFE, SAFE);
@@ -603,7 +591,9 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ActivateBaseUniversalPoolArtMarketplace.UnexpectedCheckout.selector, address(checkout), address(router)
+                UniversalPoolArtMarketplaceDeploymentFixture.UnexpectedCheckout.selector,
+                address(checkout),
+                address(router)
             )
         );
         activator.activateMarketplace(deployed, checkout, DEPLOYER);
@@ -639,9 +629,9 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
     function _deploymentConfig()
         private
         view
-        returns (DeployBaseUniversalPoolArtMarketplace.DeploymentConfig memory config)
+        returns (UniversalPoolArtMarketplaceDeploymentFixture.DeploymentConfig memory config)
     {
-        config = DeployBaseUniversalPoolArtMarketplace.DeploymentConfig({
+        config = UniversalPoolArtMarketplaceDeploymentFixture.DeploymentConfig({
             router: address(router),
             usdc: address(usdc),
             weth: address(weth),

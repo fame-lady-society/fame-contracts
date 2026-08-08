@@ -29,7 +29,11 @@
     "router:generate:check": "bun run --cwd router-ts generate:check",
     "router:test": "bun run --cwd router-ts test",
     "router:typecheck": "bun run --cwd router-ts typecheck",
-    "router:verify": "bun run --cwd router-ts verify"
+    "router:verify": "bun run --cwd router-ts verify",
+    "marketplace:size": "FOUNDRY_PROFILE=universal_marketplace node js/release/marketplace-release-evidence.mjs check",
+    "marketplace:evidence:test": "node --test js/release/marketplace-release-evidence.test.mjs",
+    "marketplace:deployment": "FOUNDRY_PROFILE=universal_marketplace node js/deploy/base-universal-pool-art-marketplace.mjs",
+    "marketplace:deployment:test": "node --test js/deploy/base-universal-pool-art-marketplace-*.test.mjs"
   },
   "dependencies": {
     "@irys/sdk": "^0.2.6",

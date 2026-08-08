@@ -2,9 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Vm} from "forge-std/Vm.sol";
-import {ActivateBaseUniversalPoolArtMarketplace} from "../script/ActivateBaseUniversalPoolArtMarketplace.s.sol";
-import {DeployBaseUniversalPoolArtMarketplace} from "../script/DeployBaseUniversalPoolArtMarketplace.s.sol";
 import {ValidateBaseUniversalPoolArtMarketplace} from "../script/ValidateBaseUniversalPoolArtMarketplace.s.sol";
+import {UniversalPoolArtMarketplaceDeploymentFixture} from "./helpers/UniversalPoolArtMarketplaceDeploymentFixture.sol";
 import {FameMarketplaceCheckout} from "../src/FameMarketplaceCheckout.sol";
 import {FameRouter} from "../src/FameRouter.sol";
 import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.sol";
@@ -149,11 +148,11 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         context.communityFee = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE");
         context.providerFee = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE");
         context.activeProviderCap = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP");
-        DeployBaseUniversalPoolArtMarketplace deployment = new DeployBaseUniversalPoolArtMarketplace();
+        UniversalPoolArtMarketplaceDeploymentFixture deployment = new UniversalPoolArtMarketplaceDeploymentFixture();
         (context.market, context.checkout) = deployment.deployMarketplaceStack(
             fame,
             creatorMagic,
-            DeployBaseUniversalPoolArtMarketplace.DeploymentConfig({
+            UniversalPoolArtMarketplaceDeploymentFixture.DeploymentConfig({
                 router: address(router),
                 usdc: address(usdc),
                 weth: address(weth),
@@ -172,7 +171,8 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         context.validator = new ValidateBaseUniversalPoolArtMarketplace();
         _validateConfiguredReleaseStack(context, DEPLOYER, true);
 
-        new ActivateBaseUniversalPoolArtMarketplace().activateMarketplace(context.market, context.checkout, DEPLOYER);
+        new UniversalPoolArtMarketplaceDeploymentFixture()
+            .activateMarketplace(context.market, context.checkout, DEPLOYER);
         _validateConfiguredReleaseStack(context, DEPLOYER, false);
 
         FameRouterTypes.Route memory emptyRoute;
@@ -657,11 +657,11 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         assertEq(address(usdc), EXPECTED_USDC, "USDC address drift");
         assertEq(address(weth), EXPECTED_WETH, "WETH address drift");
 
-        DeployBaseUniversalPoolArtMarketplace deployScript = new DeployBaseUniversalPoolArtMarketplace();
+        UniversalPoolArtMarketplaceDeploymentFixture deployScript = new UniversalPoolArtMarketplaceDeploymentFixture();
         (market, checkout) = deployScript.deployMarketplaceStack(
             fame,
             creatorMagic,
-            DeployBaseUniversalPoolArtMarketplace.DeploymentConfig({
+            UniversalPoolArtMarketplaceDeploymentFixture.DeploymentConfig({
                 router: address(router),
                 usdc: address(usdc),
                 weth: address(weth),
