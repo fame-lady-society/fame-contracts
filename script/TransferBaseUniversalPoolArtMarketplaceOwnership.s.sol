@@ -7,11 +7,13 @@ import {ValidateBaseUniversalPoolArtMarketplace} from "./ValidateBaseUniversalPo
 
 contract TransferBaseUniversalPoolArtMarketplaceOwnership is Script {
     uint256 internal constant BASE_CHAIN_ID = 8453;
+    address public constant SOCIETY_SAFE = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;
 
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error CodeMissing(address target);
     error OwnerMismatch(address expected, address actual);
     error FutureOwnerMismatch(address expected, address actual);
+    error FutureOwnerIsCurrentOwner(address owner);
     error MarketplaceNotPaused();
     error UnexpectedSigner(address expected, address actual);
 
@@ -30,10 +32,10 @@ contract TransferBaseUniversalPoolArtMarketplaceOwnership is Script {
         if (signer != expectedOwner) revert UnexpectedSigner(expectedOwner, signer);
 
         vm.startBroadcast(privateKey);
-        market.transferOwnership(futureOwner);
+        market.transferOwnership(SOCIETY_SAFE);
         vm.stopBroadcast();
 
-        if (market.owner() != futureOwner) revert FutureOwnerMismatch(futureOwner, market.owner());
+        if (market.owner() != SOCIETY_SAFE) revert FutureOwnerMismatch(SOCIETY_SAFE, market.owner());
     }
 
     function validateHandoff(UniversalPoolArtMarketplace market, address expectedOwner, address futureOwner)
@@ -49,9 +51,9 @@ contract TransferBaseUniversalPoolArtMarketplaceOwnership is Script {
     {
         if (address(market).code.length == 0) revert CodeMissing(address(market));
         if (market.owner() != expectedOwner) revert OwnerMismatch(expectedOwner, market.owner());
-        if (futureOwner == address(0) || futureOwner == expectedOwner) {
-            revert FutureOwnerMismatch(futureOwner, market.owner());
-        }
+        if (futureOwner != SOCIETY_SAFE) revert FutureOwnerMismatch(SOCIETY_SAFE, futureOwner);
+        if (futureOwner == market.owner()) revert FutureOwnerIsCurrentOwner(futureOwner);
+        if (SOCIETY_SAFE.code.length == 0) revert CodeMissing(SOCIETY_SAFE);
         if (!market.paused()) revert MarketplaceNotPaused();
     }
 }

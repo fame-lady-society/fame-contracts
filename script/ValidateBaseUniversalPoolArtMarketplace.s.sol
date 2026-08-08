@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
+import {IERC20} from "@openzeppelin5/contracts/token/ERC20/IERC20.sol";
 import {FameMarketplaceCheckout} from "../src/FameMarketplaceCheckout.sol";
 import {FameRouter} from "../src/FameRouter.sol";
 import {UniversalPoolArtMarketplace} from "../src/UniversalPoolArtMarketplace.sol";
@@ -30,7 +31,6 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         uint256 communityFee;
         uint256 providerFee;
         uint256 activeProviderCap;
-        uint256 minimumInventory;
         bool paused;
     }
 
@@ -57,6 +57,7 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
     error CreatorMagicBanisherRoleMissing();
     error CreatorMagicRoleTooBroad(uint256 role);
     error FameSkipManagerRoleTooBroad();
+    error DuplicateProvider(address provider);
 
     function run() external {
         _requireBase();
@@ -108,7 +109,6 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
             communityFee: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE"),
             providerFee: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE"),
             activeProviderCap: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP"),
-            minimumInventory: vm.envUint("BASE_UNIVERSAL_MARKETPLACE_INVENTORY"),
             paused: paused
         });
     }
@@ -162,6 +162,22 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         if (marketExpected.feeRecipient == address(checkout)) revert CheckoutIsFeeRecipient(address(checkout));
         if (!fame.getSkipNFT(address(checkout))) revert CheckoutNotSkippingNFT(address(checkout));
         _checkValue("checkout.ownedSocietyTokenIds", 0, checkout.ownedSocietyTokenIds(address(checkout), 1, 889).length);
+        _checkValue("checkout.nativeBalance", 0, address(checkout).balance);
+        _checkValue("checkout.fameBalance", 0, fame.balanceOf(address(checkout)));
+        _checkValue("checkout.usdcBalance", 0, IERC20(checkoutExpected.usdc).balanceOf(address(checkout)));
+        _checkValue("checkout.wethBalance", 0, IERC20(checkoutExpected.weth).balanceOf(address(checkout)));
+        _checkValue("checkout.marketplaceFameAllowance", 0, fame.allowance(address(checkout), address(market)));
+        _checkValue("checkout.routerFameAllowance", 0, fame.allowance(address(checkout), checkoutExpected.router));
+        _checkValue(
+            "checkout.routerUsdcAllowance",
+            0,
+            IERC20(checkoutExpected.usdc).allowance(address(checkout), checkoutExpected.router)
+        );
+        _checkValue(
+            "checkout.routerWethAllowance",
+            0,
+            IERC20(checkoutExpected.weth).allowance(address(checkout), checkoutExpected.router)
+        );
         if (!fame.getSkipNFT(checkoutExpected.router)) revert RouterNotSkippingNFT(checkoutExpected.router);
 
         FameRouter router = FameRouter(payable(checkoutExpected.router));
@@ -217,8 +233,9 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         _checkValue(
             "marketplace.maxInventoryBatchSize", EXPECTED_MAX_INVENTORY_BATCH_SIZE, market.MAX_INVENTORY_BATCH_SIZE()
         );
-        _validateProviderState(market);
-        _checkAtLeast("marketplace.inventory", expected.minimumInventory, market.inventory());
+        uint256 totalProviderUnits = _validateProviderState(market);
+        _checkAtLeast("marketplace.inventoryBacking", totalProviderUnits, market.inventory());
+        _checkAtLeast("marketplace.fameBacking", totalProviderUnits * fame.unit(), fame.balanceOf(address(market)));
         _checkValue("marketplace.paused", expected.paused ? 1 : 0, market.paused() ? 1 : 0);
 
         if (fame.getSkipNFT(address(market))) revert MarketplaceSkippingNFT();
@@ -232,19 +249,23 @@ contract ValidateBaseUniversalPoolArtMarketplace is Script {
         if (fame.hasAnyRole(address(market), FAME_SKIP_MANAGER_ROLE)) revert FameSkipManagerRoleTooBroad();
     }
 
-    function _validateProviderState(UniversalPoolArtMarketplace market) internal view {
+    function _validateProviderState(UniversalPoolArtMarketplace market) internal view returns (uint256 summedUnits) {
         uint256 providerCount = market.activeProviderCount();
         uint256 providerCap = market.activeProviderCap();
         if (providerCount > providerCap) {
             revert ValueMismatch("marketplace.activeProviderCount", providerCap, providerCount);
         }
 
-        uint256 summedUnits;
+        address[] memory providers = new address[](providerCount);
         for (uint256 i; i < providerCount; ++i) {
             address provider = market.activeProviderAt(i);
             if (provider == address(0)) {
                 revert AddressMismatch("marketplace.activeProvider", address(1), address(0));
             }
+            for (uint256 j; j < i; ++j) {
+                if (providers[j] == provider) revert DuplicateProvider(provider);
+            }
+            providers[i] = provider;
             (uint256 units, uint256 indexPlusOne) = market.providerPosition(provider);
             if (units == 0) revert ValueMismatch("marketplace.providerUnits", 1, 0);
             _checkValue("marketplace.providerIndex", i + 1, indexPlusOne);

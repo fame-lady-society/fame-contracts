@@ -18,7 +18,6 @@ import {FameRouterFixtureManifest} from "./router/fixtures/FameRouterFixtureMani
 contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoolArtMarketplaceTestBase {
     uint256 internal constant BASE_CHAIN_ID = 8453;
     uint256 internal constant PREMIUM = 30_000 ether;
-    uint256 internal constant REQUIRED_INVENTORY = 0;
     uint256 internal constant CREATOR_MAGIC_RENDERER_ROLE = 1;
     address internal constant DEPLOYER = 0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9;
     address internal constant SAFE = 0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D;
@@ -75,9 +74,11 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
 
         TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
             new TransferBaseUniversalPoolArtMarketplaceOwnership();
+        vm.etch(SAFE, hex"00");
         handoff.validateHandoff(deployed, DEPLOYER, SAFE);
         vm.prank(DEPLOYER);
         deployed.transferOwnership(SAFE);
+        assertEq(deployed.owner(), SAFE);
         _assertEmptyInventoryAndProviderState(deployed);
         _validateStack(deployed, checkout, SAFE, true);
 
@@ -118,6 +119,348 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         assertEq(deployed.activeProviderCount(), 1);
     }
 
+    function testValidationAllowsDonationOnlyInventory() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+
+        _seedShells(deployed, 1);
+
+        assertEq(deployed.inventory(), 1);
+        assertEq(deployed.totalProviderUnits(), 0);
+        assertEq(deployed.activeProviderCount(), 0);
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationAllowsFractionalRawFame() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+
+        fame.transfer(address(deployed), fame.unit() / 2);
+
+        assertEq(deployed.inventory(), 0);
+        assertEq(fame.balanceOf(address(deployed)), fame.unit() / 2);
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsInconsistentProviderIndex() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        address provider = address(0xBEEF);
+        _depositUnits(deployed, provider, 1);
+        _setProviderPosition(deployed, provider, 1, 2);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "marketplace.providerIndex", 1, 2
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsZeroActiveProvider() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        _depositUnits(deployed, address(0xBEEF), 1);
+        _setActiveProviderAt(deployed, 0, address(0));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.AddressMismatch.selector,
+                "marketplace.activeProvider",
+                address(1),
+                address(0)
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsDuplicateActiveProvider() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        address firstProvider = address(0xBEEF);
+        _depositUnits(deployed, firstProvider, 1);
+        _depositUnits(deployed, address(0xCAFE), 1);
+        _setActiveProviderAt(deployed, 1, firstProvider);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(ValidateBaseUniversalPoolArtMarketplace.DuplicateProvider.selector, firstProvider)
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsProviderUnitSumMismatch() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        _depositUnits(deployed, address(0xBEEF), 1);
+        vm.store(address(deployed), bytes32(uint256(3)), bytes32(uint256(2)));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "marketplace.totalProviderUnits", 1, 2
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsProviderUnitsWithoutInventoryBacking() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        address provider = address(0xBEEF);
+        _depositUnits(deployed, provider, 1);
+        _setProviderPosition(deployed, provider, 2, 1);
+        vm.store(address(deployed), bytes32(uint256(3)), bytes32(uint256(2)));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "marketplace.inventoryBacking", 2, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsProviderUnitsWithoutFameBacking() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        _depositUnits(deployed, address(0xBEEF), 1);
+        _setFameBalance(address(deployed), fame.unit() - 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector,
+                "marketplace.fameBacking",
+                fame.unit(),
+                fame.unit() - 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutSocietyCustody() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        address donor = address(0xBEEF);
+        fame.transfer(donor, fame.unit());
+        uint256 tokenId = _ownedTokenAt(donor, 0);
+        vm.prank(donor);
+        mirror.transferFrom(donor, address(checkout), tokenId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.ownedSocietyTokenIds", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutNativeBalance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        vm.deal(address(checkout), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.nativeBalance", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutFameBalance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        fame.transfer(address(checkout), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.fameBalance", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutUsdcBalance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        usdc.mint(address(checkout), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.usdcBalance", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutWethBalance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        weth.mint(address(checkout), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.wethBalance", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutMarketplaceAllowance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        vm.prank(address(checkout));
+        fame.approve(address(deployed), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector,
+                "checkout.marketplaceFameAllowance",
+                0,
+                1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutRouterFameAllowance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        vm.prank(address(checkout));
+        fame.approve(address(router), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.routerFameAllowance", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutRouterUsdcAllowance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        vm.prank(address(checkout));
+        usdc.approve(address(router), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.routerUsdcAllowance", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testValidationRejectsCheckoutRouterWethAllowance() public {
+        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        _grantBanisherRole(deployed);
+        vm.prank(address(checkout));
+        weth.approve(address(router), 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "checkout.routerWethAllowance", 0, 1
+            )
+        );
+        _validateStack(deployed, checkout, DEPLOYER, true);
+    }
+
+    function testHandoffAcceptsExactSocietySafeWithCode() public {
+        (UniversalPoolArtMarketplace deployed,) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        vm.etch(SAFE, hex"00");
+
+        new TransferBaseUniversalPoolArtMarketplaceOwnership().validateHandoff(deployed, DEPLOYER, SAFE);
+    }
+
+    function testHandoffRejectsArbitraryEoa() public {
+        (UniversalPoolArtMarketplace deployed,) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        address arbitraryEoa = address(0xBEEF);
+        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
+            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerMismatch.selector, SAFE, arbitraryEoa
+            )
+        );
+        handoff.validateHandoff(deployed, DEPLOYER, arbitraryEoa);
+    }
+
+    function testHandoffRejectsZeroFutureOwner() public {
+        (UniversalPoolArtMarketplace deployed,) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
+            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerMismatch.selector, SAFE, address(0)
+            )
+        );
+        handoff.validateHandoff(deployed, DEPLOYER, address(0));
+    }
+
+    function testHandoffRejectsArbitraryContract() public {
+        (UniversalPoolArtMarketplace deployed,) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        address arbitraryContract = address(router);
+        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
+            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerMismatch.selector, SAFE, arbitraryContract
+            )
+        );
+        handoff.validateHandoff(deployed, DEPLOYER, arbitraryContract);
+    }
+
+    function testHandoffRejectsCodeLessSocietySafe() public {
+        (UniversalPoolArtMarketplace deployed,) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
+            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(TransferBaseUniversalPoolArtMarketplaceOwnership.CodeMissing.selector, SAFE)
+        );
+        handoff.validateHandoff(deployed, DEPLOYER, SAFE);
+    }
+
+    function testHandoffRejectsSocietySafeAsCurrentOwner() public {
+        (UniversalPoolArtMarketplace deployed,) =
+            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
+        vm.etch(SAFE, hex"00");
+        vm.prank(DEPLOYER);
+        deployed.transferOwnership(SAFE);
+        TransferBaseUniversalPoolArtMarketplaceOwnership handoff =
+            new TransferBaseUniversalPoolArtMarketplaceOwnership();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TransferBaseUniversalPoolArtMarketplaceOwnership.FutureOwnerIsCurrentOwner.selector, SAFE
+            )
+        );
+        handoff.validateHandoff(deployed, SAFE, SAFE);
+    }
+
     function testValidationRejectsRendererAuthorityInAdditionToBanisher() public {
         (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
             deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
@@ -145,7 +488,6 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
                 communityFee: PREMIUM,
                 providerFee: 0,
                 activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
-                minimumInventory: REQUIRED_INVENTORY,
                 paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
@@ -189,7 +531,6 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
                 communityFee: PREMIUM,
                 providerFee: 0,
                 activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
-                minimumInventory: REQUIRED_INVENTORY,
                 paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
@@ -200,21 +541,6 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
                 routerFeePpm: FameRouterTypes.DEFAULT_FEE_PPM
             })
         );
-    }
-
-    function testValidationAllowsZeroInventoryAndRejectsNonzeroExpectation() public {
-        (UniversalPoolArtMarketplace deployed, FameMarketplaceCheckout checkout) =
-            deployer.deployMarketplaceStack(fame, creatorMagic, _deploymentConfig());
-        _grantBanisherRole(deployed);
-
-        _validateStack(deployed, checkout, DEPLOYER, true);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                ValidateBaseUniversalPoolArtMarketplace.ValueMismatch.selector, "marketplace.inventory", 1, 0
-            )
-        );
-        _validateStackWithMinimum(deployed, checkout, DEPLOYER, true, 1);
     }
 
     function testValidationRejectsRouterSkipNftDisabled() public {
@@ -257,7 +583,6 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
                 communityFee: PREMIUM,
                 providerFee: 0,
                 activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
-                minimumInventory: REQUIRED_INVENTORY,
                 paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
@@ -335,16 +660,6 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         address expectedOwner,
         bool expectedPaused
     ) private view {
-        _validateStackWithMinimum(deployed, checkout, expectedOwner, expectedPaused, REQUIRED_INVENTORY);
-    }
-
-    function _validateStackWithMinimum(
-        UniversalPoolArtMarketplace deployed,
-        FameMarketplaceCheckout checkout,
-        address expectedOwner,
-        bool expectedPaused,
-        uint256 minimumInventory
-    ) private view {
         validator.validateMarketplaceStack(
             fame,
             mirror,
@@ -359,16 +674,15 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
                 communityFee: PREMIUM,
                 providerFee: 0,
                 activeProviderCap: TEST_ACTIVE_PROVIDER_CAP,
-                minimumInventory: minimumInventory,
                 paused: expectedPaused
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
-                router: address(router),
-                usdc: address(usdc),
-                weth: address(weth),
-                routerFeeRecipient: SAFE,
-                routerFeePpm: FameRouterTypes.DEFAULT_FEE_PPM
-            })
+                    router: address(router),
+                    usdc: address(usdc),
+                    weth: address(weth),
+                    routerFeeRecipient: SAFE,
+                    routerFeePpm: FameRouterTypes.DEFAULT_FEE_PPM
+                })
         );
     }
 
@@ -376,5 +690,28 @@ contract UniversalPoolArtMarketplaceDeploymentValidationBaseTest is UniversalPoo
         assertEq(deployed.inventory(), 0);
         assertEq(deployed.activeProviderCount(), 0);
         assertEq(deployed.totalProviderUnits(), 0);
+    }
+
+    function _setProviderPosition(
+        UniversalPoolArtMarketplace deployed,
+        address provider,
+        uint32 unitCount,
+        uint32 indexPlusOne
+    ) private {
+        bytes32 positionSlot = keccak256(abi.encode(provider, uint256(5)));
+        vm.store(address(deployed), positionSlot, bytes32(uint256(unitCount) | (uint256(indexPlusOne) << 32)));
+    }
+
+    function _setActiveProviderAt(UniversalPoolArtMarketplace deployed, uint256 index, address provider) private {
+        bytes32 providersStart = keccak256(abi.encode(uint256(8)));
+        vm.store(address(deployed), bytes32(uint256(providersStart) + index), bytes32(uint256(uint160(provider))));
+    }
+
+    function _setFameBalance(address account, uint256 balance) private {
+        uint256 dn404StorageSlot = 0xa20d6e21d0e5255308;
+        bytes32 addressDataSlot = keccak256(abi.encode(account, dn404StorageSlot + 11));
+        uint256 packedAddressData = uint256(vm.load(address(fame), addressDataSlot));
+        uint256 lowerFieldsMask = type(uint160).max;
+        vm.store(address(fame), addressDataSlot, bytes32((packedAddressData & lowerFieldsMask) | (balance << 160)));
     }
 }

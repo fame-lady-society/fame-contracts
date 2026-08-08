@@ -67,7 +67,6 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         uint256 communityFee;
         uint256 providerFee;
         uint256 activeProviderCap;
-        uint256 minimumInventory;
     }
 
     struct ReleaseCheckoutContext {
@@ -150,8 +149,6 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         context.communityFee = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_COMMUNITY_FEE");
         context.providerFee = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_PROVIDER_FEE");
         context.activeProviderCap = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP");
-        context.minimumInventory = vm.envUint("BASE_UNIVERSAL_MARKETPLACE_INVENTORY");
-        assertEq(context.minimumInventory, 0, "release configuration must allow an empty launch");
         DeployBaseUniversalPoolArtMarketplace deployment = new DeployBaseUniversalPoolArtMarketplace();
         (context.market, context.checkout) = deployment.deployMarketplaceStack(
             fame,
@@ -171,13 +168,11 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
 
         vm.prank(DEPLOYER);
         creatorMagic.grantRoles(address(context.market), BANISHER_ROLE);
-        _assertEmptyReleaseState(context.market);
 
         context.validator = new ValidateBaseUniversalPoolArtMarketplace();
         _validateConfiguredReleaseStack(context, DEPLOYER, true);
 
         new ActivateBaseUniversalPoolArtMarketplace().activateMarketplace(context.market, context.checkout, DEPLOYER);
-        _assertEmptyReleaseState(context.market);
         _validateConfiguredReleaseStack(context, DEPLOYER, false);
 
         FameRouterTypes.Route memory emptyRoute;
@@ -285,12 +280,6 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
         _assertCheckoutSettled(checkoutContext.logs, context.checkout, expected);
     }
 
-    function _assertEmptyReleaseState(UniversalPoolArtMarketplace market) internal view {
-        assertEq(market.inventory(), 0, "empty release inventory mismatch");
-        assertEq(market.activeProviderCount(), 0, "empty release provider count mismatch");
-        assertEq(market.totalProviderUnits(), 0, "empty release provider units mismatch");
-    }
-
     function _validateConfiguredReleaseStack(ReleaseLifecycleContext memory context, address owner, bool paused)
         internal
         view
@@ -310,16 +299,15 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
                     communityFee: context.communityFee,
                     providerFee: context.providerFee,
                     activeProviderCap: context.activeProviderCap,
-                    minimumInventory: context.minimumInventory,
                     paused: paused
                 }),
                 ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({
-                        router: address(router),
-                        usdc: address(usdc),
-                        weth: address(weth),
-                        routerFeeRecipient: vm.envAddress("BASE_FAME_ROUTER_FEE_RECIPIENT"),
-                        routerFeePpm: vm.envUint("BASE_FAME_ROUTER_FEE_PPM")
-                    })
+                    router: address(router),
+                    usdc: address(usdc),
+                    weth: address(weth),
+                    routerFeeRecipient: vm.envAddress("BASE_FAME_ROUTER_FEE_RECIPIENT"),
+                    routerFeePpm: vm.envUint("BASE_FAME_ROUTER_FEE_PPM")
+                })
             );
     }
 
@@ -702,7 +690,6 @@ contract FameMarketplaceCheckoutForkBaseTest is UniversalPoolArtMarketplaceForkB
                 communityFee: EXPECTED_PREMIUM,
                 providerFee: 0,
                 activeProviderCap: 16,
-                minimumInventory: 1,
                 paused: true
             }),
             ValidateBaseUniversalPoolArtMarketplace.CheckoutExpectations({

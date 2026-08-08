@@ -1,15 +1,16 @@
 ---
 chain: base-fork
-status: ready-for-zero-inventory-rehearsal
+status: ready-for-structural-state-rehearsal
 contracts: UniversalPoolArtMarketplace + FameMarketplaceCheckout
 ---
 
 # Base Universal Pool Art Marketplace fork run
 
-This is the current manual release rehearsal. It launches the marketplace with
-zero inventory and zero providers, validates and activates it from the
-deployer, and only then adds credited provider inventory. It does not transfer
-ownership to the Society Safe. There is no operator or Safe seed transfer.
+This is the current manual release rehearsal. A fresh fork deployment starts
+empty, but validation and activation do not require an exact inventory or
+provider count. Seeded, donated, and valid provider-backed state is observed
+rather than treated as drift. The rehearsal does not transfer ownership to the
+Society Safe. There is no operator or Safe seed transfer.
 
 Every transaction below must target the literal loopback RPC
 `http://127.0.0.1:8545`. Never substitute a Base RPC, load a production signing
@@ -34,8 +35,8 @@ doppler run --config prd -- sh -c '
 
 The result must include:
 
-- the zero-inventory release lifecycle, post-launch eight-token provider batch,
-  and real configured checkout;
+- the release lifecycle, eight-token provider batch, and real configured
+  checkout;
 - the configured 88-provider checkout where every provider payout causes a
   DN404 mint;
 - selected provider withdrawal with per-unit timestamp decay and oldest-unit
@@ -81,12 +82,10 @@ Do not transfer FAME to the deployer or marketplace.
 cast rpc anvil_setBalance "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" 0x56BC75E2D63100000 --rpc-url "$LOCAL_BASE_RPC"
 cast rpc anvil_impersonateAccount "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --rpc-url "$LOCAL_BASE_RPC"
 
-# Override any stale exports from an earlier seeded rehearsal.
-export BASE_UNIVERSAL_MARKETPLACE_INVENTORY=0
 export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"
 ```
 
-## 3. Deploy the paused empty stack
+## 3. Deploy the paused stack
 
 Predict the two CREATE addresses, keep them only in this shell, and deploy
 through the unlocked deployer:
@@ -158,7 +157,7 @@ The read-backs must be 25,000 FAME, 25,000 FAME, and 50,000 FAME respectively
 `50000000000000000000000`). With one credited provider unit, WWW must show
 25,000 FAME per marketplace sale before rounding or additional providers.
 
-Prove the exact empty state:
+Record the observed permissionless pool state:
 
 ```sh
 cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "inventory()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
@@ -166,7 +165,10 @@ cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "activeProviderCount()(uint256)"
 cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "totalProviderUnits()(uint256)" --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-All three values must be zero.
+For this fresh isolated deployment the values should initially be zero. A
+nonzero value is not a release failure by itself: every active provider must be
+unique and consistently indexed with nonzero units; the unit sum must equal
+`totalProviderUnits`; and inventory and raw FAME must cover credited units.
 
 ## 4. Validate and activate from the deployer
 
@@ -174,19 +176,18 @@ Validate the deployer-owned paused stack first:
 
 ```sh
 export BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=true
-export BASE_UNIVERSAL_MARKETPLACE_INVENTORY=0
 export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"
 
 forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
   --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-The validator's `ValueMismatch("marketplace.inventory", 1, 0)` error means the
-current shell still exported an inventory minimum of `1`; it does not mean the
-deployed marketplace has inventory. The explicit zero export above prevents
-that stale-shell failure.
+The validator records inventory through live reads and does not consume a
+configured inventory target. It fails only when provider structure or credited
+inventory/FAME backing is inconsistent, or when checkout retains Society,
+ETH, FAME, USDC, WETH, or a marketplace/router allowance.
 
-Activate from the impersonated deployer and validate the active empty stack:
+Activate from the impersonated deployer and validate the active stack:
 
 ```sh
 forge script script/ActivateBaseUniversalPoolArtMarketplace.s.sol:ActivateBaseUniversalPoolArtMarketplace \
@@ -206,8 +207,9 @@ ownership transfer begins only after the live deployment has been activated
 and tested successfully by the deployer. The unlocked activation above tests
 that deployer path only and does not authorize a production transaction.
 
-The active empty market is intentionally not checkout-ready. The automated
-lifecycle test proves an attempted checkout rejects before buyer funding.
+If the observed active market is empty, it is intentionally not checkout-ready.
+The automated lifecycle test proves an attempted checkout rejects before buyer
+funding in that empty-state rehearsal.
 
 ## 5. Add the first provider inventory after launch
 
@@ -490,8 +492,8 @@ Record concise run facts:
 | Fork block number and hash | |
 | Automated latest-Base suite | |
 | 88-provider all-mint benchmark gas | |
-| Empty paused deployer validation | |
-| Empty active deployer validation | |
+| Paused deployer validation and observed pool state | |
+| Active deployer validation and observed pool state | |
 | Provider/community fee read-back | 25,000 / 25,000 FAME |
 | Total marketplace premium read-back | 50,000 FAME |
 | `fls-www` revision | |

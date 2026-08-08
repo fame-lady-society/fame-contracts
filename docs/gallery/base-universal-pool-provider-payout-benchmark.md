@@ -64,12 +64,12 @@ the earlier qualification:
 - Base block gas limit: `400,000,000`
 - Result: the isolated payout benchmark passed against the changed bytecode.
   The release lifecycle at that point still used pre-activation inventory and
-  was superseded by the empty-launch rehearsal below.
+  was superseded by the release-lifecycle rehearsal below.
 
-## Post-zero-inventory lifecycle requalification
+## Post-release-lifecycle requalification
 
-The provider bytecode did not change for the zero-inventory release update, but
-the complete latest-Base release suite was rerun so the cap benchmarks and the
+The provider bytecode did not change for the release-lifecycle update, but the
+complete latest-Base release suite was rerun so the cap benchmarks and the
 new lifecycle share current fork evidence:
 
 - UTC: `2026-08-03T19:26Z`
@@ -81,7 +81,8 @@ new lifecycle share current fork evidence:
 - All-provider auto-mint checkout: `3,790,903` gas against a `15,000,000` gas budget
 - Base block gas limit: `400,000,000`
 - Result: the recorded release suite passed. The lifecycle deployed and
-  validated exact zero inventory/provider state, activated from the deployer,
-  rejected checkout while empty before buyer funding, accepted a post-launch
+  validated the fresh deployment's observed empty state, activated from the
+  deployer, rejected checkout while empty before buyer funding, accepted an
   eight-token credited provider batch, and completed a real configured
-  checkout. No fork ownership transfer occurred.
+  checkout. Empty state was observed in this run, not qualified as a release
+  requirement. No fork ownership transfer occurred.

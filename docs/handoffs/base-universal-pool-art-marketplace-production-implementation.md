@@ -2,18 +2,19 @@
 
 ## Release contract
 
-The production marketplace launches with zero inventory and zero active
-providers. Credited provider deposits are optional post-launch activity. Raw
-FAME or Society-unit transfers remain irreversible uncredited donations and are
-not deployment, validation, ownership-handoff, or activation prerequisites.
+The production marketplace may launch with seeded inventory, credited provider
+deposits, raw FAME, or donated Society NFTs. Those permissionless balances are
+observed operational state, not release drift. Raw FAME or Society-unit
+transfers remain irreversible uncredited donations; credited liabilities must
+still be fully backed by marketplace inventory and FAME.
 
 The release order is fixed:
 
 1. pass the complete local and latest-Base fork gates;
 2. deploy the marketplace and ownerless checkout paused, owned by the deployer;
 3. grant the marketplace only CreatorMagic `BANISHER` authority;
-4. validate exact zero inventory, zero active providers, and zero provider
-   units against the deployer-owned paused stack;
+4. validate provider structure, credited-unit backing, and exact checkout
+   cleanliness against the deployer-owned paused stack;
 5. activate from the deployer and validate the active deployer-owned stack;
 6. complete initial live acceptance testing while the deployer remains owner;
 7. pause from the deployer after live acceptance succeeds;
@@ -25,17 +26,16 @@ The release order is fixed:
 12. have the Society Safe execute the later `unpause()` through its normal
     governance process.
 
-The active empty market is valid but cannot fulfill checkout. Its first
-credited post-launch deposit makes inventory-backed checkout available without
-another owner action. Raw FAME or Society NFT transfers are irreversible
-uncredited community donations.
+An active market with zero inventory is valid but cannot fulfill checkout.
+Provider deposits are permissionless while paused or active, and any valid
+pre-activation provider state remains valid after activation. Raw FAME or
+Society NFT transfers are irreversible uncredited community donations.
 
 ## Locked public inputs
 
 Load public values from `config/fame-public.env`. The production release values
 must retain:
 
-- `BASE_UNIVERSAL_MARKETPLACE_INVENTORY=0`;
 - `BASE_UNIVERSAL_MARKETPLACE_ACTIVE_PROVIDER_CAP=88`;
 - independently configured community and provider fees;
 - the deployed FAME, mirror, CreatorMagic, child renderer, router, USDC, WETH,
@@ -60,9 +60,9 @@ without skips:
 - focused marketplace, checkout, deployment-validation, fuzz, and invariant
   profiles at the repository's release settings;
 - held, pool, contention, ETH/WETH/USDC, redemption, and pause regressions;
-- latest-Base zero-inventory release lifecycle through deployer validation and
-  activation, maximum eight-token provider provisioning, and a real configured
-  checkout, with no fork ownership transfer;
+- latest-Base release lifecycle through deployer validation and activation,
+  maximum eight-token provider provisioning, and a real configured checkout,
+  with no fork ownership transfer;
 - latest-Base 88-provider payout benchmark where every payout causes a DN404
   mint.
 
@@ -108,16 +108,19 @@ doppler run --config prd -- sh -c '
 
 The validation must prove canonical dependencies and router configuration,
 deployer ownership, Safe fee recipient, provider cap and fees, authorized
-checkout wiring, checkout/router skip-NFT state, narrow roles, exact zero
-inventory, exact zero provider count, exact zero total provider units, and the
-paused state.
+checkout wiring, checkout/router skip-NFT state, narrow roles, and the paused
+state. It must also prove unique nonzero active providers with consistent
+indices, nonzero units, an exact provider-unit sum, inventory and FAME backing
+for every credited unit, and zero checkout Society/ETH/FAME/USDC/WETH balances
+and marketplace/router allowances.
 
 ## Deployer activation and live acceptance
 
-Activate the validated empty stack from the deployer. Set
+Activate the validated stack from the deployer. Set
 `BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=false` and rerun the validator while
-`BASE_UNIVERSAL_MARKETPLACE_OWNER` remains the deployer. Prove the active empty
-state before any provider deposit.
+`BASE_UNIVERSAL_MARKETPLACE_OWNER` remains the deployer. Record inventory,
+active-provider count, provider positions, total provider units, and raw FAME
+without requiring those permissionless values to match a configured target.
 
 Complete initial live acceptance from the deployer-owned deployment. Provider
 inventory may be added permissionlessly after activation. If acceptance adds
@@ -134,8 +137,11 @@ the validator with `BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=true`. Checkout
 must be paused while provider deposits and withdrawals remain available.
 
 `script/TransferBaseUniversalPoolArtMarketplaceOwnership.s.sol` validates the
-current production stack and refuses an unpaused handoff. Its production use
-requires the deployer signing path and separate authorization.
+current production stack and refuses an unpaused handoff. It accepts only the
+exact Society Safe `0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D`, requires
+deployed code at that address, and rejects zero, current, EOA, or arbitrary
+contract destinations before broadcast. Its production use requires the
+deployer signing path and separate authorization.
 
 After the ownership transfer succeeds:
 
@@ -216,15 +222,17 @@ Go only when:
 - the current commit is reviewed and reproducibly built;
 - every mandatory local and latest-Base fork gate is green with no skips;
 - the 88-provider payout gas evidence remains inside its configured budget;
-- the disposable manual lifecycle passed in the exact empty-launch order;
+- the disposable manual lifecycle passed with structurally valid provider and
+  backing state and an exactly clean checkout;
 - deployer-owned live activation and initial acceptance passed before handoff;
 - production addresses and expected ownership have been independently checked;
 - the paused handoff and final Safe activation calldata have been reviewed; and
 - explicit deployment and Safe governance authorizations have been granted.
 
-No-go on any missing fork evidence, owner/config mismatch, nonzero required
-launch inventory, unexplained role, dirty transient checkout balance or
-allowance, or failed zero-state assertion.
+No-go on any missing fork evidence, owner/config mismatch, provider structure
+or backing failure, unexplained role, dirty transient checkout balance or
+allowance, or an ownership destination other than the exact deployed Society
+Safe.
 
 ## Out of scope
 
