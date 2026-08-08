@@ -393,9 +393,10 @@ flowchart TD
 
 Use the Product Contract Sources plus these implementation seams:
 
-- `script/DeployBaseUniversalPoolArtMarketplace.s.sol`
-- `script/ValidateBaseUniversalPoolArtMarketplace.s.sol`
-- `script/ActivateBaseUniversalPoolArtMarketplace.s.sol`
+- `js/deploy/base-universal-pool-art-marketplace.mjs`
+- `js/deploy/base-universal-pool-art-marketplace-state.test.mjs`
+- `test/helpers/UniversalPoolArtMarketplaceDeploymentFixture.sol` (test-only)
+- `script/ValidateBaseUniversalPoolArtMarketplace.s.sol` (independent validator)
 - `test/UniversalPoolArtMarketplace*.t.sol`
 - `fls-www: src/app/api/fame/swap/quote/handler.ts`
 - `fls-www: src/features/fame-swap/solver/amountSolver.ts`
@@ -511,9 +512,10 @@ Use the Product Contract Sources plus these implementation seams:
 
 **Files:**
 
-- `script/DeployBaseUniversalPoolArtMarketplace.s.sol`
+- `js/deploy/base-universal-pool-art-marketplace.mjs`
+- `js/deploy/base-universal-pool-art-marketplace-state.test.mjs`
+- `test/helpers/UniversalPoolArtMarketplaceDeploymentFixture.sol`
 - `script/ValidateBaseUniversalPoolArtMarketplace.s.sol`
-- `script/ActivateBaseUniversalPoolArtMarketplace.s.sol`
 - `test/UniversalPoolArtMarketplaceDeploymentValidationBase.t.sol`
 - `test/UniversalPoolArtMarketplaceForkBase.t.sol`
 - `test/UniversalPoolArtMarketplaceContentionBase.t.sol`
@@ -522,7 +524,7 @@ Use the Product Contract Sources plus these implementation seams:
 - `foundry.toml`
 - `docs/gallery/base-universal-pool-art-marketplace-fork-report.md`
 
-**Approach:** Extend the `fame-contracts` paused Foundry deployment to create the market and ownerless checkout and configure `authorizedCheckout`. Preserve the existing operator sequence that grants the marketplace CreatorArtistMagic BANISHER role and seeds one FAME unit of inventory before combined validation and activation. Validate immutable dependencies, skip-NFT posture, marketplace owner, fee recipient, role, inventory, router readiness, and mutual addresses. Add latest-state Base fork coverage using configured aliases and Doppler loading rules. Keep temporary addresses in runtime output only. After ABI changes stabilize, `fls-www` runs `wagmi generate` and owns the fork address mapping in its `contracts.ts`; it does not implement a second deployer.
+**Approach:** Use the receipt-aware viem state machine as the deployment, wiring, lifecycle, and recovery authority for the market and ownerless checkout. Use the Solidity fixture only for test/fork setup, and preserve the separate operator steps that grant the marketplace CreatorArtistMagic BANISHER role and seed one FAME unit before independent validation and activation. The read-only Solidity validator checks immutable dependencies, skip-NFT posture, marketplace owner, fee recipient, role, inventory, router readiness, and mutual addresses. Add latest-state Base fork coverage using configured aliases and Doppler loading rules. Keep temporary addresses in runtime output only. After ABI changes stabilize, `fls-www` runs `wagmi generate` and owns the fork address mapping in its `contracts.ts`; it does not implement a second deployer.
 
 **Test scenarios:**
 

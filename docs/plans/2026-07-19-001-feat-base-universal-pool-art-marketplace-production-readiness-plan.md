@@ -225,7 +225,7 @@ The fork therefore needs only one marketplace shell, a simple fork-only fixture 
 
 ### Context and Research
 
-- `script/DeployBaseUniversalPoolArtMarketplace.s.sol` and `script/ValidateBaseUniversalPoolArtMarketplace.s.sol` provide the canonical guarded Base deployment and validation patterns.
+- `js/deploy/base-universal-pool-art-marketplace.mjs` and `js/deploy/base-universal-pool-art-marketplace-state.test.mjs` provide the canonical guarded deployment/recovery state machine and its state tests; `test/helpers/UniversalPoolArtMarketplaceDeploymentFixture.sol` is test-only setup, while `script/ValidateBaseUniversalPoolArtMarketplace.s.sol` is the independent read-only validator.
 - `test/UniversalPoolArtMarketplaceForkBase.t.sol` and `test/UniversalPoolArtMarketplaceContentionBase.t.sol` provide the canonical latest-state Base purchase and contention matrices.
 - `fls-www: wagmi.config.ts` already uses `foundry({ project: "../fame-contracts" })`; the marketplace needs to be added to the Foundry include list before generation.
 - `fls-www: src/app/api/fame/swap/quote/handler.ts` can use `BASE_RPC_URL` and live RPC quote adapters, while its external indexed helper must be disabled for fork runs.
@@ -369,11 +369,12 @@ stateDiagram-v2
 - **Dependencies:** None
 - **Files:**
   - `config/fame-public.env`
-  - `script/DeployBaseUniversalPoolArtMarketplace.s.sol`
+  - `js/deploy/base-universal-pool-art-marketplace.mjs`
+  - `js/deploy/base-universal-pool-art-marketplace-state.test.mjs`
+  - `test/helpers/UniversalPoolArtMarketplaceDeploymentFixture.sol`
   - `script/ValidateBaseUniversalPoolArtMarketplace.s.sol`
-  - `script/ActivateBaseUniversalPoolArtMarketplace.s.sol`
   - `test/UniversalPoolArtMarketplaceDeploymentValidationBase.t.sol`
-- **Approach:** Keep the Base deployment script guarded to chain `8453`, production identities, separate role fields, paused deployment, exact premium, one required shell, `BANISHER`-only authority, and deployer activation. Use Anvil impersonation to transfer exactly one FAME unit from the Safe to the deployer, then seed from the deployer. The Solidity deployment script only deploys; fixture funding, role grant, seeding, validation, and activation remain separate script/test steps. Keep all checks in scripts/tests, change no marketplace runtime logic, load no production key, include no production broadcast command, and include no Safe handoff.
+- **Approach:** Keep the viem deployment/recovery state machine guarded to chain `8453`, production identities, separate role fields, paused deployment, exact premium, nonce-pinned receipts, and deployer lifecycle operations. Use the test-only Solidity fixture plus Anvil impersonation to transfer exactly one FAME unit from the Safe to the deployer, then seed from the deployer. Keep role grant and seeding separate from deployment, validate independently with the read-only Solidity validator, exercise recovery with the state tests, change no marketplace runtime logic, load no production key, include no production broadcast command, and include no Safe handoff.
 - **Test scenarios:**
   - Correct inputs deploy paused and validate the canonical stack on a local Base fork.
   - Safe-to-deployer impersonated fixture transfer supplies exactly one unit; the deployer then seeds exactly one marketplace-owned shell.
@@ -506,11 +507,11 @@ stateDiagram-v2
 | Gate | Command | Required outcome |
 | --- | --- | --- |
 | Build | `FOUNDRY_PROFILE=universal_marketplace forge build` | Contract and Base fork scripts compile with the pinned profile |
-| Scoped format | `FOUNDRY_PROFILE=universal_marketplace forge fmt --check script/DeployBaseUniversalPoolArtMarketplace.s.sol script/ValidateBaseUniversalPoolArtMarketplace.s.sol script/ActivateBaseUniversalPoolArtMarketplace.s.sol test/UniversalPoolArtMarketplaceDeploymentValidationBase.t.sol test/UniversalPoolArtMarketplaceForkBase.t.sol test/UniversalPoolArtMarketplaceContentionBase.t.sol` | Changed Solidity is formatted without claiming unrelated repository format debt |
+| Scoped format | `FOUNDRY_PROFILE=universal_marketplace forge fmt --check script/ValidateBaseUniversalPoolArtMarketplace.s.sol test/helpers/UniversalPoolArtMarketplaceDeploymentFixture.sol test/UniversalPoolArtMarketplaceDeploymentValidationBase.t.sol test/UniversalPoolArtMarketplaceForkBase.t.sol test/UniversalPoolArtMarketplaceContentionBase.t.sol` | Changed Solidity is formatted without claiming unrelated repository format debt |
 | Unit and deployment | `FOUNDRY_PROFILE=universal_marketplace forge test --match-path 'test/UniversalPoolArtMarketplace*.t.sol' -vvv` | Marketplace, deployment, and one-shell tests pass |
 | Fuzz | `FOUNDRY_PROFILE=universal_marketplace forge test --match-path test/UniversalPoolArtMarketplaceFuzz.t.sol -vvv` | The configured 10,000 cases pass |
 | Invariant | `FOUNDRY_PROFILE=universal_marketplace forge test --match-path test/UniversalPoolArtMarketplaceInvariant.t.sol -vvv` | The configured 512 runs by 128 depth pass |
-| Repository regression | `forge test` | Existing suite remains green; unrelated existing failures are reported precisely |
+| Repository regression | `FOUNDRY_PROFILE=ci forge test` | The separate full-repository suite remains green; unrelated existing failures are reported precisely |
 
 ### Environment-Backed Fork Gates
 
@@ -521,7 +522,7 @@ A sandbox-only DNS, keychain, Doppler, RPC, or local-service failure must be rer
 | --- | --- | --- |
 | Doppler context | `doppler configure get project` and `doppler configure get config` | The intended project/config resolve without exposing secrets |
 | Latest-state Base fork | `FOUNDRY_PROFILE=universal_marketplace forge test --match-contract UniversalPoolArtMarketplaceForkBaseTest -vvv` | The selected latest Base block/hash is recorded and the one-shell lifecycle and purchase matrix execute with zero required skips |
-| Manual rehearsal | Start Anvil, run the separate Forge lifecycle steps, then start `fls-www` with the localhost RPC and temporary address | The independently run tools reach the active one-shell prefix and the app uses the intended local values |
+| Manual rehearsal | Start Anvil, run the viem state machine with its receipt/recovery checks, validate independently with the Solidity validator and test-only fixture state, then start `fls-www` with the localhost RPC and temporary address | The independently run tools reach the active one-shell prefix and the app uses the intended local values |
 
 The production three-unit transfer and ownership handoff remain `not executed`.
 
