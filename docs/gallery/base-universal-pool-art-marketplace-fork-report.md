@@ -1,6 +1,6 @@
 ---
 chain: base-fork
-status: ready-for-structural-state-rehearsal
+status: structural-state-rehearsal-passed-manual-product-run-pending
 contracts: UniversalPoolArtMarketplace + FameMarketplaceCheckout
 ---
 
@@ -55,7 +55,7 @@ set +a
 
 doppler run --config prd -- zsh -c '
   export BASE_RPC="$RPC_URL"
-  exec anvil --fork-url base --host 127.0.0.1 --port 8545 --chain-id "$BASE_CHAIN_ID" --quiet
+  FOUNDRY_PROFILE=universal_marketplace exec anvil --fork-url base --host 127.0.0.1 --port 8545 --chain-id "$BASE_CHAIN_ID" --quiet
 '
 ```
 
@@ -87,31 +87,97 @@ export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"
 
 ## 3. Deploy the paused stack
 
-Predict the two CREATE addresses, keep them only in this shell, and deploy
-through the unlocked deployer:
+Use the same receipt-aware state machine as production in its loopback-only
+fork mode. It uses the already impersonated JSON-RPC account and rejects a
+non-loopback RPC. The manifest lives outside the repository and contains no
+RPC URL or signing secret:
 
 ```sh
-export DEPLOYER_NONCE="$(cast nonce "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --rpc-url "$LOCAL_BASE_RPC")"
+export RPC_URL="$LOCAL_BASE_RPC"
+export MARKETPLACE_DEPLOYMENT_MODE=fork-rehearsal
+export MARKETPLACE_DEPLOYMENT_MANIFEST=/tmp/base-universal-pool-art-marketplace-fork-manifest.json
+
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment prepare \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+
 export BASE_UNIVERSAL_MARKETPLACE_ADDRESS="$(
-  cast compute-address "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --nonce "$DEPLOYER_NONCE" |
-    sed 's/^Computed Address: //'
+  jq -r '.intent.marketplace' "$MARKETPLACE_DEPLOYMENT_MANIFEST"
 )"
-export CHECKOUT_NONCE="$((DEPLOYER_NONCE + 1))"
 export BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS="$(
-  cast compute-address "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" --nonce "$CHECKOUT_NONCE" |
-    sed 's/^Computed Address: //'
+  jq -r '.intent.checkout' "$MARKETPLACE_DEPLOYMENT_MANIFEST"
 )"
-
-forge script script/DeployBaseUniversalPoolArtMarketplace.s.sol:DeployBaseUniversalPoolArtMarketplace \
-  --rpc-url "$LOCAL_BASE_RPC" \
-  --sender "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
-  --unlocked \
-  --broadcast
-
-cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "authorizedCheckout()(address)" --rpc-url "$LOCAL_BASE_RPC"
 ```
 
-The read-back must equal `BASE_FAME_MARKETPLACE_CHECKOUT_ADDRESS`.
+Force a process boundary after every prefix. Each `advance` submits exactly one
+transaction; each following `reconcile` must identify the next prefix from
+canonical receipts, code hashes, immutables/configuration, and authorization:
+
+```sh
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment reconcile \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment reconcile \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment reconcile \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+```
+
+The observed prefixes must be marketplace only, marketplace plus checkout, and
+the fully authorized stack. Run a final fourth-prefix replay check; it must fail
+before submission because the deployment is complete:
+
+```sh
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST"
+```
+
+Do not continue after a missing, replaced, reverted, or otherwise uncertain
+receipt. Inspect the manifest and reconcile the canonical nonce transaction.
+Only an exact same-sender, same-nonce, same-target, same-data replacement is
+accepted. After explicit approval it uses:
+
+```sh
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment replace \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST" "<deployment-step-id>"
+```
+
+No confirmed prefix is replayed.
+
+### Recorded state-machine rehearsal
+
+The receipt-aware deployment and lifecycle paths were exercised on a disposable
+latest-Base Anvil fork after the Solidity `0.8.36` build:
+
+- UTC: `2026-08-08T00:45Z`
+- Fork block: `49680218`
+- Predicted marketplace: `0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e`
+- Predicted checkout: `0x1905B4a633074243f3D9FDB59596fB7419adce2c`
+- Prefix observations: `0` ready for marketplace, `1` ready for checkout, `2`
+  ready for authorization, and `3` complete
+- Each step ran in a fresh Node process and recorded a canonical successful
+  receipt plus a verified code/configuration result before the next send
+- Replaying `advance` at prefix `3` exited nonzero with “deployment is already
+  complete; no transaction was submitted”
+- Deployer activation and the later paused ownership handoff each recorded a
+  successful, event-bound lifecycle receipt; final manifest status was
+  `handed-off` to the exact Society Safe
+
+This proves the structural four-prefix and deployer-authorized lifecycle
+recovery path. It does not replace the manual provider, checkout, browser, or
+wallet matrix below, and it does not rehearse a Safe governance execution.
+
+The authorization read-back must equal the manifest checkout:
+
+```sh
+cast call "$BASE_UNIVERSAL_MARKETPLACE_ADDRESS" "authorizedCheckout()(address)" --rpc-url "$LOCAL_BASE_RPC"
+```
 
 Grant only the CreatorMagic `BANISHER` role. This block intentionally has no
 FAME or Society-unit transfer:
@@ -178,7 +244,7 @@ Validate the deployer-owned paused stack first:
 export BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=true
 export BASE_UNIVERSAL_MARKETPLACE_OWNER="$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER"
 
-forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
+FOUNDRY_PROFILE=universal_marketplace forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
   --rpc-url "$LOCAL_BASE_RPC"
 ```
 
@@ -187,20 +253,40 @@ configured inventory target. It fails only when provider structure or credited
 inventory/FAME backing is inconsistent, or when checkout retains Society,
 ETH, FAME, USDC, WETH, or a marketplace/router allowance.
 
-Activate from the impersonated deployer and validate the active stack:
+Prepare a distinct receipt-aware activation from the impersonated deployer and
+validate the active stack:
 
 ```sh
-forge script script/ActivateBaseUniversalPoolArtMarketplace.s.sol:ActivateBaseUniversalPoolArtMarketplace \
-  --rpc-url "$LOCAL_BASE_RPC" \
-  --sender "$BASE_UNIVERSAL_MARKETPLACE_DEPLOYER" \
-  --unlocked \
-  --broadcast
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment prepare-operation \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST" deployer-activation
+
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment advance-operation \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST" deployer-activation-1
 
 export BASE_UNIVERSAL_MARKETPLACE_EXPECTED_PAUSED=false
 
-forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
+FOUNDRY_PROFILE=universal_marketplace forge script script/ValidateBaseUniversalPoolArtMarketplace.s.sol:ValidateBaseUniversalPoolArtMarketplace \
   --rpc-url "$LOCAL_BASE_RPC"
 ```
+
+Use the operation ID printed by `prepare-operation`. Its manifest entry must
+contain the successful canonical receipt, `MarketUnpaused` event result, and
+active deployer-owned final state before validation. If the process is
+interrupted after submission, restart with:
+
+```sh
+FOUNDRY_PROFILE=universal_marketplace yarn marketplace:deployment reconcile-operation \
+  "$MARKETPLACE_DEPLOYMENT_MANIFEST" "<operation-id>"
+```
+
+The command checks known hashes and then scans from the recorded operation
+block for the deployer's pinned nonce. It accepts only the exact sender, nonce,
+target, and calldata, records canonical replacements, and persists a conflicting
+payload as a no-go observation. `advance-operation` and `replace-operation`
+also rerun the manifest's pinned source/compiler/profile/artifact/configuration
+checks immediately before sending. The scan stops at 10,000 blocks; an unknown
+transaction that is still only pending remains uncertain until it mines or the
+pending nonce clears.
 
 This disposable fork never transfers marketplace ownership. Production
 ownership transfer begins only after the live deployment has been activated
@@ -512,9 +598,12 @@ Record concise run facts:
 When the run ends—or immediately after a reload with a pending transaction, an
 uncertain receipt, or loss of the local node—stop `fls-www`, stop Anvil, restore
 the operator wallet's normal Base RPC, and close the shells containing
-temporary addresses. Discard the fork and start a new run after uncertainty;
-there is no recovery journal. Do not copy temporary addresses or Foundry
-`broadcast/` output into tracked configuration.
+temporary addresses. The temporary deployment manifest is the recovery
+journal for the current fork only. Reconcile it while that exact fork remains
+available; if the node is lost, retain it as failure evidence, discard that
+fork, and prepare a new manifest for the new run. Do not copy temporary
+addresses, signing material, or Foundry `broadcast/` output into tracked
+configuration.
 
 No production write, deployment, activation, ownership transfer, or Safe
 transaction is authorized by this rehearsal. Browser rows remain `not

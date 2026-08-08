@@ -18,7 +18,7 @@ Load public configuration first, then obtain the Base RPC from Doppler without p
 set -a
 source config/fame-public.env
 set +a
-doppler run --config prd -- sh -c 'BASE_RPC="$RPC_URL" forge test --isolate --match-test "testBenchmarkLatestBaseCandidateCapCheckoutMintsForEveryProviderPayout" -vv'
+doppler run --config prd -- sh -c 'BASE_RPC="$RPC_URL" FOUNDRY_PROFILE=universal_marketplace forge test --isolate --match-test "testBenchmarkLatestBaseCandidateCapCheckoutMintsForEveryProviderPayout" -vv'
 ```
 
 `--isolate` is mandatory. It executes top-level calls in separate EVM transaction contexts so fixture accesses do not warm the measured checkout storage paths.
@@ -86,3 +86,23 @@ new lifecycle share current fork evidence:
   eight-token credited provider batch, and completed a real configured
   checkout. Empty state was observed in this run, not qualified as a release
   requirement. No fork ownership transfer occurred.
+
+## Solidity 0.8.36 final-acceptance requalification
+
+The latest-Base campaign was rerun after the selected-exit, gross-premium,
+checkout rollback, validation, and Solidity `0.8.36` changes. The isolated
+benchmark still loads the production candidate cap directly from public
+configuration and forces every provider payout across the DN404 mint boundary:
+
+- UTC: `2026-08-08T00:34Z`
+- Base block: `49679931`
+- Base block hash: `0x559aa12af0c8320adcbf6c2623c9c8ef8b4ae1752258c7d8f69d3c66b2a95041`
+- Candidate active-provider cap: `88`
+- All-provider auto-mint checkout: `3,782,682` gas against the configured
+  `15,000,000` gas budget, leaving `11,217,318` gas of configured headroom
+- Base per-transaction gas maximum: `16,777,216`, leaving `12,994,534` gas
+- Base block gas limit: `400,000,000`
+- Companion 32-Society WETH redemption: `1,176,758` gas
+- Result: the complete latest-Base campaign passed `18/18` with zero skips; the
+  isolated payout and redemption measurements both passed their configured
+  headroom assertions.

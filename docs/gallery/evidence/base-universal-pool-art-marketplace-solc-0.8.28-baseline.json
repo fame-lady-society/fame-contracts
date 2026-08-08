@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "kind": "base-universal-pool-art-marketplace-release-evidence",
+  "sourceCommit": "cf1656dbb15aec413f848277c6a7385160cbacd4",
+  "workingTreeClean": false,
+  "toolchain": {
+    "forgeVersion": "forge Version: 1.7.1",
+    "solcVersion": "0.8.28",
+    "foundryProfile": "universal_marketplace",
+    "evmVersion": "cancun",
+    "optimizer": true,
+    "optimizerRuns": 200,
+    "viaIr": false,
+    "storageLayoutOutput": true
+  },
+  "contracts": {
+    "UniversalPoolArtMarketplace": {
+      "artifact": "out/UniversalPoolArtMarketplace.sol/UniversalPoolArtMarketplace.json",
+      "abiHash": "0xacb785bcaa1ab539ed06540a254ba58af874a6247ef029e09acae0d4b7d64454",
+      "storageLayoutHash": "0xd56c859f8f34942223b0bb52bc304cedc4c6ddd32674bc3fd1e5e262ef09915d",
+      "creationBytecodeHash": "0x03e349f5ec31aebd002e0207579a3d30c53b0cb414ba429cf9345c91fcb5adeb",
+      "runtimeBytecodeHash": "0xeb61c1eaec240af259de0a9e12af5eea5c909266a54defc7d54d911910844902",
+      "initcodeSizeBytes": 16947,
+      "initcodeLimitBytes": 49152,
+      "initcodeHeadroomBytes": 32205,
+      "runtimeSizeBytes": 15008,
+      "runtimeLimitBytes": 24576,
+      "runtimeHeadroomBytes": 9568
+    },
+    "FameMarketplaceCheckout": {
+      "artifact": "out/FameMarketplaceCheckout.sol/FameMarketplaceCheckout.json",
+      "abiHash": "0xfe7a2c32a86bdc5f1d3f8431381187f35e88b418391b613636a2aff9801db0d3",
+      "storageLayoutHash": "0x790d9bf2fafa353a6cc196ceaf7f20304cb6268a1611e88e13888ce93e003153",
+      "creationBytecodeHash": "0x7dec24ff12bfe207ab6adb07386fae675331bac3722cc57415ff1923d093f70e",
+      "runtimeBytecodeHash": "0xf369c1d17717406df714a8bd1403fa6e26a8330a8579d9ce1693fde47d68a039",
+      "initcodeSizeBytes": 17847,
+      "initcodeLimitBytes": 49152,
+      "initcodeHeadroomBytes": 31305,
+      "runtimeSizeBytes": 16225,
+      "runtimeLimitBytes": 24576,
+      "runtimeHeadroomBytes": 8351
+    }
+  }
+}
