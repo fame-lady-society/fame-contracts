@@ -1,6 +1,6 @@
 ---
 chain: base-fork
-status: structural-state-rehearsal-passed-manual-product-run-pending
+status: structural-safe-rehearsal-passed-manual-product-run-pending
 contracts: UniversalPoolArtMarketplace + FameMarketplaceCheckout
 ---
 
@@ -155,8 +155,11 @@ No confirmed prefix is replayed.
 The receipt-aware deployment and lifecycle paths were exercised on a disposable
 latest-Base Anvil fork after the Solidity `0.8.36` build:
 
-- UTC: `2026-08-08T00:45Z`
-- Fork block: `49680218`
+- UTC: `2026-08-08T02:01Z`
+- Source commit: `98a8853997e07940d33f121ac52eb88dee806be4`
+- Fork block: `49682393`
+- Fork block hash:
+  `0xebb6f68532f177f48c3a1f130ff0a60f1d67d7002333b0f8dcd6419d2c4468b9`
 - Predicted marketplace: `0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e`
 - Predicted checkout: `0x1905B4a633074243f3D9FDB59596fB7419adce2c`
 - Prefix observations: `0` ready for marketplace, `1` ready for checkout, `2`
@@ -166,12 +169,21 @@ latest-Base Anvil fork after the Solidity `0.8.36` build:
 - Replaying `advance` at prefix `3` exited nonzero with “deployment is already
   complete; no transaction was submitted”
 - Deployer activation and the later paused ownership handoff each recorded a
-  successful, event-bound lifecycle receipt; final manifest status was
-  `handed-off` to the exact Society Safe
+  successful, event-bound lifecycle receipt
+- The forked production Society Safe retained its real 7-of-14 threshold. Seven
+  fork-only owner approvals executed the reviewed `unpause()` intent through
+  `execTransaction`; reconciliation required the outer call to target the Safe,
+  matched the Safe's `ExecutionSuccess` hash
+  `0xfa905ae6348220fa72c1b90919bf7b081ee049e157eded4eb79a7be1bb114f6f`,
+  and bound canonical execution transaction
+  `0x4345835d76987afc1a22bc64325a295eb5df33dda80ea9babb25e3d3527a7853`
+- Final manifest status was `activated`, and the independent validator passed
+  against the Safe-owned active stack with zero inventory and clean checkout
+  balances and allowances
 
-This proves the structural four-prefix and deployer-authorized lifecycle
-recovery path. It does not replace the manual provider, checkout, browser, or
-wallet matrix below, and it does not rehearse a Safe governance execution.
+This proves the structural four-prefix, deployer-authorized lifecycle, and
+receipt-bound Safe governance recovery paths. It does not replace the manual
+provider, checkout, browser, or wallet matrix below.
 
 The authorization read-back must equal the manifest checkout:
 
@@ -284,14 +296,17 @@ block for the deployer's pinned nonce. It accepts only the exact sender, nonce,
 target, and calldata, records canonical replacements, and persists a conflicting
 payload as a no-go observation. `advance-operation` and `replace-operation`
 also rerun the manifest's pinned source/compiler/profile/artifact/configuration
-checks immediately before sending. The scan stops at 10,000 blocks; an unknown
-transaction that is still only pending remains uncertain until it mines or the
-pending nonce clears.
+checks immediately before sending. Recent recovery scans at most 10,000 blocks
+directly; older recovery first locates the nonce-consumption block with
+historical nonce reads and then inspects that canonical block. An RPC without
+the required historical state fails closed. An unknown transaction that is
+still only pending remains uncertain until it mines or the pending nonce clears.
 
-This disposable fork never transfers marketplace ownership. Production
-ownership transfer begins only after the live deployment has been activated
-and tested successfully by the deployer. The unlocked activation above tests
-that deployer path only and does not authorize a production transaction.
+The manual browser fork in this section never transfers marketplace ownership.
+Production ownership transfer begins only after the live deployment has been
+activated and tested successfully by the deployer. The unlocked activation
+above tests that deployer path only and does not authorize a production
+transaction.
 
 If the observed active market is empty, it is intentionally not checkout-ready.
 The automated lifecycle test proves an attempted checkout rejects before buyer
@@ -563,10 +578,10 @@ premium uses direct FAME, removes the exiting unit before distribution so it
 cannot rebate itself, and executes the complete gross transfer path. There is
 no random withdrawal, inventory scan, or withdrawal gas release gate.
 
-This disposable fork never transfers marketplace ownership or asks the Safe to
-activate it. Keep all administrative test transactions on the deployer. The
-production Safe transfer occurs only after live deployer activation and
-validation are complete.
+For the manual browser matrix, keep administrative test transactions on the
+deployer and do not require a Safe handoff. The separate CLI-only recovery fork
+recorded above did complete the ownership handoff and Safe activation, then was
+torn down without any production write.
 
 ## 10. Evidence and teardown
 

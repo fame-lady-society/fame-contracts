@@ -1,6 +1,6 @@
 ---
 chain: base
-status: compiler-upgrade-implemented-release-gates-pending
+status: compiler-upgrade-qualified-production-broadcast-not-authorized
 contracts: UniversalPoolArtMarketplace + FameMarketplaceCheckout
 solidity: 0.8.36
 foundry_profile: universal_marketplace
@@ -9,10 +9,10 @@ foundry_profile: universal_marketplace
 # Marketplace Solidity 0.8.36 evidence
 
 This record covers the compiler-specific portion of the production acceptance
-gate. It is not broadcast authorization. Production submission remains blocked
-until the complete local, invariant, Base-fork, provider-cap, selected-exit, and
-manifest recovery campaigns have passed at the release commit with no required
-skip.
+gate. It is not broadcast authorization. The scoped local, invariant, Base-fork,
+provider-cap, selected-exit, and manifest recovery campaigns passed with no
+required skip; production submission still requires separate authorization and
+a final stable-compiler recheck.
 
 ## Pinned build
 
@@ -83,14 +83,19 @@ No new warning indicates changed marketplace or checkout runtime behavior.
 
 The machine-readable baseline is
 `docs/gallery/evidence/base-universal-pool-art-marketplace-solc-0.8.28-baseline.json`.
-It was rebuilt from source commit
-`cf1656dbb15aec413f848277c6a7385160cbacd4` with the same Cancun, optimizer,
+It was rebuilt from clean source commit
+`98a8853997e07940d33f121ac52eb88dee806be4` with the same Cancun, optimizer,
 non-IR, and storage-layout-output settings.
 
 | Contract | ABI | Storage layout | Initcode | Runtime |
 |---|---:|---:|---:|---:|
-| `UniversalPoolArtMarketplace` | unchanged | unchanged | 16,947 → 16,943 bytes (-4) | 15,008 → 15,004 bytes (-4) |
-| `FameMarketplaceCheckout` | unchanged | unchanged | 17,847 → 17,847 bytes (0) | 16,225 → 16,225 bytes (0) |
+| `UniversalPoolArtMarketplace` | unchanged | unchanged | 17,149 → 17,149 bytes (0) | 14,986 → 14,986 bytes (0) |
+| `FameMarketplaceCheckout` | unchanged | unchanged | 18,007 → 18,007 bytes (0) | 16,225 → 16,225 bytes (0) |
+
+The initcode measurements include both creation bytecode and ABI-encoded
+constructor arguments: 224 bytes for `UniversalPoolArtMarketplace` and 160
+bytes for `FameMarketplaceCheckout`. The corresponding raw creation bytecode
+sizes are 16,925 and 17,847 bytes.
 
 Creation and runtime hashes change because Solidity embeds compiler metadata;
 the target gate records the exact hashes rather than assuming byte-for-byte
@@ -100,8 +105,8 @@ stability across compiler versions.
 
 | Contract | Runtime / EIP-170 | Runtime headroom | Initcode / EIP-3860 | Initcode headroom |
 |---|---:|---:|---:|---:|
-| `UniversalPoolArtMarketplace` | 15,004 / 24,576 bytes | 9,572 bytes | 16,943 / 49,152 bytes | 32,209 bytes |
-| `FameMarketplaceCheckout` | 16,225 / 24,576 bytes | 8,351 bytes | 17,847 / 49,152 bytes | 31,305 bytes |
+| `UniversalPoolArtMarketplace` | 14,986 / 24,576 bytes | 9,590 bytes | 17,149 / 49,152 bytes | 32,003 bytes |
+| `FameMarketplaceCheckout` | 16,225 / 24,576 bytes | 8,351 bytes | 18,007 / 49,152 bytes | 31,145 bytes |
 
 The check reads only these two artifact paths. Oversized local-only Forge
 scripts cannot change its exit status; the full repository build remains a

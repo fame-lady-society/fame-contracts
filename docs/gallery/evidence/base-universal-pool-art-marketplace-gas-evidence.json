@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "kind": "base-universal-pool-art-marketplace-gas-evidence",
+  "sourceCommit": "98a8853997e07940d33f121ac52eb88dee806be4",
+  "observedAtUtc": "2026-08-08T01:54:00Z",
+  "baseFork": {
+    "blockNumber": 49682358,
+    "blockHash": "0xb7ba9abde3ffc5ddfcb51b9b264ee66b84e720ede189376417875fb7a8877a41",
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0,
+    "isolated": true
+  },
+  "providerPayout": {
+    "activeProviderCap": 88,
+    "gasUsed": 3782423,
+    "configuredGasBudget": 15000000,
+    "configuredHeadroom": 11217577,
+    "baseTransactionGasMaximum": 16777216,
+    "baseTransactionHeadroom": 12994793,
+    "baseBlockGasLimit": 400000000
+  },
+  "redemption": {
+    "societyCount": 32,
+    "outputAsset": "WETH",
+    "gasUsed": 1176758,
+    "baseBlockGasLimit": 400000000
+  }
+}

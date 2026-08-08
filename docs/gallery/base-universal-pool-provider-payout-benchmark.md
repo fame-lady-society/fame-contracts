@@ -94,13 +94,14 @@ checkout rollback, validation, and Solidity `0.8.36` changes. The isolated
 benchmark still loads the production candidate cap directly from public
 configuration and forces every provider payout across the DN404 mint boundary:
 
-- UTC: `2026-08-08T00:34Z`
-- Base block: `49679931`
-- Base block hash: `0x559aa12af0c8320adcbf6c2623c9c8ef8b4ae1752258c7d8f69d3c66b2a95041`
+- UTC: `2026-08-08T01:54Z`
+- Source commit: `98a8853997e07940d33f121ac52eb88dee806be4`
+- Base block: `49682358`
+- Base block hash: `0xb7ba9abde3ffc5ddfcb51b9b264ee66b84e720ede189376417875fb7a8877a41`
 - Candidate active-provider cap: `88`
-- All-provider auto-mint checkout: `3,782,682` gas against the configured
-  `15,000,000` gas budget, leaving `11,217,318` gas of configured headroom
-- Base per-transaction gas maximum: `16,777,216`, leaving `12,994,534` gas
+- All-provider auto-mint checkout: `3,782,423` gas against the configured
+  `15,000,000` gas budget, leaving `11,217,577` gas of configured headroom
+- Base per-transaction gas maximum: `16,777,216`, leaving `12,994,793` gas
 - Base block gas limit: `400,000,000`
 - Companion 32-Society WETH redemption: `1,176,758` gas
 - Result: the complete latest-Base campaign passed `18/18` with zero skips; the
