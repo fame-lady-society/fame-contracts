@@ -20,6 +20,7 @@ import {
   main,
   reconcile,
   reconcileOperation,
+  waitForReceiptWithPersistedReplacements,
 } from "./base-universal-pool-art-marketplace.mjs";
 
 import {
@@ -381,6 +382,95 @@ test("optional-manifest command grammar preserves required operation IDs", () =>
     () => parseCommandArguments("advance-operation", []),
     /requires a lifecycle operation ID/,
   );
+});
+
+test("receipt waiting does not finish before replacement persistence", async () => {
+  const transactionHash = `0x${"6".repeat(64)}`;
+  const replacementHash = `0x${"7".repeat(64)}`;
+  const receipt = { status: "success", transactionHash: replacementHash };
+  let releasePersistence;
+  const persistenceCanFinish = new Promise((resolve) => {
+    releasePersistence = resolve;
+  });
+  let persistenceStarted = false;
+  let persistenceFinished = false;
+  let waitFinished = false;
+
+  const wait = waitForReceiptWithPersistedReplacements(
+    {
+      async waitForTransactionReceipt({ hash, onReplaced }) {
+        assert.equal(hash, transactionHash);
+        onReplaced({
+          reason: "repriced",
+          transaction: { hash: replacementHash },
+        });
+        return receipt;
+      },
+    },
+    transactionHash,
+    async () => {
+      persistenceStarted = true;
+      await persistenceCanFinish;
+      persistenceFinished = true;
+    },
+  ).then((result) => {
+    waitFinished = true;
+    return result;
+  });
+
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(persistenceStarted, true);
+    assert.equal(persistenceFinished, false);
+    assert.equal(waitFinished, false, "receipt wait resolved before replacement persistence");
+  } finally {
+    releasePersistence();
+  }
+
+  assert.equal(await wait, receipt);
+  assert.equal(persistenceFinished, true);
+});
+
+test("replacement persistence stays serialized in callback order", async () => {
+  const transactionHash = `0x${"6".repeat(64)}`;
+  const firstReplacementHash = `0x${"7".repeat(64)}`;
+  const secondReplacementHash = `0x${"8".repeat(64)}`;
+  let releaseFirstPersistence;
+  const firstPersistenceCanFinish = new Promise((resolve) => {
+    releaseFirstPersistence = resolve;
+  });
+  const persistenceOrder = [];
+
+  const wait = waitForReceiptWithPersistedReplacements(
+    {
+      async waitForTransactionReceipt({ onReplaced }) {
+        onReplaced({ transaction: { hash: firstReplacementHash } });
+        onReplaced({ transaction: { hash: secondReplacementHash } });
+        return { status: "success", transactionHash: secondReplacementHash };
+      },
+    },
+    transactionHash,
+    async ({ transaction }) => {
+      persistenceOrder.push(`start:${transaction.hash}`);
+      if (transaction.hash === firstReplacementHash) await firstPersistenceCanFinish;
+      persistenceOrder.push(`finish:${transaction.hash}`);
+    },
+  );
+
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(persistenceOrder, [`start:${firstReplacementHash}`]);
+  } finally {
+    releaseFirstPersistence();
+  }
+
+  await wait;
+  assert.deepEqual(persistenceOrder, [
+    `start:${firstReplacementHash}`,
+    `finish:${firstReplacementHash}`,
+    `start:${secondReplacementHash}`,
+    `finish:${secondReplacementHash}`,
+  ]);
 });
 
 test("production CLI network commands all reject a loopback RPC before reads or sends", async () => {

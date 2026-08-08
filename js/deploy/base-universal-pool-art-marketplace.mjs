@@ -944,6 +944,31 @@ export async function reconcile(path, injectedClient) {
   return { manifest: updated, classification };
 }
 
+export async function waitForReceiptWithPersistedReplacements(
+  publicClient,
+  hash,
+  persistReplacement,
+) {
+  let replacementPersistence = Promise.resolve();
+  let receipt;
+  let receiptError;
+  try {
+    receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      onReplaced: (replacement) => {
+        replacementPersistence = replacementPersistence.then(() =>
+          persistReplacement(replacement),
+        );
+      },
+    });
+  } catch (error) {
+    receiptError = error;
+  }
+  await replacementPersistence;
+  if (receiptError) throw receiptError;
+  return receipt;
+}
+
 export async function advance(path, injectedClients = {}) {
   const preparedManifest = await readManifest(path);
   const publicClient =
@@ -969,9 +994,10 @@ export async function advance(path, injectedClients = {}) {
     });
     updated = recordSubmission(updated, step.id, transactionHash, submittedAtBlock.toString());
     await writeManifestAtomic(path, updated);
-    await publicClient.waitForTransactionReceipt({
-      hash: transactionHash,
-      onReplaced: async ({ reason, transaction }) => {
+    await waitForReceiptWithPersistedReplacements(
+      publicClient,
+      transactionHash,
+      async ({ reason, transaction }) => {
         updated = applyReplacement(
           updated,
           step.id,
@@ -986,7 +1012,7 @@ export async function advance(path, injectedClients = {}) {
         );
         await writeManifestAtomic(path, updated);
       },
-    });
+    );
   } catch (error) {
     updated.status = "needs-reconciliation";
     updated.lastError = {
@@ -1058,13 +1084,14 @@ export async function replace(path, stepId, injectedClients = {}) {
       "operator-authorized exact-payload replacement",
     );
     await writeManifestAtomic(path, updated);
-    await publicClient.waitForTransactionReceipt({
+    await waitForReceiptWithPersistedReplacements(
+      publicClient,
       hash,
-      onReplaced: async ({ reason, transaction }) => {
+      async ({ reason, transaction }) => {
         updated = applyReplacement(updated, step.id, observedTransaction(transaction), reason);
         await writeManifestAtomic(path, updated);
       },
-    });
+    );
   } catch (error) {
     updated.status = "needs-reconciliation";
     updated.lastError = {
@@ -1258,9 +1285,10 @@ export async function advanceOperation(path, id, replaceSubmitted = false, injec
     operation.submittedHash = hash;
     operation.submittedAtBlock ??= submittedAtBlock;
     await writeManifestAtomic(path, manifest);
-    await publicClient.waitForTransactionReceipt({
+    await waitForReceiptWithPersistedReplacements(
+      publicClient,
       hash,
-      onReplaced: async ({ reason, transaction }) => {
+      async ({ reason, transaction }) => {
         if (
           normalize(transaction.from) !== normalize(operation.sender) ||
           BigInt(transaction.nonce) !== BigInt(operation.nonce) ||
@@ -1277,7 +1305,7 @@ export async function advanceOperation(path, id, replaceSubmitted = false, injec
         operation.submittedHash = transaction.hash;
         await writeManifestAtomic(path, manifest);
       },
-    });
+    );
   } catch (error) {
     manifest.status = "needs-reconciliation";
     operation.lastError = {
