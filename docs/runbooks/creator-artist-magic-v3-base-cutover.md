@@ -1,6 +1,8 @@
 # CreatorArtistMagic V3 Base cutover runbook
 
-Status: **prepared; broadcast approval disabled**
+Status: **completed and verified on Base on 2026-08-11**
+
+The cutover mined successfully in blocks `49840113` through `49840131`. All 15 receipts have status `1`, `verifyDeployed()` passed against live Base state, and all three new contracts are source-verified on BaseScan. The immutable deployment evidence is recorded in `docs/handoffs/creator-artist-magic-v3-base-deployment.md`.
 
 This is the operator runbook for the one-shot Base cutover from CreatorArtistMagic V2 to V3, a replacement `UniversalPoolArtMarketplace`, and a replacement `FameMarketplaceCheckout`.
 
@@ -27,12 +29,13 @@ The deployment does not move the legacy provider position. The old marketplace i
 
 The authoritative machine-readable inputs are in `script/manifests/creator-artist-magic-v3-base.json`. The public confirmations and predicted addresses are in `config/fame-public.env`.
 
-Doppler `prd` supplies only:
+Doppler `prd` supplies the secrets:
 
 - `RPC_URL`
 - `DEPLOYER_PRIVATE_KEY`
+- `ETHERSCAN_API_KEY`
 
-Never print either value. The execute and broadcast switches are command-scoped so sourcing `config/fame-public.env` remains read-only.
+Never print any of these values. The execute and broadcast switches are command-scoped so sourcing `config/fame-public.env` remains read-only.
 
 ## Deployment sequence
 
@@ -123,7 +126,7 @@ source config/fame-public.env
 set +a
 CREATOR_ARTIST_MAGIC_V3_EXECUTE=true \
 CREATOR_ARTIST_MAGIC_V3_BROADCAST=true \
-doppler run --config prd -- sh -c 'forge script script/MigrateCreatorArtistMagicV3.s.sol:MigrateCreatorArtistMagicV3 --sig "run()" --rpc-url "$RPC_URL" --broadcast --slow -vv'
+doppler run --config prd -- sh -c 'forge script script/MigrateCreatorArtistMagicV3.s.sol:MigrateCreatorArtistMagicV3 --sig "run()" --rpc-url "$RPC_URL" --broadcast --slow --verify --etherscan-api-key "$ETHERSCAN_API_KEY" -vv'
 ```
 
 The script independently derives the signer from `DEPLOYER_PRIVATE_KEY`, verifies that it is the expected operator, checks the three public confirmation addresses, and asserts the three deployed addresses before completing.

@@ -15,13 +15,20 @@ contract MigrateCreatorArtistMagicV3ManifestTest is Test {
         string memory manifest =
             vm.readFile(string.concat(vm.projectRoot(), "/script/manifests/creator-artist-magic-v3-base.json"));
 
-        assertEq(vm.parseJsonString(manifest, ".status"), "broadcast-approved");
+        assertEq(vm.parseJsonString(manifest, ".status"), "broadcast-complete");
         assertEq(vm.parseJsonUint(manifest, ".chainId"), migration.BASE_CHAIN_ID());
         assertEq(vm.parseJsonAddress(manifest, ".contracts.fame"), migration.FAME());
         assertEq(vm.parseJsonAddress(manifest, ".contracts.fameMirror"), migration.FAME_MIRROR());
         assertEq(vm.parseJsonAddress(manifest, ".contracts.creatorArtistMagicV2"), migration.V2());
         assertEq(vm.parseJsonAddress(manifest, ".contracts.legacyMarketplace"), migration.OLD_MARKETPLACE());
         assertEq(vm.parseJsonAddress(manifest, ".contracts.legacyCheckout"), migration.OLD_CHECKOUT());
+        assertEq(
+            vm.parseJsonAddress(manifest, ".contracts.creatorArtistMagicV3"), migration.EXPECTED_CREATOR_MAGIC_V3()
+        );
+        assertEq(
+            vm.parseJsonAddress(manifest, ".contracts.replacementMarketplace"), migration.EXPECTED_MARKETPLACE_V3()
+        );
+        assertEq(vm.parseJsonAddress(manifest, ".contracts.replacementCheckout"), migration.EXPECTED_CHECKOUT_V3());
         assertEq(vm.parseJsonUint(manifest, ".pinnedState.nextTokenId"), migration.EXPECTED_NEXT_TOKEN_ID());
         assertEq(vm.parseJsonUint(manifest, ".pinnedState.artPoolNext"), migration.EXPECTED_ART_POOL_NEXT());
         assertEq(
@@ -53,6 +60,10 @@ contract MigrateCreatorArtistMagicV3ManifestTest is Test {
         assertEq(vm.parseJsonUint(manifest, ".pinnedState.legacyProviderUnits"), 1);
         assertFalse(vm.parseJsonBool(manifest, ".providerMigration"));
         assertTrue(vm.parseJsonBool(manifest, ".broadcastApproved"));
+        assertEq(vm.parseJsonUint(manifest, ".broadcast.transactionCount"), 15);
+        assertEq(vm.parseJsonUint(manifest, ".broadcast.allReceiptStatuses"), 1);
+        assertTrue(vm.parseJsonBool(manifest, ".broadcast.postStateVerified"));
+        assertTrue(vm.parseJsonBool(manifest, ".broadcast.explorerVerified"));
 
         address[3] memory creators = migration.creatorWallets();
         for (uint256 i; i < creators.length; ++i) {

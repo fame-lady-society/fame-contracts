@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "broadcast-approved",
+  "status": "broadcast-complete",
   "chainId": 8453,
   "contracts": {
     "fame": "0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418",
@@ -8,9 +8,9 @@
     "creatorArtistMagicV2": "0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F",
     "legacyMarketplace": "0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e",
     "legacyCheckout": "0x1905B4a633074243f3D9FDB59596fB7419adce2c",
-    "creatorArtistMagicV3": null,
-    "replacementMarketplace": null,
-    "replacementCheckout": null
+    "creatorArtistMagicV3": "0x6754e4871775A781702f2Ab6e494754a562586ee",
+    "replacementMarketplace": "0x93222897902a5Fc2f20079d242c660117277930A",
+    "replacementCheckout": "0x50B9649Aa28D7d0B966B2A51092C5BcF37905a63"
   },
   "predictedContracts": {
     "creatorArtistMagicV3": "0x6754e4871775A781702f2Ab6e494754a562586ee",
@@ -70,5 +70,14 @@
     "revoke creator and legacy-market write roles from V2"
   ],
   "providerMigration": false,
-  "broadcastApproved": true
+  "broadcastApproved": true,
+  "broadcast": {
+    "completedAt": "2026-08-11T17:36:25Z",
+    "firstBlock": 49840113,
+    "lastBlock": 49840131,
+    "transactionCount": 15,
+    "allReceiptStatuses": 1,
+    "postStateVerified": true,
+    "explorerVerified": true
+  }
 }
