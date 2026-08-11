@@ -3,7 +3,7 @@ name: test
 on: workflow_dispatch
 
 env:
-  FOUNDRY_PROFILE: ci
+  FOUNDRY_PROFILE: default
 
 jobs:
   check:
@@ -17,6 +17,14 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install JavaScript dependencies
+        run: yarn install --frozen-lockfile --ignore-scripts
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -25,10 +33,39 @@ jobs:
       - name: Run Forge build
         run: |
           forge --version
-          forge build --sizes
+          forge build
         id: build
 
-      - name: Run Forge tests
+      - name: Check marketplace release sizes
         run: |
-          forge test -vvv
+          FOUNDRY_PROFILE=universal_marketplace forge build src/UniversalPoolArtMarketplace.sol src/FameMarketplaceCheckout.sol --force
+          npm run marketplace:size
+        id: marketplace-size
+
+      - name: Run marketplace release tooling tests
+        run: |
+          npm run marketplace:evidence:test
+          npm run marketplace:deployment:test
+        id: marketplace-tooling-tests
+
+      - name: Run marketplace release-profile Forge tests
+        env:
+          FOUNDRY_PROFILE: universal_marketplace
+        run: |
+          forge test --match-path test/UniversalPoolArtMarketplace.t.sol -vvv
+          forge test --match-path test/UniversalPoolArtMarketplaceProviderInventory.t.sol -vvv
+          forge test --match-path test/UniversalPoolArtMarketplaceFuzz.t.sol -vvv
+          forge test --match-path test/UniversalPoolArtMarketplaceInvariant.t.sol -vvv
+          forge test --match-path test/UniversalPoolArtMarketplaceDeploymentValidationBase.t.sol -vvv
+          forge test --match-path test/FameMarketplaceCheckout.t.sol -vvv
+          forge test --match-path test/FameMarketplaceCheckoutRedemption.t.sol -vvv
+          forge test --match-path test/FameMarketplaceCheckoutFuzz.t.sol -vvv
+          forge test --match-path test/FameMarketplaceCheckoutInvariant.t.sol -vvv
+        id: marketplace-release-tests
+
+      - name: Run full repository Forge regression
+        env:
+          FOUNDRY_PROFILE: default
+        run: |
+          forge test --no-match-contract '.*(ForkBase|BaseFork|ContentionBase).*' -vvv
         id: test

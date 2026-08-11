@@ -21,6 +21,24 @@ remappings = [
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
+[profile.universal_marketplace]
+solc_version = "0.8.36"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+extra_output = ["storageLayout"]
+
+[profile.universal_marketplace.fuzz]
+runs = 10000
+max_test_rejects = 65536
+
+[profile.universal_marketplace.invariant]
+runs = 512
+depth = 128
+fail_on_revert = true
+show_metrics = true
+
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC}"
 base = "${BASE_RPC}"

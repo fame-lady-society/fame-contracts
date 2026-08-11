@@ -106,10 +106,6 @@ doppler run -- forge script --chain base script/DeployFameRouter.s.sol:DeployFam
 doppler run -- forge script --chain base script/ValidateFameRouterBase.s.sol:ValidateFameRouterBase --rpc-url base
 ```
 
-```
-doppler run -- anvil --fork-url base --block-time 2
-```
-
 ## Fair Reveal
 
 deploy:

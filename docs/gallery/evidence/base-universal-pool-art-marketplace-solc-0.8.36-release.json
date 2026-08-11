@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "kind": "base-universal-pool-art-marketplace-release-evidence",
+  "sourceCommit": "572c58f79ec1f67e261b708442b330a5c6cf6a9e",
+  "workingTreeClean": true,
+  "toolchain": {
+    "forgeVersion": "forge Version: 1.7.1",
+    "solcVersion": "0.8.36",
+    "solcLongVersion": "0.8.36+commit.8a079791",
+    "foundryProfile": "universal_marketplace",
+    "evmVersion": "cancun",
+    "optimizer": true,
+    "optimizerRuns": 200,
+    "viaIr": false,
+    "storageLayoutOutput": true
+  },
+  "contracts": {
+    "UniversalPoolArtMarketplace": {
+      "artifact": "out/UniversalPoolArtMarketplace.sol/UniversalPoolArtMarketplace.json",
+      "compilerVersion": "0.8.36+commit.8a079791",
+      "abiHash": "0xacb785bcaa1ab539ed06540a254ba58af874a6247ef029e09acae0d4b7d64454",
+      "storageLayoutHash": "0xeb90a0f4633113bbebb188b25c0cc95d8e36d7306161e78e0810c4691309db53",
+      "creationBytecodeHash": "0x8c582884110b1b7286a95847c785aacc9cc85c871c769c313635a696c3ab7824",
+      "runtimeBytecodeHash": "0xf3d76d850717226179688851cabc4378d83a2f7cc32636522313936f3676d196",
+      "creationBytecodeSizeBytes": 16925,
+      "constructorArgsSizeBytes": 224,
+      "initcodeSizeBytes": 17149,
+      "initcodeLimitBytes": 49152,
+      "initcodeHeadroomBytes": 32003,
+      "runtimeSizeBytes": 14986,
+      "runtimeLimitBytes": 24576,
+      "runtimeHeadroomBytes": 9590
+    },
+    "FameMarketplaceCheckout": {
+      "artifact": "out/FameMarketplaceCheckout.sol/FameMarketplaceCheckout.json",
+      "compilerVersion": "0.8.36+commit.8a079791",
+      "abiHash": "0xfe7a2c32a86bdc5f1d3f8431381187f35e88b418391b613636a2aff9801db0d3",
+      "storageLayoutHash": "0x790d9bf2fafa353a6cc196ceaf7f20304cb6268a1611e88e13888ce93e003153",
+      "creationBytecodeHash": "0x8c79891cc5ba2c0d1bbb6be4f25d0cd9396c45a57ed091f137b19073d3d7df7a",
+      "runtimeBytecodeHash": "0xd3d04111b2a1a94880dfbef4b77e431b2c4896569620e8f9bf0e3cfdd7c1cda6",
+      "creationBytecodeSizeBytes": 17847,
+      "constructorArgsSizeBytes": 160,
+      "initcodeSizeBytes": 18007,
+      "initcodeLimitBytes": 49152,
+      "initcodeHeadroomBytes": 31145,
+      "runtimeSizeBytes": 16225,
+      "runtimeLimitBytes": 24576,
+      "runtimeHeadroomBytes": 8351
+    }
+  },
+  "gasEvidence": {
+    "schemaVersion": 1,
+    "kind": "base-universal-pool-art-marketplace-gas-evidence",
+    "sourceCommit": "98a8853997e07940d33f121ac52eb88dee806be4",
+    "observedAtUtc": "2026-08-08T01:54:00Z",
+    "baseFork": {
+      "blockNumber": 49682358,
+      "blockHash": "0xb7ba9abde3ffc5ddfcb51b9b264ee66b84e720ede189376417875fb7a8877a41",
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0,
+      "isolated": true
+    },
+    "providerPayout": {
+      "activeProviderCap": 88,
+      "gasUsed": 3782423,
+      "configuredGasBudget": 15000000,
+      "configuredHeadroom": 11217577,
+      "baseTransactionGasMaximum": 16777216,
+      "baseTransactionHeadroom": 12994793,
+      "baseBlockGasLimit": 400000000
+    },
+    "redemption": {
+      "societyCount": 32,
+      "outputAsset": "WETH",
+      "gasUsed": 1176758,
+      "baseBlockGasLimit": 400000000
+    }
+  },
+  "baselineComparison": {
+    "baselineSolcVersion": "0.8.28",
+    "contracts": {
+      "UniversalPoolArtMarketplace": {
+        "abiChanged": false,
+        "storageLayoutChanged": false,
+        "creationBytecodeChanged": true,
+        "runtimeBytecodeChanged": true,
+        "initcodeSizeDeltaBytes": 0,
+        "runtimeSizeDeltaBytes": 0
+      },
+      "FameMarketplaceCheckout": {
+        "abiChanged": false,
+        "storageLayoutChanged": false,
+        "creationBytecodeChanged": true,
+        "runtimeBytecodeChanged": true,
+        "initcodeSizeDeltaBytes": 0,
+        "runtimeSizeDeltaBytes": 0
+      }
+    }
+  }
+}
