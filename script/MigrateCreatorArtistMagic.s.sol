@@ -56,7 +56,7 @@ contract MigrateCreatorArtistMagic is Script {
 
     uint256 public constant BASE_CHAIN_ID = 8453;
     uint16 public constant EXPECTED_NEXT_TOKEN_ID = 650;
-    uint256 public constant EXPECTED_ART_POOL_NEXT = 266;
+    uint16 public constant EXPECTED_ART_POOL_NEXT = 266;
     uint256 public constant MAX_TOKEN_ID = 888;
     uint256 public constant RENDERER_ROLE = 1 << 0;
     uint256 public constant CREATOR_ROLE = 1 << 1;
@@ -239,7 +239,7 @@ contract MigrateCreatorArtistMagic is Script {
     }
 
     function _executeMigration() internal returns (CreatorArtistMagic deployed) {
-        deployed = new CreatorArtistMagic(LEGACY, payable(FAME), EXPECTED_NEXT_TOKEN_ID);
+        deployed = new CreatorArtistMagic(LEGACY, payable(FAME), EXPECTED_NEXT_TOKEN_ID, EXPECTED_ART_POOL_NEXT);
 
         address[3] memory creators = creatorWallets();
         for (uint256 i; i < creators.length; ++i) {

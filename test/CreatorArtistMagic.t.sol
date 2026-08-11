@@ -10,6 +10,9 @@ import "../test/mocks/EchoMetadata.sol";
 
 contract CreatorArtistMagicTest is Test {
     event MetadataUpdate(uint256 tokenId);
+    event ArtworkReleased(
+        address indexed creator, uint256 indexed tokenId, bytes32 indexed artworkHash, string metadataUri
+    );
 
     CreatorArtistMagic public creatorMagic;
     Fame public fame;
@@ -19,11 +22,9 @@ contract CreatorArtistMagicTest is Test {
     address public creator = address(0x1);
     address public user1 = address(0x2);
     address public user2 = address(0x3);
+    address public releaseArtist = address(0x4);
 
-    function compareStrings(
-        string memory a,
-        string memory b
-    ) internal pure returns (bool) {
+    function compareStrings(string memory a, string memory b) internal pure returns (bool) {
         return keccak256(abi.encodePacked(a)) == keccak256(abi.encodePacked(b));
     }
 
@@ -40,7 +41,7 @@ contract CreatorArtistMagicTest is Test {
 
     // Helper function to find a valid mint pool token for testing
     function _findMintPoolToken() internal view returns (uint256) {
-        uint256 startCheck = creatorMagic.getTotalNFTSupply() + 1;
+        uint256 startCheck = creatorMagic.getMintPoolStart();
         uint256 endCheck = creatorMagic.nextTokenId();
 
         for (uint256 i = startCheck; i < endCheck && i < startCheck + 50; i++) {
@@ -52,10 +53,7 @@ contract CreatorArtistMagicTest is Test {
     }
 
     // Helper function to verify a token has specific metadata in the registry
-    function assertTokenHasMetadata(
-        uint256 tokenId,
-        string memory expectedMetadata
-    ) internal {
+    function assertTokenHasMetadata(uint256 tokenId, string memory expectedMetadata) internal {
         uint16 metadataId = creatorMagic.getTokenMetadataId(tokenId);
         assertTrue(metadataId != 0, "Token should have assigned metadata ID");
         assertEq(creatorMagic.getMetadataById(metadataId), expectedMetadata);
@@ -69,18 +67,13 @@ contract CreatorArtistMagicTest is Test {
         fame = new Fame("Fame Lady Society", "FAME", address(0));
         fameMirror = fame.fameMirror();
 
-        // Deploy CreatorArtistMagic contract
-        // Use nextTokenId=500 to create a proper mint pool range
-        // With totalNFTSupply=18, mint pool will be (18, 500) which is valid
-        creatorMagic = new CreatorArtistMagic(
-            address(childRenderer),
-            payable(address(fame)),
-            500
-        );
+        // Deploy with nextTokenId=500 and an initial live-supply boundary at 19.
+        creatorMagic = new CreatorArtistMagic(address(childRenderer), payable(address(fame)), 500, 266);
 
         // The deployer (this test contract) is the owner and can grant roles
         // Grant CREATOR role (CREATOR = _ROLE_1 = 3)
         creatorMagic.grantRoles(creator, 3);
+        creatorMagic.grantRoles(releaseArtist, 2);
 
         // Grant CreatorArtistMagic contract RENDERER role on Fame contract (RENDERER = _ROLE_0 = 1)
         fame.grantRoles(address(creatorMagic), 1);
@@ -97,6 +90,128 @@ contract CreatorArtistMagicTest is Test {
 
         // Switch to creator for testing banish functions
         vm.startPrank(creator);
+    }
+
+    function testReleaseArtworkWithoutOwningSociety() public {
+        vm.stopPrank();
+        assertEq(fameMirror.balanceOf(releaseArtist), 0);
+
+        string memory metadataUri = "https://gateway.irys.xyz/released-art";
+        uint256 expectedTokenId = creatorMagic.nextTokenId();
+
+        vm.expectEmit(true, true, true, true, address(fameMirror));
+        emit MetadataUpdate(expectedTokenId);
+        vm.expectEmit(true, true, true, true, address(creatorMagic));
+        emit ArtworkReleased(releaseArtist, expectedTokenId, keccak256(bytes(metadataUri)), metadataUri);
+        vm.prank(releaseArtist);
+        uint256 releasedTokenId = creatorMagic.releaseArtwork(expectedTokenId, metadataUri);
+
+        assertEq(releasedTokenId, expectedTokenId);
+        assertEq(creatorMagic.nextTokenId(), expectedTokenId + 1);
+        assertEq(creatorMagic.tokenURI(expectedTokenId), metadataUri);
+        assertTrue(creatorMagic.isTokenInMintPool(expectedTokenId));
+        assertFalse(creatorMagic.isTokenInBurnedPool(expectedTokenId));
+    }
+
+    function testConstructorRejectsInvalidPoolFrontiers() public {
+        vm.stopPrank();
+        vm.expectRevert(CreatorArtistMagic.InvalidPoolConfiguration.selector);
+        new CreatorArtistMagic(address(childRenderer), payable(address(fame)), 889, 266);
+
+        vm.expectRevert(CreatorArtistMagic.InvalidPoolConfiguration.selector);
+        new CreatorArtistMagic(address(childRenderer), payable(address(fame)), 500, 265);
+    }
+
+    function testReleaseArtworkRejectsStaleExpectedTokenId() public {
+        vm.stopPrank();
+        uint256 actual = creatorMagic.nextTokenId();
+
+        vm.expectRevert(abi.encodeWithSelector(CreatorArtistMagic.NextTokenIdMismatch.selector, actual - 1, actual));
+        vm.prank(releaseArtist);
+        creatorMagic.releaseArtwork(actual - 1, "metadata");
+
+        assertEq(creatorMagic.nextTokenId(), actual);
+    }
+
+    function testReleaseArtworkRejectsEmptyMetadata() public {
+        vm.stopPrank();
+        uint256 expectedTokenId = creatorMagic.nextTokenId();
+        vm.startPrank(releaseArtist);
+        vm.expectRevert(CreatorArtistMagic.InvalidMetadata.selector);
+        creatorMagic.releaseArtwork(expectedTokenId, "");
+        vm.stopPrank();
+    }
+
+    function testReleaseArtworkRequiresCreatorRole() public {
+        vm.stopPrank();
+        uint256 expectedTokenId = creatorMagic.nextTokenId();
+        vm.startPrank(user1);
+        vm.expectRevert();
+        creatorMagic.releaseArtwork(expectedTokenId, "metadata");
+        vm.stopPrank();
+    }
+
+    function testReleaseArtworkRevealsOwnedBoundaryAndAdvances() public {
+        vm.stopPrank();
+        uint16 ownedBoundary = 18;
+        assertEq(fameMirror.ownerOf(ownedBoundary), creator);
+
+        CreatorArtistMagic ownedBoundaryMagic =
+            new CreatorArtistMagic(address(childRenderer), payable(address(fame)), ownedBoundary, 266);
+        ownedBoundaryMagic.grantRoles(releaseArtist, 2);
+        fame.grantRoles(address(ownedBoundaryMagic), 1);
+
+        vm.expectEmit(true, true, true, true, address(fameMirror));
+        emit MetadataUpdate(ownedBoundary);
+        vm.prank(releaseArtist);
+        uint256 releasedTokenId = ownedBoundaryMagic.releaseArtwork(ownedBoundary, "metadata");
+
+        assertEq(releasedTokenId, ownedBoundary);
+        assertEq(ownedBoundaryMagic.nextTokenId(), ownedBoundary + 1);
+        assertEq(ownedBoundaryMagic.tokenURI(ownedBoundary), "metadata");
+        assertEq(fameMirror.ownerOf(ownedBoundary), creator);
+    }
+
+    function testLiveSupplyBoundaryDocumentsHighBurnTradeoff() public {
+        vm.stopPrank();
+        uint256 highTokenId = 18;
+        assertEq(fameMirror.ownerOf(highTokenId), creator);
+
+        address skipNftRecipient = address(0xBEEF);
+        vm.prank(skipNftRecipient);
+        fame.setSkipNFT(true);
+        uint256 amount = 3 * fame.unit();
+        vm.prank(creator);
+        fame.transfer(skipNftRecipient, amount);
+
+        assertLt(creatorMagic.getTotalNFTSupply(), highTokenId);
+        assertEq(creatorMagic.getMintPoolStart(), creatorMagic.getTotalNFTSupply() + 1);
+        assertFalse(creatorMagic.isTokenInBurnedPool(highTokenId));
+        assertTrue(creatorMagic.isTokenInMintPool(highTokenId));
+    }
+
+    function testLiveSupplyBoundaryAdvancesWithFreshSequentialMints() public {
+        vm.stopPrank();
+        uint256 supplyBefore = creatorMagic.getTotalNFTSupply();
+        uint256 boundaryBefore = creatorMagic.getMintPoolStart();
+        address newCollector = address(0xCAFE);
+
+        fame.transfer(newCollector, fame.unit());
+
+        assertEq(creatorMagic.getTotalNFTSupply(), supplyBefore + 1);
+        assertEq(creatorMagic.getMintPoolStart(), boundaryBefore + 1);
+        assertEq(fameMirror.ownerOf(boundaryBefore), newCollector);
+    }
+
+    function testArtPoolIsExcludedFromLiveSupplyClassifier() public view {
+        assertFalse(creatorMagic.isTokenInBurnedPool(300));
+        assertFalse(creatorMagic.isTokenInMintPool(300));
+    }
+
+    function testBurnAndMintPoolClassifiersAreMutuallyExclusive() public view {
+        for (uint256 tokenId = 1; tokenId <= 888; ++tokenId) {
+            assertFalse(creatorMagic.isTokenInBurnedPool(tokenId) && creatorMagic.isTokenInMintPool(tokenId));
+        }
     }
 
     function testBanishToArtPool() public {
@@ -118,9 +233,7 @@ contract CreatorArtistMagicTest is Test {
 
         // Verify tokenURI returns custom metadata (different from original)
         assertEq(creatorMagic.tokenURI(tokenId), customUri);
-        assertTrue(
-            !compareStrings(creatorMagic.tokenURI(tokenId), originalUri)
-        );
+        assertTrue(!compareStrings(creatorMagic.tokenURI(tokenId), originalUri));
 
         // Verify the metadata registry contains the custom metadata
         uint16 metadataId = creatorMagic.getTokenMetadataId(tokenId);
@@ -161,10 +274,7 @@ contract CreatorArtistMagicTest is Test {
         string memory originalUri = creatorMagic.tokenURI(tokenId);
 
         // Verify token is in mint pool using helper function
-        assertTrue(
-            creatorMagic.isTokenInMintPool(mintPoolToken),
-            "Token should be in mint pool"
-        );
+        assertTrue(creatorMagic.isTokenInMintPool(mintPoolToken), "Token should be in mint pool");
 
         // Banish to mint pool
         creatorMagic.banishToMintPool(tokenId, mintPoolToken);
@@ -209,9 +319,7 @@ contract CreatorArtistMagicTest is Test {
             string memory newUri = creatorMagic.tokenURI(tokenId);
             assertTrue(!compareStrings(newUri, originalUri));
 
-            string memory expectedUri = childRenderer.tokenURI(
-                simulatedBurnedToken
-            );
+            string memory expectedUri = childRenderer.tokenURI(simulatedBurnedToken);
             assertEq(newUri, expectedUri);
         } catch {
             // Expected to fail if the token is not actually in burn pool
@@ -242,11 +350,7 @@ contract CreatorArtistMagicTest is Test {
         uint256 tokenOwnedByUser2 = 11; // user2 owns tokens 11-15
 
         // First verify user2 actually owns this token
-        assertEq(
-            fame.fameMirror().ownerOf(tokenOwnedByUser2),
-            user2,
-            "user2 should own token 11"
-        );
+        assertEq(fame.fameMirror().ownerOf(tokenOwnedByUser2), user2, "user2 should own token 11");
 
         // Creator should not be able to banish a token not in the burn pool
         // This should revert with TokenNotInBurnPool
@@ -351,13 +455,8 @@ contract CreatorArtistMagicTest is Test {
         assertEq(creatorMagic.tokenURI(tokenId), "final_swap");
 
         // Verify that multiple swaps preserve all metadata in the registry
-        assertTrue(
-            creatorMagic.getNextMetadataId() >= 4,
-            "Should have multiple metadata entries from repeated swaps"
-        );
-        assertTrue(
-            !compareStrings(creatorMagic.tokenURI(tokenId), "second_swap")
-        );
+        assertTrue(creatorMagic.getNextMetadataId() >= 4, "Should have multiple metadata entries from repeated swaps");
+        assertTrue(!compareStrings(creatorMagic.tokenURI(tokenId), "second_swap"));
     }
 
     function testSwapBetweenAllPoolTypes() public {
@@ -438,10 +537,7 @@ contract CreatorArtistMagicTest is Test {
 
         // Find a valid mint pool token using helper function
         uint256 validMintPoolToken = _findMintPoolToken();
-        assertTrue(
-            validMintPoolToken > 0,
-            "No valid mint pool token found for boundary test"
-        );
+        assertTrue(validMintPoolToken > 0, "No valid mint pool token found for boundary test");
 
         // This should work
         creatorMagic.banishToMintPool(tokenId, validMintPoolToken);
@@ -487,8 +583,8 @@ contract CreatorArtistMagicTest is Test {
         uint256 tokenId = 16;
 
         // Create a very long metadata string
-        string
-            memory longMetadata = "ipfs://QmVeryLongHashThatRepresentsAVeryLongMetadataStringThatShouldStillWorkCorrectlyEvenWhenItIsVeryLongAndContainsLotsOfCharactersAndMaybeEvenSpecialCharactersLike!@#$%^&*()_+-=[]{}|;:,.<>?";
+        string memory longMetadata =
+            "ipfs://QmVeryLongHashThatRepresentsAVeryLongMetadataStringThatShouldStillWorkCorrectlyEvenWhenItIsVeryLongAndContainsLotsOfCharactersAndMaybeEvenSpecialCharactersLike!@#$%^&*()_+-=[]{}|;:,.<>?";
 
         creatorMagic.banishToArtPool(tokenId, longMetadata);
 
@@ -525,24 +621,15 @@ contract CreatorArtistMagicTest is Test {
         assertEq(fameMirror.ownerOf(10), user1, "user1 should own token 10");
         assertEq(fameMirror.ownerOf(11), user2, "user2 should own token 11");
         assertEq(fameMirror.ownerOf(15), user2, "user2 should own token 15");
-        assertEq(
-            fameMirror.ownerOf(16),
-            creator,
-            "creator should own token 16"
-        );
-        assertEq(
-            fameMirror.ownerOf(18),
-            creator,
-            "creator should own token 18"
-        );
+        assertEq(fameMirror.ownerOf(16), creator, "creator should own token 16");
+        assertEq(fameMirror.ownerOf(18), creator, "creator should own token 18");
     }
 
     function testSpecialCharactersInMetadata() public {
         uint256 tokenId = 16;
 
         // Test various special characters
-        string
-            memory specialMetadata = "https://api.example.com/metadata?id=123&format=json&special=%20%21%40%23";
+        string memory specialMetadata = "https://api.example.com/metadata?id=123&format=json&special=%20%21%40%23";
 
         creatorMagic.banishToArtPool(tokenId, specialMetadata);
 
@@ -618,10 +705,7 @@ contract CreatorArtistMagicTest is Test {
         // Verify final states
         assertEq(creatorMagic.tokenURI(token1), "state1_updated");
         assertEq(creatorMagic.tokenURI(token2), "state2");
-        assertEq(
-            creatorMagic.tokenURI(token3),
-            childRenderer.tokenURI(mintPoolToken)
-        );
+        assertEq(creatorMagic.tokenURI(token3), childRenderer.tokenURI(mintPoolToken));
 
         // Verify metadata registry contains the current metadata for each token
         assertTokenHasMetadata(token1, "state1_updated");
@@ -629,14 +713,8 @@ contract CreatorArtistMagicTest is Test {
 
         // token3 should have the mint pool token's metadata
         uint16 token3MetadataId = creatorMagic.getTokenMetadataId(token3);
-        assertTrue(
-            token3MetadataId != 0,
-            "Token3 should have assigned metadata ID"
-        );
-        assertEq(
-            creatorMagic.getMetadataById(token3MetadataId),
-            childRenderer.tokenURI(mintPoolToken)
-        );
+        assertTrue(token3MetadataId != 0, "Token3 should have assigned metadata ID");
+        assertEq(creatorMagic.getMetadataById(token3MetadataId), childRenderer.tokenURI(mintPoolToken));
 
         // In the new design, all historical metadata remains in the registry
         // but tokens point to their current metadata IDs
@@ -647,10 +725,8 @@ contract CreatorArtistMagicTest is Test {
         uint256 baseToken = 16;
 
         // Banish same token multiple times to test index increment
-        for (uint i = 0; i < 10; i++) {
-            string memory metadata = string(
-                abi.encodePacked("test_", vm.toString(i))
-            );
+        for (uint256 i = 0; i < 10; i++) {
+            string memory metadata = string(abi.encodePacked("test_", vm.toString(i)));
             creatorMagic.banishToArtPool(baseToken, metadata);
 
             // Verify metadata is correct
@@ -695,10 +771,7 @@ contract CreatorArtistMagicTest is Test {
         assertTrue(compareStrings(creatorMagic.tokenURI(tokenId), step2Uri));
 
         // Verify metadata registry preserves all historical states
-        assertTrue(
-            creatorMagic.getNextMetadataId() > 4,
-            "Should have multiple metadata entries"
-        );
+        assertTrue(creatorMagic.getNextMetadataId() > 4, "Should have multiple metadata entries");
 
         // This demonstrates bidirectional operations and metadata preservation
     }
@@ -770,7 +843,7 @@ contract CreatorArtistMagicTest is Test {
 
         invalidMintTokens[1] = nextTokenId; // At or beyond end (invalid)
 
-        for (uint i = 0; i < invalidMintTokens.length; i++) {
+        for (uint256 i = 0; i < invalidMintTokens.length; i++) {
             if (invalidMintTokens[i] != type(uint256).max) {
                 vm.expectRevert(CreatorArtistMagic.TokenNotInMintPool.selector);
                 creatorMagic.banishToMintPool(tokenId, invalidMintTokens[i]);
@@ -800,9 +873,7 @@ contract CreatorArtistMagicTest is Test {
 
             if (foundValidToken) {
                 creatorMagic.banishToMintPool(tokenId, validMintPoolToken);
-                string memory expectedUri = childRenderer.tokenURI(
-                    validMintPoolToken
-                );
+                string memory expectedUri = childRenderer.tokenURI(validMintPoolToken);
                 assertEq(creatorMagic.tokenURI(tokenId), expectedUri);
 
                 // Reset for next test
@@ -821,11 +892,9 @@ contract CreatorArtistMagicTest is Test {
         testMetadata[2] = "ar://abcd1234";
         testMetadata[3] = 'data:application/json,{"name":"Test"}';
         testMetadata[4] = "Special Unicode Metadata";
-        testMetadata[
-            5
-        ] = "very_long_string_with_underscores_and_numbers_123456789";
+        testMetadata[5] = "very_long_string_with_underscores_and_numbers_123456789";
 
-        for (uint i = 0; i < testMetadata.length; i++) {
+        for (uint256 i = 0; i < testMetadata.length; i++) {
             creatorMagic.banishToArtPool(tokenId, testMetadata[i]);
             assertEq(creatorMagic.tokenURI(tokenId), testMetadata[i]);
             assertTokenHasMetadata(tokenId, testMetadata[i]);
@@ -840,21 +909,15 @@ contract CreatorArtistMagicTest is Test {
 
         // Get original URIs
         string memory originalTarget = creatorMagic.tokenURI(targetToken);
-        string memory originalUnrelated1 = creatorMagic.tokenURI(
-            unrelatedToken1
-        );
-        string memory originalUnrelated2 = creatorMagic.tokenURI(
-            unrelatedToken2
-        );
+        string memory originalUnrelated1 = creatorMagic.tokenURI(unrelatedToken1);
+        string memory originalUnrelated2 = creatorMagic.tokenURI(unrelatedToken2);
 
         // Banish only target token
         creatorMagic.banishToArtPool(targetToken, "target_modified");
 
         // Verify target changed but others didn't
         assertEq(creatorMagic.tokenURI(targetToken), "target_modified");
-        assertTrue(
-            !compareStrings(creatorMagic.tokenURI(targetToken), originalTarget)
-        );
+        assertTrue(!compareStrings(creatorMagic.tokenURI(targetToken), originalTarget));
 
         assertEq(creatorMagic.tokenURI(unrelatedToken1), originalUnrelated1);
         assertEq(creatorMagic.tokenURI(unrelatedToken2), originalUnrelated2);
@@ -892,10 +955,7 @@ contract CreatorArtistMagicTest is Test {
         creatorMagic.banishToMintPool(targetToken, mintToken);
 
         // Verify target changed again but others still didn't (note: unrelatedToken1 was restored)
-        assertEq(
-            creatorMagic.tokenURI(targetToken),
-            childRenderer.tokenURI(mintToken)
-        );
+        assertEq(creatorMagic.tokenURI(targetToken), childRenderer.tokenURI(mintToken));
         assertEq(creatorMagic.tokenURI(unrelatedToken1), "restored_unrelated1");
         assertEq(creatorMagic.tokenURI(unrelatedToken2), originalUnrelated2);
     }
@@ -940,9 +1000,7 @@ contract CreatorArtistMagicTest is Test {
 
         // Verify tokenURI returns custom metadata
         assertEq(creatorMagic.tokenURI(tokenId), customUri);
-        assertTrue(
-            !compareStrings(creatorMagic.tokenURI(tokenId), originalUri)
-        );
+        assertTrue(!compareStrings(creatorMagic.tokenURI(tokenId), originalUri));
 
         // Verify the consumed boundary token receives the source token's old metadata
         assertEq(creatorMagic.tokenURI(initialNextTokenId), originalUri);
@@ -958,9 +1016,7 @@ contract CreatorArtistMagicTest is Test {
         assertEq(creatorMagic.getMintPoolEnd(), initialNextTokenId + 1);
         assertTrue(creatorMagic.isTokenInMintPool(initialNextTokenId));
         assertFalse(creatorMagic.isTokenInEndOfMintPool(initialNextTokenId));
-        assertTrue(
-            creatorMagic.isTokenInEndOfMintPool(initialNextTokenId + 1)
-        );
+        assertTrue(creatorMagic.isTokenInEndOfMintPool(initialNextTokenId + 1));
     }
 
     function testBanishToEndOfMintPoolMultiple() public {
@@ -986,12 +1042,7 @@ contract CreatorArtistMagicTest is Test {
         assertTokenHasMetadata(token2, "metadata_second");
 
         // Both tokens should have different metadata
-        assertTrue(
-            !compareStrings(
-                creatorMagic.tokenURI(token1),
-                creatorMagic.tokenURI(token2)
-            )
-        );
+        assertTrue(!compareStrings(creatorMagic.tokenURI(token1), creatorMagic.tokenURI(token2)));
     }
 
     function testBanishToEndOfMintPoolMovesActiveOverride() public {
@@ -1008,20 +1059,11 @@ contract CreatorArtistMagicTest is Test {
         assertEq(creatorMagic.tokenURI(initialNextTokenId), overriddenUri);
 
         uint16 secondBoundaryTokenId = creatorMagic.nextTokenId();
-        creatorMagic.banishToEndOfMintPool(
-            tokenId,
-            "metadata_second_replacement"
-        );
+        creatorMagic.banishToEndOfMintPool(tokenId, "metadata_second_replacement");
 
-        assertEq(
-            creatorMagic.tokenURI(tokenId),
-            "metadata_second_replacement"
-        );
+        assertEq(creatorMagic.tokenURI(tokenId), "metadata_second_replacement");
         assertEq(creatorMagic.tokenURI(initialNextTokenId), overriddenUri);
-        assertEq(
-            creatorMagic.tokenURI(secondBoundaryTokenId),
-            "metadata_replacement"
-        );
+        assertEq(creatorMagic.tokenURI(secondBoundaryTokenId), "metadata_replacement");
     }
 
     function testBanishToEndOfMintPoolEmitsUpdatesForBothTokens() public {
@@ -1052,58 +1094,12 @@ contract CreatorArtistMagicTest is Test {
 
     function testBanishToEndOfMintPoolFullPool() public {
         uint256 tokenId = 16;
-        CreatorArtistMagic fullPoolMagic = new CreatorArtistMagic(
-            address(childRenderer),
-            payable(address(fame)),
-            888
-        );
+        CreatorArtistMagic fullPoolMagic =
+            new CreatorArtistMagic(address(childRenderer), payable(address(fame)), 888, 266);
         fullPoolMagic.grantRoles(creator, 3);
 
         vm.expectRevert(CreatorArtistMagic.MintPoolFull.selector);
         fullPoolMagic.banishToEndOfMintPool(tokenId, "test_metadata");
-    }
-
-    function testBanishToEndOfMintPoolAcceptsBurnedBoundary() public {
-        vm.stopPrank();
-
-        address skipNftRecipient = address(0xBEEF);
-        vm.prank(skipNftRecipient);
-        fame.setSkipNFT(true);
-        vm.prank(user1);
-        fame.transfer(skipNftRecipient, 1_000_000 ether);
-
-        uint16 burnedBoundaryTokenId = 10;
-        uint256 totalNftSupply = creatorMagic.getTotalNFTSupply();
-        assertTrue(creatorMagic.isTokenInBurnedPool(burnedBoundaryTokenId));
-        assertLe(burnedBoundaryTokenId, totalNftSupply);
-
-        CreatorArtistMagic burnedBoundaryMagic = new CreatorArtistMagic(
-            address(childRenderer),
-            payable(address(fame)),
-            burnedBoundaryTokenId
-        );
-        burnedBoundaryMagic.grantRoles(creator, 3);
-        fame.grantRoles(address(burnedBoundaryMagic), 1);
-
-        vm.startPrank(creator);
-        string memory originalMetadata = burnedBoundaryMagic.tokenURI(16);
-        burnedBoundaryMagic.banishToEndOfMintPool(
-            16,
-            "replacement_metadata"
-        );
-
-        assertEq(
-            burnedBoundaryMagic.tokenURI(16),
-            "replacement_metadata"
-        );
-        assertEq(
-            burnedBoundaryMagic.tokenURI(burnedBoundaryTokenId),
-            originalMetadata
-        );
-        assertEq(
-            burnedBoundaryMagic.nextTokenId(),
-            burnedBoundaryTokenId + 1
-        );
     }
 
     function testBanishToEndOfMintPoolUsesArtPool() public {
@@ -1168,10 +1164,7 @@ contract CreatorArtistMagicTest is Test {
         assertEq(creatorMagic.tokenURI(tokenC), "meta_chain_reference");
 
         // Verify that all historical metadata is preserved in the registry
-        assertTrue(
-            creatorMagic.getNextMetadataId() > 6,
-            "Should have multiple metadata entries"
-        );
+        assertTrue(creatorMagic.getNextMetadataId() > 6, "Should have multiple metadata entries");
 
         // Verify that the metadata registry contains all the historical metadata
         // The original metadata should still be accessible through metadata IDs
@@ -1232,10 +1225,7 @@ contract CreatorArtistMagicTest is Test {
         assertEq(creatorMagic.tokenURI(tokenC), "style_like_A");
 
         // This demonstrates that circular swap patterns work and metadata is preserved
-        assertTrue(
-            creatorMagic.getNextMetadataId() >= 6,
-            "Should have multiple metadata entries"
-        );
+        assertTrue(creatorMagic.getNextMetadataId() >= 6, "Should have multiple metadata entries");
     }
 
     function testUpdateMetadata() public {

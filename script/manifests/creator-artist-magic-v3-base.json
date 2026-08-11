@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "status": "implementation-ready",
+  "chainId": 8453,
+  "contracts": {
+    "fame": "0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418",
+    "fameMirror": "0xBB5ED04dD7B207592429eb8d599d103CCad646c4",
+    "creatorArtistMagicV2": "0xC8268c2aa571F3C88044C2959F73DdB8eB9e139F",
+    "legacyMarketplace": "0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e",
+    "legacyCheckout": "0x1905B4a633074243f3D9FDB59596fB7419adce2c",
+    "creatorArtistMagicV3": null,
+    "replacementMarketplace": null,
+    "replacementCheckout": null
+  },
+  "predictedContracts": {
+    "creatorArtistMagicV3": "0x6754e4871775A781702f2Ab6e494754a562586ee",
+    "replacementMarketplace": "0x93222897902a5Fc2f20079d242c660117277930A",
+    "replacementCheckout": "0x50B9649Aa28D7d0B966B2A51092C5BcF37905a63",
+    "operatorStartingNonce": 230
+  },
+  "pinnedState": {
+    "nextTokenId": 651,
+    "artPoolNext": 266,
+    "dn404TotalNftSupply": 564,
+    "legacyProvider": "0xF11Ce547ff948a03570B20Eac4a4d7b648693324",
+    "legacyProviderUnits": 1,
+    "legacyInventory": 1
+  },
+  "poolClassification": {
+    "mode": "v2-live-total-nft-supply-best-effort",
+    "advancesWithFreshMints": true,
+    "canMoveBackwardAfterBurns": true,
+    "historicalMintClassificationExact": false
+  },
+  "cutoverGuards": {
+    "dn404PackedNextTokenId": 592,
+    "purpose": "migration-only drift detection; never CreatorArtistMagic classifier state"
+  },
+  "roles": {
+    "renderer": 1,
+    "creator": 2,
+    "banisher": 4,
+    "creators": [
+      "0xF11Ce547ff948a03570B20Eac4a4d7b648693324",
+      "0x750ea1c5ad297278665f2f8332a8876d6f95E19c",
+      "0xaE30c908C41407877fE764B5f864eb0F5e536A72"
+    ]
+  },
+  "replacementMarketplace": {
+    "communityFee": "25000000000000000000000",
+    "providerFee": "25000000000000000000000",
+    "activeProviderCap": 88,
+    "feeRecipient": "0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D",
+    "owner": "0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9"
+  },
+  "replacementCheckout": {
+    "router": "0xAdefa5860389E8936ebf2977e1Fb4a365aA39636",
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "weth": "0x4200000000000000000000000000000000000006"
+  },
+  "deploymentSequence": [
+    "pause legacy marketplace",
+    "deploy CreatorArtistMagic V3",
+    "grant three CREATOR roles",
+    "set V3 as FAME renderer",
+    "deploy replacement marketplace",
+    "grant replacement marketplace BANISHER",
+    "deploy and authorize replacement checkout",
+    "unpause replacement marketplace",
+    "revoke creator and legacy-market write roles from V2"
+  ],
+  "providerMigration": false,
+  "broadcastApproved": false
+}

@@ -651,6 +651,30 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         assertGe(market.inventory(), inventoryBefore);
     }
 
+    function testPurchasePoolMaterializesNewlyReleasedArtwork() public {
+        uint256 shellId = _seedShells(market, 2);
+        _fundAndApprove(buyer, market, fame.unit() + market.premium());
+
+        uint256 sourceId = creatorMagic.nextTokenId();
+        string memory releasedUri = "https://gateway.irys.xyz/newly-released-art";
+        creatorMagic.grantRoles(address(this), 2);
+        assertEq(creatorMagic.releaseArtwork(sourceId, releasedUri), sourceId);
+
+        bytes32 selectedArtwork = market.artworkHash(sourceId);
+        bytes32 displacedArtwork = market.artworkHash(shellId);
+        assertEq(selectedArtwork, keccak256(bytes(releasedUri)));
+        assertTrue(creatorMagic.isTokenInMintPool(sourceId));
+        _enablePoolPurchases(market);
+
+        uint256 maxPremium = market.premium();
+        vm.prank(buyer);
+        market.purchasePool(shellId, sourceId, selectedArtwork, maxPremium, 0, recipient);
+
+        assertEq(mirror.ownerOf(shellId), recipient);
+        assertEq(market.artworkHash(shellId), selectedArtwork);
+        assertEq(market.artworkHash(sourceId), displacedArtwork);
+    }
+
     function testAuthorizedCheckoutPurchasePoolUsesTypedPoolPath() public {
         uint256 shellId = _seedShells(market, 2);
         uint256 sourceId = _findMintPoolToken();
@@ -796,8 +820,7 @@ contract UniversalPoolArtMarketplaceTest is UniversalPoolArtMarketplaceTestBase 
         bytes32 selectedArtwork = market.artworkHash(sourceId);
         _enablePoolPurchases(market);
 
-        fame.transfer(recipient, fame.unit());
-        assertEq(mirror.ownerAt(sourceId), recipient);
+        vm.mockCall(address(mirror), abi.encodeWithSelector(mirror.ownerOf.selector, sourceId), abi.encode(recipient));
 
         uint256 feeBefore = fame.balanceOf(feeRecipient);
         uint256 maxPremium = market.premium();
