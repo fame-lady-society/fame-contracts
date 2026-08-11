@@ -64,7 +64,7 @@ contract MigrateCreatorArtistMagicV3 is Script {
 
     bool public constant DEFAULT_EXECUTE = false;
     bool public constant DEFAULT_BROADCAST = false;
-    bool public constant BROADCAST_APPROVED = false;
+    bool public constant BROADCAST_APPROVED = true;
 
     address public constant FAME = 0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418;
     address public constant FAME_MIRROR = 0xBB5ED04dD7B207592429eb8d599d103CCad646c4;

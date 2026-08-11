@@ -15,6 +15,7 @@ contract MigrateCreatorArtistMagicV3ManifestTest is Test {
         string memory manifest =
             vm.readFile(string.concat(vm.projectRoot(), "/script/manifests/creator-artist-magic-v3-base.json"));
 
+        assertEq(vm.parseJsonString(manifest, ".status"), "broadcast-approved");
         assertEq(vm.parseJsonUint(manifest, ".chainId"), migration.BASE_CHAIN_ID());
         assertEq(vm.parseJsonAddress(manifest, ".contracts.fame"), migration.FAME());
         assertEq(vm.parseJsonAddress(manifest, ".contracts.fameMirror"), migration.FAME_MIRROR());
@@ -51,7 +52,7 @@ contract MigrateCreatorArtistMagicV3ManifestTest is Test {
         assertEq(vm.parseJsonAddress(manifest, ".pinnedState.legacyProvider"), migration.LEGACY_PROVIDER());
         assertEq(vm.parseJsonUint(manifest, ".pinnedState.legacyProviderUnits"), 1);
         assertFalse(vm.parseJsonBool(manifest, ".providerMigration"));
-        assertFalse(vm.parseJsonBool(manifest, ".broadcastApproved"));
+        assertTrue(vm.parseJsonBool(manifest, ".broadcastApproved"));
 
         address[3] memory creators = migration.creatorWallets();
         for (uint256 i; i < creators.length; ++i) {

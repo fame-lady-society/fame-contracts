@@ -108,9 +108,8 @@ contract MigrateCreatorArtistMagicV3ForkBaseTest is Test {
         migration.verifyDeployed();
     }
 
-    function testBroadcastRemainsDisabledUntilManifestIsFinal() public {
-        vm.expectRevert(MigrateCreatorArtistMagicV3.BroadcastNotApproved.selector);
-        migration.runForTest(true, true);
+    function testBroadcastApprovalIsEnabledForFinalManifest() public view {
+        assertTrue(migration.BROADCAST_APPROVED());
     }
 
     function testVerifierRejectsResumedStaticFrontierBytecode() public {

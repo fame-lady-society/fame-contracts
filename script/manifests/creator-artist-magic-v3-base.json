@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "implementation-ready",
+  "status": "broadcast-approved",
   "chainId": 8453,
   "contracts": {
     "fame": "0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418",
@@ -70,5 +70,5 @@
     "revoke creator and legacy-market write roles from V2"
   ],
   "providerMigration": false,
-  "broadcastApproved": false
+  "broadcastApproved": true
 }
