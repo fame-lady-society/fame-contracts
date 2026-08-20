@@ -29,7 +29,7 @@ abstract contract UniversalPoolArtMarketplaceTestBase is Test {
         childRenderer = new EchoMetadata();
         fame = new Fame(_fameName(), _fameSymbol(), address(0));
         mirror = fame.fameMirror();
-        creatorMagic = new CreatorArtistMagic(address(childRenderer), payable(address(fame)), 500);
+        creatorMagic = new CreatorArtistMagic(address(childRenderer), payable(address(fame)), 500, 266);
 
         fame.grantRoles(address(creatorMagic), FAME_RENDERER_ROLE);
         fame.grantRoles(address(this), FAME_METADATA_ROLE);
