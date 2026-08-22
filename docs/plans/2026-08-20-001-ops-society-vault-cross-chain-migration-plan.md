@@ -22,8 +22,6 @@ The approval inventory is [2026-08-20-001-ops-society-vault-asset-approval.md](2
 
 ### Deferred until required inputs are known
 
-- Pinned released Safe version, singleton, fallback handler, factory, MultiSendCallOnly, and salt nonce.
-- Predicted destination Safe address.
 - Final raw calldata, Safe transaction hashes, signatures, and proposals.
 - Human approval for every unchecked inventory item.
 
@@ -37,7 +35,7 @@ The approval inventory is [2026-08-20-001-ops-society-vault-asset-approval.md](2
 
 ## Key findings and required corrections to the initial framing
 
-1. **The deployment caller is not a CREATE2 input, but the bootstrap owner is.** `msg.sender` is not part of SafeProxyFactory's canonical `createProxyWithNonce` address formula. In this design, however, `0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252` is the sole owner encoded in the initializer, so that address is part of the CREATE2 input and must be identical on every chain.
+1. **The deployment caller is not a CREATE2 input, but the bootstrap owner is.** `msg.sender` is not part of SafeProxyFactory's canonical `createProxyWithNonceL2` address formula. In this design, however, `0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252` is the sole owner encoded in the initializer, so that address is part of the CREATE2 input and must be identical on every chain.
 2. **Use a deployer-only initializer followed by one atomic transition.** Initialize the Safe with only the FLS deployer at threshold 1. As Safe nonce 0, immediately execute one atomic `MultiSendCallOnly` transaction that adds all 15 final signers, removes the deployer, and finishes at threshold 7. Do not fund the Safe or grant it authority during the temporary 1-of-1 state.
 3. **The final signer set does not determine the Safe address.** The same factory, proxy bytecode, singleton address/type, byte-for-byte one-owner initializer, and salt nonce are required. The 15 final owners live in the follow-up transaction and may be reused or changed on later chains without changing the already-defined Safe address. Protocol Kit may default to `Safe.sol` on Ethereum and `SafeL2.sol` elsewhere, producing different addresses.
 4. **Do not use a chain-specific deployment.** `createChainSpecificProxyWithNonce` and Protocol Kit `deploymentType: eip155` include the chain ID and prevent address parity.
@@ -157,25 +155,26 @@ initializerOwnersOrdered: [0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252]
 initializerThreshold: 1
 finalOwnersOrdered: confirmed Base order plus 0x6c9bB7BBa02404a3Dd0cE572a67a8639af0712Db last
 finalThreshold: 7
-safeRelease: 1.4.1, released=true
-proxyFactoryAddress: 0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67
-proxyFactoryCodeHash: 0x50c3cdc4074750a7a974204a716c999edd37482f907608d960b2b025ee0b3317
-proxyCreationCodeHash: 0x1856e0ee08399d74e0ea0b03adca210aeade6f748969ac023cdcb4dd62dcaf5f
-singletonAddress: 0x41675C099F32341bf84BFc5382aF534df5C7461a, identical on chains 1/8453/137
-singletonCodeHash: 0x1fe2df852ba3299d6534ef416eefa406e56ced995bca886ab7a553e6d0c5e1c4
-fallbackHandlerAddress: 0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99, supports ERC721/ERC1155 callbacks
-fallbackHandlerCodeHash: 0x7c6007a5d711cea8dfd5d91f5940ec29c7f200fe511eb1fc1397b367af3c42f9
-multiSendCallOnlyAddress: 0x9641d764fc13c8B624c04430C7356C1C7C8102e2
-multiSendCallOnlyCodeHash: 0xecd5bd14a08c5d2122379900b2f272bdf107a7e92423c10dd5fe3254386c9939
+safeRelease: 1.5.0, released=true
+singletonType: SafeL2
+proxyFactoryAddress: 0x14F2982D601c9458F93bd70B218933A6f8165e7b
+proxyFactoryCodeHash: 0x967dae4cda22b0c9ef7f31b010bdc1ceb0af9904b0c3dc060b5302e4c18a4529
+proxyCreationCodeHash: 0x941b3e88811b2f33b8e26783c7407d2e978404581a21c9f07abf2cad9cb87e12
+singletonAddress: 0xEdd160fEBBD92E350D4D398fb636302fccd67C7e, identical on chains 1/8453/137
+singletonCodeHash: 0x180193227186ccb85316c94db1f0d156ed932b14712cfaac78901899178572dc
+fallbackHandlerAddress: 0x3EfCBb83A4A7AfcB4F68D501E2c2203a38be77f4, supports ERC721/ERC1155 callbacks
+fallbackHandlerCodeHash: 0x3c6a85bcf7b563daa624b884b4e9a1b9fa5371edde7be945d998071a48f28bbc
+multiSendCallOnlyAddress: 0xA83c336B20401Af773B6219BA5027174338D1836
+multiSendCallOnlyCodeHash: 0xcdbdcec38d2f1c7d961b0029ff8416b7e86e9974d6f0e9c9580c7d17fcfb6663
 setupTo: 0x0000000000000000000000000000000000000000 unless explicitly approved
 setupData: 0x unless explicitly approved
 initializerFallbackHandler: fallbackHandlerAddress
 paymentToken: 0x0000000000000000000000000000000000000000
 payment: 0
 paymentReceiver: 0x0000000000000000000000000000000000000000
-saltNonce: 0
-deploymentMethod: createProxyWithNonce
-predictedSafeAddress: 0x80801E5f8FCCd15D8be84994216f5abd066C08E3, verified unused on 1/8453/137 before approval
+saltNonce: 1151571177
+deploymentMethod: createProxyWithNonceL2
+predictedSafeAddress: 0x0000fA3e509D629516Ae56dc6FDd31047300114D, verified unused on 1/8453/137 before approval
 ```
 
 Acceptance gates:
@@ -185,6 +184,7 @@ Acceptance gates:
 - The final 15 owner addresses are checksummed, unique, non-zero, and in one deliberately frozen order; final threshold 7 does not exceed final owner count.
 - `0xFA3E…B252` is absent from `finalOwnersOrdered` and is removed in the same atomic transaction that installs the final council.
 - The same initializer bytes and CREATE2 inputs independently predict the same unused address on all three chains.
+- The deployment receipt contains both `ProxyCreation` and `ProxyCreationL2`; the latter must reproduce the approved proxy, singleton, initializer, and salt nonce.
 - The bootstrap transaction is a separate Safe nonce-0 transaction and is not encoded through initializer `setupTo` or `setupData`.
 - The bootstrap calls add owners in reverse final order with intermediate threshold 1, then call `removeOwner(finalOwnersOrdered[14], bootstrapOwner, 7)`. Simulation must prove that `getOwners()` returns the frozen final order.
 - Use the same singleton type/address on all three chains. Do not accept SDK defaults without comparing the resulting deployment manifest.
@@ -210,7 +210,7 @@ The temporary 1-of-1 state is an explicit high-risk custody window. If the boots
 
 1. Predict the destination address independently from the frozen manifest.
 2. Verify the address has no code on chains 1, 8453, and 137.
-3. For each chain, deploy with `createProxyWithNonce`, then complete the bootstrap transition before deploying or funding the next operational step. The FLS deployer pays the deployment transaction and is the initial Safe owner.
+3. For each chain, deploy with `createProxyWithNonceL2`, then complete the bootstrap transition before deploying or funding the next operational step. The FLS deployer pays the deployment transaction and is the initial Safe owner. Do not use either chain-specific factory method.
 4. Immediately after each deployment and before the bootstrap transaction, verify:
    - proxy factory and singleton code hashes;
    - `VERSION()`;
@@ -506,8 +506,8 @@ Closeout gates:
 - [x] Final membership: existing Base/Ethereum 14 plus the new signer.
 - [x] Final threshold: 7-of-15.
 - [x] `0xFA3E…B252` is deployment payer and temporary bootstrap owner, then is removed from the final owner set atomically.
-- [x] Pinned Safe v1.4.1 release, same singleton, factory, fallback handler, MultiSendCallOnly, and salt nonce `0`.
-- [x] Predicted same Safe address `0x80801E5f8FCCd15D8be84994216f5abd066C08E3` on chains 1/8453/137 and verified it unused before approval.
+- [x] Pinned SafeL2 v1.5.0 release, same singleton, factory, fallback handler, MultiSendCallOnly, and mined salt nonce `1151571177`.
+- [x] Predicted same Safe address `0x0000fA3e509D629516Ae56dc6FDd31047300114D` on chains 1/8453/137 and verified it unused before approval.
 - [x] All asset and authority policy decisions are resolved; unchecked mutually exclusive alternatives in the inventory are not selected.
 - [x] Recovered Base current NFT index returns four ERC-721s, no ERC-1155s, and no next page.
 - [x] Scanned Base ERC-1155 `TransferSingle`/`TransferBatch` history through block `50,292,456`; the only anomalous receipt has current `balanceOf = 0` and is documented as a historical quarantine record.
