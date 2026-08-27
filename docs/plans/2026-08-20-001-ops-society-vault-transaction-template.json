@@ -1,0 +1,978 @@
+{
+  "schemaVersion": 2,
+  "status": "template-only-not-importable-not-signable",
+  "createdAt": "2026-08-20",
+  "updatedAt": "2026-08-22",
+  "purpose": "Prepare same-address deployer-only Society Safe deployment, immediate atomic transition to 7-of-15, approved old-vault asset/control migration, FameLadySociety authority and donation-vault cutover, related operator calls, and optional legacy owner rotation.",
+  "sourceInventory": "docs/plans/2026-08-20-001-ops-society-vault-asset-approval.md",
+  "sourcePlan": "docs/plans/2026-08-20-001-ops-society-vault-cross-chain-migration-plan.md",
+  "parameters": {
+    "deploymentPayer": "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252",
+    "bootstrapOwner": "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252",
+    "initializerOwnersOrdered": [
+      "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252"
+    ],
+    "initializerThreshold": 1,
+    "finalOwnersOrdered": [
+      "0x098Ec024CbeA5784B842E35972218e0679534258",
+      "0x8254D14d8c8c82Bf1f9Be44881Dd535488116605",
+      "0xC3E0636c20F1D03Cb2dc7a968996619A43d7B976",
+      "0xd397557dE23d587d70b90726cC88a862AFD915D4",
+      "0x21a64eF57be4D6930d3eAF84b8362213F5133Af7",
+      "0x0A9071538696a7f2e76A6555c1eb8b6a3C030D47",
+      "0x2C0e94B4951E084832b966ec5280924bCb4ACe48",
+      "0x0aC28e7f11cD5106A8b2606DD916Ee652Fb49f83",
+      "0x2E9BFdA965de0EDe0b41D0dEF2aE917708E7cF6D",
+      "0xD4Ca157d6ee33a5d0eB811535577cC716b876304",
+      "0x7e40Acf1dC4c3e844467299b1070Ae2D1951852c",
+      "0x92d35563EA7a4DA571CEA4c15b59f8A9A0975491",
+      "0x007546db322B432f82FcF6067cEEe5916a95005C",
+      "0x64b7E2076c47701dF987E389eaEB7254F8a80299",
+      "0x6c9bB7BBa02404a3Dd0cE572a67a8639af0712Db"
+    ],
+    "finalOwnerMembershipStatus": "confirmed-15-members",
+    "finalOwnerOrderStatus": "confirmed-current-base-order-then-new-signer-last",
+    "finalThreshold": 7,
+    "finalThresholdStatus": "confirmed-7-of-15",
+    "safeRelease": "1.5.0",
+    "proxyFactory": "0x14F2982D601c9458F93bd70B218933A6f8165e7b",
+    "proxyFactoryCodeHash": "0x967dae4cda22b0c9ef7f31b010bdc1ceb0af9904b0c3dc060b5302e4c18a4529",
+    "proxyCreationCodeHash": "0x941b3e88811b2f33b8e26783c7407d2e978404581a21c9f07abf2cad9cb87e12",
+    "singleton": "0xEdd160fEBBD92E350D4D398fb636302fccd67C7e",
+    "singletonCodeHash": "0x180193227186ccb85316c94db1f0d156ed932b14712cfaac78901899178572dc",
+    "fallbackHandler": "0x3EfCBb83A4A7AfcB4F68D501E2c2203a38be77f4",
+    "fallbackHandlerCodeHash": "0x3c6a85bcf7b563daa624b884b4e9a1b9fa5371edde7be945d998071a48f28bbc",
+    "multiSendCallOnly": "0xA83c336B20401Af773B6219BA5027174338D1836",
+    "multiSendCallOnlyCodeHash": "0xcdbdcec38d2f1c7d961b0029ff8416b7e86e9974d6f0e9c9580c7d17fcfb6663",
+    "saltNonce": "1151571177",
+    "predictedSafeAddress": "0x0000fA3e509D629516Ae56dc6FDd31047300114D",
+    "sameAddressVerifiedOnChainIds": [1, 8453, 137]
+  },
+  "deployment": {
+    "method": "createProxyWithNonceL2(address,bytes,uint256)",
+    "chainSpecificDeploymentForbidden": true,
+    "initializerMustBeByteIdentical": true,
+    "initializer": {
+      "ownersOrdered": [
+        "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252"
+      ],
+      "threshold": 1,
+      "setupTo": "0x0000000000000000000000000000000000000000",
+      "setupData": "0x",
+      "fallbackHandler": "0x3EfCBb83A4A7AfcB4F68D501E2c2203a38be77f4",
+      "fallbackHandlerSource": "parameters.fallbackHandler",
+      "paymentToken": "0x0000000000000000000000000000000000000000",
+      "payment": "0",
+      "paymentReceiver": "0x0000000000000000000000000000000000000000"
+    },
+    "transactions": [
+      {
+        "chainId": 1,
+        "to": null,
+        "value": "0",
+        "data": null
+      },
+      {
+        "chainId": 8453,
+        "to": null,
+        "value": "0",
+        "data": null
+      },
+      {
+        "chainId": 137,
+        "to": null,
+        "value": "0",
+        "data": null
+      }
+    ]
+  },
+  "bootstrapTransition": {
+    "status": "template-only-not-importable-not-signable",
+    "executeImmediatelyAfterEachDeployment": true,
+    "fundingOrAuthorityBeforeCompletionForbidden": true,
+    "signer": "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252",
+    "safeNonce": 0,
+    "outerTarget": null,
+    "outerTargetSource": "parameters.multiSendCallOnly",
+    "outerValue": "0",
+    "outerOperation": 1,
+    "outerOperationName": "DELEGATECALL",
+    "onlyCalls": true,
+    "orderedCalls": [
+      {
+        "id": "BOOT-ADD-01",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x6c9bB7BBa02404a3Dd0cE572a67a8639af0712Db", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-02",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x64b7E2076c47701dF987E389eaEB7254F8a80299", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-03",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x007546db322B432f82FcF6067cEEe5916a95005C", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-04",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x92d35563EA7a4DA571CEA4c15b59f8A9A0975491", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-05",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x7e40Acf1dC4c3e844467299b1070Ae2D1951852c", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-06",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0xD4Ca157d6ee33a5d0eB811535577cC716b876304", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-07",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x2E9BFdA965de0EDe0b41D0dEF2aE917708E7cF6D", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-08",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x0aC28e7f11cD5106A8b2606DD916Ee652Fb49f83", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-09",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x2C0e94B4951E084832b966ec5280924bCb4ACe48", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-10",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x0A9071538696a7f2e76A6555c1eb8b6a3C030D47", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-11",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x21a64eF57be4D6930d3eAF84b8362213F5133Af7", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-12",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0xd397557dE23d587d70b90726cC88a862AFD915D4", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-13",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0xC3E0636c20F1D03Cb2dc7a968996619A43d7B976", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-14",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x8254D14d8c8c82Bf1f9Be44881Dd535488116605", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-ADD-15",
+        "target": "$NEW_SAFE",
+        "method": "addOwnerWithThreshold(address,uint256)",
+        "args": ["0x098Ec024CbeA5784B842E35972218e0679534258", "1"],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      },
+      {
+        "id": "BOOT-FINALIZE",
+        "target": "$NEW_SAFE",
+        "method": "removeOwner(address,address,uint256)",
+        "args": [
+          "0x6c9bB7BBa02404a3Dd0cE572a67a8639af0712Db",
+          "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252",
+          "7"
+        ],
+        "value": "0",
+        "operation": 0,
+        "calldata": null
+      }
+    ],
+    "expectedPreState": {
+      "ownersOrdered": [
+        "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252"
+      ],
+      "threshold": 1,
+      "nonce": 0
+    },
+    "expectedPostState": {
+      "ownersOrderedSource": "parameters.finalOwnersOrdered",
+      "threshold": 7,
+      "bootstrapOwnerIsOwner": false,
+      "nonce": 1
+    },
+    "appliesOnChainIds": [1, 8453, 137],
+    "safeTransactionHashesByChainId": {
+      "1": null,
+      "8453": null,
+      "137": null
+    },
+    "simulationReferencesByChainId": {
+      "1": null,
+      "8453": null,
+      "137": null
+    }
+  },
+  "chains": {
+    "137": {
+      "name": "Polygon",
+      "oldSafe": "0x560dF07ff3aB5eAE66683D6e11AbFa28f1801997",
+      "snapshotBlock": 92363016,
+      "snapshotSafeNonce": 4,
+      "calls": [
+        {
+          "id": "P-CTRL-01",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer-ownership",
+          "target": "0x3018671f3495419636519f37FfeA85BfBe3dce0f",
+          "method": "transferOwnership(address)",
+          "args": ["$NEW_SAFE"],
+          "value": "0",
+          "operation": 0,
+          "calldata": null
+        }
+      ]
+    },
+    "8453": {
+      "name": "Base",
+      "oldSafe": "0xC952C53D8B63919e372caa2E6FEe605ee24E4D3D",
+      "snapshotBlock": 50230051,
+      "nftSnapshotBlock": 50229596,
+      "fameRelationshipCheckBlock": 50293052,
+      "snapshotSafeNonce": 4,
+      "completenessGates": [
+        "Refresh every balance, owner, role, fee recipient, module, guard, fallback handler, and Safe nonce.",
+        "Repeat current ERC-1155 balance checks at the final signing snapshot."
+      ],
+      "resolvedChecks": [
+        "On 2026-08-21 the current Blockscout NFT index returned four ERC-721s, zero ERC-1155s, and no next page.",
+        "A raw-RPC scan of all Base TransferSingle and TransferBatch events involving the vault from block 0 through 50292456 found no current ERC-1155 holding after balanceOf verification.",
+        "One anomalous historical receipt from unverified contract 0x1829eA38677e1C5a80e262eA072Ad3EE9D5ABB24, token ID 101, has current balanceOf zero and is retained as a quarantine record.",
+        "All four historical Safe executions were decoded; they contain only Safe owner management and FAME transfers.",
+        "Migration policy preserves linked mirror ERC-721 IDs 170, 230, 424, and 479, then transfers only the FAME ERC-20 remainder after subtracting the four units carried by those mirror transfers.",
+        "At Base block 50293052, raw RPC returned FAME unit 1000000000000000000000000, old Safe getSkipNFT true, old Safe raw FAME balance 34086517708905088080739131, and mirror balance 4."
+      ],
+      "linkedMirrorReconciliation": {
+        "status": "approved-preserve-four-linked-ids",
+        "fameERC20": "0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418",
+        "mirrorERC721": "0xbb5ed04dd7b207592429eb8d599d103ccad646c4",
+        "unitRaw": "1000000000000000000000000",
+        "preTransferTokenIds": [170, 230, 424, 479],
+        "snapshotTotalFameRaw": "34086517708905088080739131",
+        "snapshotFameRawCarriedByFourNfts": "4000000000000000000000000",
+        "snapshotRemainderRaw": "30086517708905088080739131",
+        "standaloneMirrorTransfersRequired": true,
+        "atomicBatchRequired": true,
+        "destinationMustHaveSkipNFT": true,
+        "destinationTokenIdsExpected": [170, 230, 424, 479],
+        "callOrder": [
+          "safeTransferFrom mirror ID 170",
+          "safeTransferFrom mirror ID 230",
+          "safeTransferFrom mirror ID 424",
+          "safeTransferFrom mirror ID 479",
+          "transfer refreshed FAME raw balance minus four units"
+        ],
+        "preconditions": [
+          "Refresh the old Safe FAME balance and ownership of all four linked mirror IDs.",
+          "Verify FAME.getSkipNFT(NEW_SAFE) returns true.",
+          "Verify the new Safe fallback handler accepts ERC-721 callbacks.",
+          "Recompute refreshed FAME balance minus four times unit and simulate all five calls atomically."
+        ],
+        "postconditions": [
+          "The new Safe receives the entire refreshed FAME position across the four mirror transfers and the ERC-20 remainder.",
+          "The old Safe FAME ERC-20 balance and linked mirror balance are zero.",
+          "Token IDs 170, 230, 424, and 479 are owned by the new Safe.",
+          "FAME.getSkipNFT(NEW_SAFE) remains true so the remainder transfer mints no additional mirror NFTs."
+        ]
+      },
+      "oldSafeCalls": [
+        {
+          "id": "B-CORE-USDC",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "method": "transfer(address,uint256)",
+          "args": ["$NEW_SAFE", "$REFRESHED_USDC_RAW_BALANCE"],
+          "snapshotRawAmount": "1041961",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "B-CORE-ZORA",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0x1111111111166b7FE7bd91427724B487980aFc69",
+          "method": "transfer(address,uint256)",
+          "args": ["$NEW_SAFE", "$REFRESHED_ZORA_RAW_BALANCE"],
+          "snapshotRawAmount": "271292401162931083",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "B-FAME-MIRROR-170",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-preserve-existing-mirror-id",
+          "atomicBatch": "B-FAME-DN404",
+          "target": "0xbb5ed04dd7b207592429eb8d599d103ccad646c4",
+          "method": "safeTransferFrom(address,address,uint256)",
+          "args": ["$OLD_BASE_SAFE", "$NEW_SAFE", "170"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "B-FAME-MIRROR-230",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-preserve-existing-mirror-id",
+          "atomicBatch": "B-FAME-DN404",
+          "target": "0xbb5ed04dd7b207592429eb8d599d103ccad646c4",
+          "method": "safeTransferFrom(address,address,uint256)",
+          "args": ["$OLD_BASE_SAFE", "$NEW_SAFE", "230"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "B-FAME-MIRROR-424",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-preserve-existing-mirror-id",
+          "atomicBatch": "B-FAME-DN404",
+          "target": "0xbb5ed04dd7b207592429eb8d599d103ccad646c4",
+          "method": "safeTransferFrom(address,address,uint256)",
+          "args": ["$OLD_BASE_SAFE", "$NEW_SAFE", "424"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "B-FAME-MIRROR-479",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-preserve-existing-mirror-id",
+          "atomicBatch": "B-FAME-DN404",
+          "target": "0xbb5ed04dd7b207592429eb8d599d103ccad646c4",
+          "method": "safeTransferFrom(address,address,uint256)",
+          "args": ["$OLD_BASE_SAFE", "$NEW_SAFE", "479"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "B-CORE-FAME-REMAINDER",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer-remainder-after-four-mirror-ids",
+          "atomicBatch": "B-FAME-DN404",
+          "target": "0xf307e242BfE1EC1fF01a4Cef2fdaa81b10A52418",
+          "method": "transfer(address,uint256)",
+          "args": ["$NEW_SAFE", "$REFRESHED_FAME_RAW_BALANCE_MINUS_FOUR_UNITS"],
+          "snapshotRawAmount": "30086517708905088080739131",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "B-QUAR-TELEGRAM",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-leave-behind-spam",
+          "blocked": false,
+          "status": "no-call-required",
+          "token": "0x1e358596F48420FE4Cd147DCc850661632125E21",
+          "snapshotRawAmount": "8888",
+          "reason": "User classified the unsolicited Telegram token as spam and approved leaving it in the old Safe.",
+          "calldata": null
+        },
+        {
+          "id": "B-ERC1155-NONE-CURRENT",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "blocked": false,
+          "status": "no-call-required-at-2026-08-21-rpc-verification",
+          "reason": "Blockscout current inventory and full filtered raw-RPC ERC-1155 history plus current balanceOf checks found no current holding.",
+          "historicalAnomaly": {
+            "contract": "0x1829eA38677e1C5a80e262eA072Ad3EE9D5ABB24",
+            "tokenId": "101",
+            "eventAmount": "1",
+            "currentBalance": "0",
+            "blockNumber": 38138882,
+            "transactionHash": "0x79020abeb09a8de1a8dc63ab96f7cb957ec537a9d64d010e801e6468e797f05a",
+            "classification": "historical-quarantine-zero-balance"
+          },
+          "calldata": null
+        },
+        {
+          "id": "B-NATIVE-FINAL",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer-refreshed-final-balance",
+          "target": "$NEW_SAFE",
+          "value": "$REFRESHED_APPROVED_NATIVE_WEI",
+          "snapshotRawAmount": "1161250824601678039",
+          "data": "0x",
+          "operation": 0
+        }
+      ],
+      "operatorCalls": [
+        {
+          "id": "B-FEE-01",
+          "authority": "current-contract-owner",
+          "expectedAuthority": "0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9",
+          "approvalRequired": false,
+          "approvalStatus": "approved-reroute-fee-recipient",
+          "target": "0xAdefa5860389E8936ebf2977e1Fb4a365aA39636",
+          "method": "setFeeRecipient(address)",
+          "args": ["$NEW_SAFE"],
+          "calldata": null
+        },
+        {
+          "id": "B-FEE-02",
+          "authority": "current-contract-owner",
+          "expectedAuthority": "0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9",
+          "approvalRequired": false,
+          "approvalStatus": "approved-reroute-fee-recipient",
+          "target": "0x93222897902a5Fc2f20079d242c660117277930A",
+          "method": "setFeeRecipient(address)",
+          "args": ["$NEW_SAFE"],
+          "precondition": "no active settlement",
+          "calldata": null
+        },
+        {
+          "id": "B-FEE-03",
+          "authority": "current-contract-owner",
+          "expectedAuthority": "0xD52E2A6bBcEba9673440e4D7843Db6713E9B6FD9",
+          "approvalRequired": false,
+          "approvalStatus": "approved-reroute-fee-recipient-including-paused-legacy-market",
+          "target": "0x54e7E4F2d439Be599706f51068f7EB2ce2D2a27e",
+          "method": "setFeeRecipient(address)",
+          "args": ["$NEW_SAFE"],
+          "calldata": null
+        }
+      ]
+    },
+    "1": {
+      "name": "Ethereum",
+      "oldSafe": "0xCDF3e235A04624d7f23909EbBaD008Db2c54e1cF",
+      "snapshotBlock": 25798046,
+      "snapshotSafeNonce": 32,
+      "ensAuthority": {
+        "snapshotBlock": 25808649,
+        "name": "vault.fameladysociety.eth",
+        "node": "0x2e52a3ea02db5dd1e719509b39047494a77b5f986dfa33bfa5ac69a204e172ae",
+        "registry": "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",
+        "registryOwner": "0xCDF3e235A04624d7f23909EbBaD008Db2c54e1cF",
+        "resolver": "0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63",
+        "resolvedAddress": "0xCDF3e235A04624d7f23909EbBaD008Db2c54e1cF",
+        "oldSafePrimaryName": "vault.fameladysociety.eth",
+        "reverseRegistrar": "0xa58E81fe9b61B5c3fE2AFD33CF304c454AbFc7Cb",
+        "parentName": "fameladysociety.eth",
+        "parentOwner": "0xf11cc36Cc9e0F2925a3660D5E4dC6bb232CF2A57",
+        "parentOwnerReverseName": "0xflick.xyz",
+        "wrapped": false,
+        "directChildOwnerCanMigrateWithoutParentSignature": true,
+        "parentRetainsSubnodeOverride": true,
+        "approvalStatus": "approved-forward-owner-and-reverse-migration-retain-parent-override"
+      },
+      "fameLadySocietyAuthority": {
+        "observedAt": "2026-08-22-latest-blockscout-indexed-state",
+        "contract": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+        "underlyingFameLadySquad": "0xf3E6DbBE461C6fa492CeA7Cb1f5C5eA660EB1B47",
+        "oldSafeIsOwner": true,
+        "pendingOwner": "0x0000000000000000000000000000000000000000",
+        "oldSafeRoles": {
+          "DEFAULT_ADMIN_ROLE": true,
+          "TREASURER_ROLE": true,
+          "UPDATE_RENDERER_ROLE": false,
+          "EMIT_METADATA_ROLE": false
+        },
+        "roleIds": {
+          "DEFAULT_ADMIN_ROLE": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "TREASURER_ROLE": "0x3496e2e73c4d42b75d702e60d9e48102720b8691234415963a5a857b86425d07",
+          "UPDATE_RENDERER_ROLE": "0xaf42e7e9bd8391325ae859004d10f67ab627c4b6572f4202d394d9e87946856e",
+          "EMIT_METADATA_ROLE": "0x0fedf400ddee1523df439cc881be645427551f7704646604bbc0c43b6c00e208"
+        },
+        "royaltyReceiver": "0xCDF3e235A04624d7f23909EbBaD008Db2c54e1cF",
+        "royaltyBps": 500,
+        "wrapCostWei": "2000000000000000",
+        "renderer": "0xeb3577c4df71ee2fb6a6717f6b0887f2d77bc201",
+        "existingDonationVault": "0x7a276F4B91A97267D652500aa4aB8b2Fa388fb9b",
+        "existingDonationVaultHasTreasurerRole": true,
+        "existingDonationVaultDestination": "0xCDF3e235A04624d7f23909EbBaD008Db2c54e1cF",
+        "existingDonationVaultDestinationIsImmutable": true,
+        "migrationRequired": true,
+        "approvalStatus": "approved-migrate-full-authority"
+      },
+      "squadMigration": {
+        "assetMigrationApproved": true,
+        "methodDecisionStatus": "approved-wrap-first",
+        "selectedMethod": "wrap-first",
+        "recommendedMethod": "wrap-first",
+        "reason": "Wrapping through the existing donation vault preserves every Squad token ID as a FameLadySociety token ID, consolidates the Society inventory into one collection, and remains reversible through unwrap.",
+        "tokenIds": [2392, 2630, 2639, 2642, 2645, 3416, 3809, 3812, 3815, 3817, 3902, 3904, 4097, 4268, 4410, 5605, 5610, 5627, 5761, 5882, 5885, 5920, 6170, 6182, 6270, 6495, 7161],
+        "tokenCount": 27,
+        "existingDonationVault": "0x7a276F4B91A97267D652500aa4aB8b2Fa388fb9b",
+        "oldSafeAlreadyApprovesDonationVaultForAll": true,
+        "wrappedOutputContract": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+        "wrappedOutputTokenIdsAreIdentical": true,
+        "oldSafeCurrentFameLadySocietyCount": 80,
+        "oldSafeExpectedFameLadySocietyCountAfterWrap": 107,
+        "directTransferAlternativeRemainsAvailable": true,
+        "directTransferGenerationForbidden": true
+      },
+      "relatedDeployments": [
+        {
+          "id": "E-DEPLOY-NEW-DONATION-VAULT",
+          "authority": "deployer",
+          "contract": "WrappedNFTDonationVault",
+          "address": null,
+          "constructorArgs": ["0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574", "$NEW_SAFE"],
+          "approvalRequired": false,
+          "approvalStatus": "approved-post-safe-launch-deployment",
+          "executionPhase": "post-safe-launch-pre-fls-authority-handoff",
+          "implementationRepository": "/Users/user/Development/fls-contracts",
+          "implementationModule": "ignition/modules/WrappedNFTDonationVaultModule.ts",
+          "implementationStatus": "planned-not-implemented",
+          "deploymentFramework": "hardhat-ignition",
+          "legacyScriptForbidden": "deploy/50_VaultDonate.ts-hardcodes-old-safe-and-uses-obsolete-hardhat-deploy-path",
+          "solidityChangeRequired": false,
+          "moduleDeploysOnly": true,
+          "roleGrantAuthority": "old-ethereum-safe-separate-call-E-FLS-DONATION-GRANT",
+          "required": true,
+          "reason": "The existing donation vault stores the old Safe destination immutably and has no owner or destination setter.",
+          "calldata": null
+        }
+      ],
+      "oldSafeCalls": [
+        {
+          "id": "E-CORE-WETH",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          "method": "transfer(address,uint256)",
+          "args": ["$NEW_SAFE", "$REFRESHED_WETH_RAW_BALANCE"],
+          "snapshotRawAmount": "104000714285714300",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-QUAR-GUMBOY",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-leave-behind-spam",
+          "blocked": false,
+          "status": "no-call-required",
+          "token": "0x70c573C15e95EeBd71Bae6A4B0a786B7bA3f5608",
+          "snapshotRawAmount": "1000000000000000000000000",
+          "reason": "User approved leaving the identified spam token in the old Safe.",
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-721",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer-refreshed-107-after-wrap-first",
+          "chunkAfterSimulation": true,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "safeTransferFrom(address,address,uint256)",
+          "from": "$OLD_ETH_SAFE",
+          "to": "$NEW_SAFE",
+          "tokenIds": [328, 593, 649, 722, 724, 757, 801, 1348, 1402, 1546, 1703, 1778, 1820, 1896, 2193, 2247, 2335, 2349, 2372, 2676, 2709, 2792, 2899, 2918, 2986, 2998, 3163, 3170, 3261, 3269, 3328, 3653, 3670, 3729, 4042, 4090, 4243, 4276, 4289, 4404, 4456, 4516, 4520, 4543, 4567, 4975, 5037, 5149, 5246, 5272, 5309, 5402, 5550, 5632, 5846, 5865, 6040, 6091, 6659, 6772, 6850, 7124, 7203, 7283, 7325, 7350, 7527, 7576, 7832, 7914, 7961, 8061, 8256, 8283, 8368, 8371, 8579, 8583, 8587, 8688],
+          "snapshotTokenCount": 80,
+          "additionalTokenIdsIfWrapFirstSource": "chains.1.squadMigration.tokenIds",
+          "expectedTokenCountIfWrapFirst": 107,
+          "generationRule": "After the approved Squad wrap-first call, refresh ownership and transfer all 107 FameLadySociety token IDs held by the old Safe.",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-SQUAD-721",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "not-selected-direct-transfer-audit-record",
+          "blocked": false,
+          "status": "no-call-required",
+          "token": "0xf3E6DbBE461C6fa492CeA7Cb1f5C5eA660EB1B47",
+          "tokenIds": [2392, 2630, 2639, 2642, 2645, 3416, 3809, 3812, 3815, 3817, 3902, 3904, 4097, 4268, 4410, 5605, 5610, 5627, 5761, 5882, 5885, 5920, 6170, 6182, 6270, 6495, 7161],
+          "reason": "User selected wrap-first; direct Squad transfers must not be generated.",
+          "calldata": null
+        },
+        {
+          "id": "E-SQUAD-WRAP-FIRST",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-wrap-first",
+          "blocked": false,
+          "executionPhase": "pre-migration-normalization",
+          "target": "0x7a276F4B91A97267D652500aa4aB8b2Fa388fb9b",
+          "method": "wrapAndDonate(uint256[])",
+          "args": [["2392", "2630", "2639", "2642", "2645", "3416", "3809", "3812", "3815", "3817", "3902", "3904", "4097", "4268", "4410", "5605", "5610", "5627", "5761", "5882", "5885", "5920", "6170", "6182", "6270", "6495", "7161"]],
+          "expectedResult": "The 27 Squad NFTs are custodied by the FameLadySociety wrapper and identical FameLadySociety token IDs are minted to the old Safe, increasing its FLS balance from 80 to 107.",
+          "mutuallyExclusiveWith": "E-SQUAD-721",
+          "chunkAfterSimulation": true,
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-RELATED-721-YEAR-OF-THE-WOMAN",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0x3C7b5B7ea8e7C7ce8297baC167FEb97BF5A1ad98",
+          "method": "safeTransferFrom(address,address,uint256)",
+          "args": ["$OLD_ETH_SAFE", "$NEW_SAFE", "8626"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-RELATED-721-BAE-APES",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0xb56011FBfdAfe460b905A40A4845A49C94712272",
+          "method": "safeTransferFrom(address,address,uint256)",
+          "args": ["$OLD_ETH_SAFE", "$NEW_SAFE", "2520"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-RELATED-1155-IAMNAX",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0x495f947276749Ce646f68AC8c248420045cb7b5e",
+          "method": "safeTransferFrom(address,address,uint256,uint256,bytes)",
+          "args": ["$OLD_ETH_SAFE", "$NEW_SAFE", "24847003539941428306476414038544445787743965496585528607173026678158422704461", "1", "0x"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-RELATED-1155-OBSIDIAN",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0x85A6b52F30839acbd12e1cD189e850467bCcb95a",
+          "method": "safeTransferFrom(address,address,uint256,uint256,bytes)",
+          "args": ["$OLD_ETH_SAFE", "$NEW_SAFE", "3", "1", "0x"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-SOCIETY-1155-FUNKNLOVE",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer",
+          "target": "0xf407EE7289CA1941a0D9c89C57fe53F665AD237B",
+          "method": "safeBatchTransferFrom(address,address,uint256[],uint256[],bytes)",
+          "args": ["$OLD_ETH_SAFE", "$NEW_SAFE", ["0", "1"], ["11", "1"], "0x"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-DONATION-GRANT",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-post-safe-launch-donation-cutover",
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "grantRole(bytes32,address)",
+          "args": ["0x3496e2e73c4d42b75d702e60d9e48102720b8691234415963a5a857b86425d07", "$NEW_DONATION_VAULT"],
+          "precondition": "The replacement donation vault is deployed with immutable destination NEW_SAFE and its address is verified.",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-ADMIN-GRANT",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-fls-authority-handoff",
+          "orderedBatch": "E-FLS-AUTHORITY-HANDOFF",
+          "order": 1,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "grantRole(bytes32,address)",
+          "args": ["0x0000000000000000000000000000000000000000000000000000000000000000", "$NEW_SAFE"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-TREASURER-GRANT",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-fls-authority-handoff",
+          "orderedBatch": "E-FLS-AUTHORITY-HANDOFF",
+          "order": 2,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "grantRole(bytes32,address)",
+          "args": ["0x3496e2e73c4d42b75d702e60d9e48102720b8691234415963a5a857b86425d07", "$NEW_SAFE"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-ROYALTY-RECEIVER",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-fls-authority-handoff",
+          "orderedBatch": "E-FLS-AUTHORITY-HANDOFF",
+          "order": 3,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "setDefaultRoyalty(address,uint96)",
+          "args": ["$NEW_SAFE", "500"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-OWNER-START",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-contract-required-two-step-presign-gated",
+          "orderedBatch": "E-FLS-AUTHORITY-HANDOFF",
+          "order": 4,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "transferOwnership(address)",
+          "args": ["$NEW_SAFE"],
+          "precondition": "The E-POST-MIGRATION-AUTHORITY transaction is fully signed by the new Safe at a reserved nonce and ready for immediate execution. The deployed Ownable2Step contract exposes no hard-transfer alternative.",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-ENS-FORWARD-ADDR",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-ens-migration",
+          "orderedBatch": "E-ENS-FORWARD-AND-OWNER",
+          "order": 1,
+          "target": "0x231b0Ee14048e9dCcD1d247744d114a4EB5E8E63",
+          "method": "setAddr(bytes32,address)",
+          "args": ["0x2e52a3ea02db5dd1e719509b39047494a77b5f986dfa33bfa5ac69a204e172ae", "$NEW_SAFE"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-ENS-OWNER",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-ens-migration",
+          "orderedBatch": "E-ENS-FORWARD-AND-OWNER",
+          "order": 2,
+          "target": "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",
+          "method": "setOwner(bytes32,address)",
+          "args": ["0x2e52a3ea02db5dd1e719509b39047494a77b5f986dfa33bfa5ac69a204e172ae", "$NEW_SAFE"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-NATIVE-FINAL",
+          "authority": "old-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-transfer-refreshed-final-balance",
+          "target": "$NEW_SAFE",
+          "value": "$REFRESHED_APPROVED_NATIVE_WEI",
+          "snapshotRawAmount": "402492163714285700",
+          "data": "0x",
+          "operation": 0
+        }
+      ],
+      "newSafeBatchPolicy": {
+        "id": "E-POST-MIGRATION-AUTHORITY",
+        "approvalStatus": "approved-presign-before-old-safe-handoff",
+        "signatureCollectionPhase": "before-E-FLS-OWNER-START-execution",
+        "safeNonce": null,
+        "nonceReservationRequired": true,
+        "fullySignedBeforeOldSafeTransferOwnership": true,
+        "executeImmediatelyAfterOldSafeHandoff": true,
+        "simulationState": "fork-after-all-required-old-safe-handoff-calls",
+        "currentStateAcceptOwnershipSimulationExpectedToRevertBeforePendingOwnerIsSet": true,
+        "reservedNonceMustNotBeConsumedByAnotherTransaction": true,
+        "hardOwnershipTransferAvailable": false,
+        "reason": "The deployed FameLadySociety implementation inherits OpenZeppelin Ownable2Step. Pre-signing removes the post-handoff signature-collection delay without inventing an unsupported hard-transfer call."
+      },
+      "newSafeCalls": [
+        {
+          "id": "E-FLS-OWNER-ACCEPT",
+          "authority": "new-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-required-two-step-presigned",
+          "orderedBatch": "E-POST-MIGRATION-AUTHORITY",
+          "order": 1,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "acceptOwnership()",
+          "args": [],
+          "precondition": "This call is already fully signed at the reserved new-Safe nonce; execute only after FameLadySociety.pendingOwner() equals NEW_SAFE.",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-REVOKE-OLD-TREASURER",
+          "authority": "new-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-old-authority-cleanup",
+          "orderedBatch": "E-POST-MIGRATION-AUTHORITY",
+          "order": 2,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "revokeRole(bytes32,address)",
+          "args": ["0x3496e2e73c4d42b75d702e60d9e48102720b8691234415963a5a857b86425d07", "$OLD_ETH_SAFE"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-REVOKE-OLD-ADMIN",
+          "authority": "new-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-old-authority-cleanup",
+          "orderedBatch": "E-POST-MIGRATION-AUTHORITY",
+          "order": 3,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "revokeRole(bytes32,address)",
+          "args": ["0x0000000000000000000000000000000000000000000000000000000000000000", "$OLD_ETH_SAFE"],
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-FLS-REVOKE-OLD-DONATION",
+          "authority": "new-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-old-donation-vault-cleanup",
+          "orderedBatch": "E-POST-MIGRATION-AUTHORITY",
+          "order": 4,
+          "target": "0x6cF4328f1Ea83B5d592474F9fCDC714FAAfd1574",
+          "method": "revokeRole(bytes32,address)",
+          "args": ["0x3496e2e73c4d42b75d702e60d9e48102720b8691234415963a5a857b86425d07", "0x7a276F4B91A97267D652500aa4aB8b2Fa388fb9b"],
+          "precondition": "The replacement donation vault is deployed and verified, has TREASURER_ROLE, and both fls-www and society-bots have cut over and passed a canary check.",
+          "operation": 0,
+          "calldata": null
+        },
+        {
+          "id": "E-ENS-REVERSE",
+          "authority": "new-safe",
+          "approvalRequired": false,
+          "approvalStatus": "approved-ens-migration",
+          "orderedBatch": "E-POST-MIGRATION-AUTHORITY",
+          "order": 5,
+          "precondition": "ENS Registry owner and resolver address for vault.fameladysociety.eth both equal NEW_SAFE",
+          "target": "0xa58E81fe9b61B5c3fE2AFD33CF304c454AbFc7Cb",
+          "method": "setName(string)",
+          "args": ["vault.fameladysociety.eth"],
+          "operation": 0,
+          "calldata": null
+        }
+      ],
+      "contractOwnerCalls": [
+        {
+          "id": "E-FNL-ROLE-01",
+          "authority": "contract-owner",
+          "expectedAuthority": "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252",
+          "approvalRequired": false,
+          "approvalStatus": "approved-preserve-role-posture",
+          "target": "0xf407EE7289CA1941a0D9c89C57fe53F665AD237B",
+          "method": "grantRoles(address,uint256)",
+          "args": ["$NEW_SAFE", "2"],
+          "calldata": null
+        },
+        {
+          "id": "E-FNL-ROLE-02",
+          "authority": "contract-owner",
+          "expectedAuthority": "0xFA3Ef9890D792C7F61e3882dBDd5A8E13394B252",
+          "approvalRequired": false,
+          "approvalStatus": "approved-revoke-after-new-role-verification",
+          "target": "0xf407EE7289CA1941a0D9c89C57fe53F665AD237B",
+          "method": "revokeRoles(address,uint256)",
+          "args": ["$OLD_ETH_SAFE", "2"],
+          "calldata": null
+        }
+      ]
+    }
+  },
+  "legacySafeOwnerRotation": {
+    "enabled": null,
+    "finalOwnersOrderedSource": "parameters.finalOwnersOrdered",
+    "finalThreshold": 7,
+    "generateSeparatelyPerChain": true,
+    "sentinelOwner": "0x0000000000000000000000000000000000000001",
+    "preferredSequence": [
+      "swapOwner(prevOwner,departingOwner,newMember) when one-for-one replacement applies",
+      "removeOwner(prevOwner,excludedOwner,thresholdAfterRemoval) for each remaining exclusion",
+      "changeThreshold(finalThreshold) only if needed"
+    ],
+    "calldata": null
+  },
+  "generationGates": [
+    "Safe release, factory, singleton, fallback handler, MultiSendCallOnly, salt nonce, predicted Safe address, and final owner order are pinned and human-approved.",
+    "Deployment initializer contains only the bootstrap owner at threshold 1 and is byte-identical on all target chains.",
+    "Bootstrap transition is simulated as Safe nonce 0; it atomically adds all 15 final owners in reverse order, removes the bootstrap owner, and ends at threshold 7 and nonce 1.",
+    "No assets, canaries, roles, or fee routes are assigned while a destination Safe remains in the temporary 1-of-1 state.",
+    "Asset inventory and authorities are refreshed at declared signing blocks.",
+    "All asset, quarantine, Squad wrap-first, FLS authority/donation-vault, and FUNKNLOVE role decisions are recorded as approved; only separately listed deployment configuration and legacy-Safe decisions remain unresolved.",
+    "Base current indexed portfolio and current raw-RPC ERC-1155 balance checks are refreshed.",
+    "The Base destination returns FAME.getSkipNFT(NEW_SAFE) true; exactly four ordered mirror transfers for IDs 170, 230, 424, and 479 precede one remainder ERC-20 transfer in the same atomic batch; no FAME.setSkipNFT(false) call is generated.",
+    "The Squad migration method is pinned to wrap-first through the existing donation vault; direct Squad transfers are omitted from generated calldata.",
+    "The 27 exact Squad token IDs are simulated through the existing donation vault and the resulting 107-token FameLadySociety inventory is refreshed before transfer.",
+    "The replacement WrappedNFTDonationVault is deployed with NEW_SAFE as its immutable destination, verified, granted TREASURER_ROLE, and cut over in fls-www and society-bots before the old donation vault role is revoked.",
+    "FameLadySociety owner, pending owner, DEFAULT_ADMIN_ROLE, TREASURER_ROLE, royalty receiver, renderer, wrap cost, and donation-vault roles are refreshed immediately before signing and verified after execution.",
+    "The E-POST-MIGRATION-AUTHORITY new-Safe batch is assigned a reserved nonce and fully signed before the old Safe calls FameLadySociety.transferOwnership; the deployed Ownable2Step contract has no hard-transfer alternative.",
+    "The paired old-Safe handoff and pre-signed new-Safe finalization are simulated sequentially on a fork in the required post-handoff state; no other new-Safe transaction may consume the reserved nonce.",
+    "The ENS old-Safe batch updates the forward address before transferring node ownership; immediately after the old-Safe handoff, the pre-signed new-Safe batch accepts FameLadySociety ownership, revokes obsolete old-Safe and old-donation-vault roles, and sets the ENS reverse name after all preconditions are verified.",
+    "All three Base fee-recipient destinations and their current contract owner authority are refreshed before the operator calls are generated.",
+    "Every exact call is simulated and decoded.",
+    "Fresh per-chain Safe nonces and transaction hashes are recorded."
+  ]
+}

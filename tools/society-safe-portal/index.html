@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    />
+    <title>Society Safe Deployment Ledger</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="masthead">
+        <a
+          class="wordmark"
+          href="#top"
+          aria-label="Fame Lady Society deployment portal"
+        >
+          <span class="wordmark-mark" aria-hidden="true">FLS</span>
+          <span>Society Operations</span>
+        </a>
+        <div class="environment-stamp" aria-label="Local-only environment">
+          <span class="status-dot" aria-hidden="true"></span>
+          Local only · no backend
+        </div>
+        <p class="document-id">Ledger 01 / SafeL2 v1.5.0</p>
+      </header>
+
+      <main id="top">
+        <section class="hero" aria-labelledby="page-title">
+          <div class="hero-copy">
+            <p class="eyebrow">One-time cross-chain deployment</p>
+            <h1 id="page-title">One address.<br />Three final receipts.</h1>
+            <p class="hero-summary">
+              Deploy the approved Society Safe, then atomically replace the
+              temporary deployer with the final 7-of-15 council.
+            </p>
+          </div>
+          <div
+            class="address-plate"
+            aria-label="Approved destination Safe address"
+          >
+            <span>Approved destination</span>
+            <button id="copy-address" class="copy-address" type="button">
+              <code id="hero-address"
+                >0x0000fA3e509D629516Ae56dc6FDd31047300114D</code
+              >
+              <span id="copy-address-label">Copy</span>
+            </button>
+            <div class="address-meta">
+              <span>Salt nonce 1151571177</span>
+              <span>Threshold 7 / 15</span>
+              <span>Base · Polygon · Ethereum</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="operation-layout" aria-label="Deployment operations">
+          <aside class="sequence-panel" aria-labelledby="sequence-title">
+            <div class="section-kicker">
+              <span>Sequence</span>
+              <span>01—03</span>
+            </div>
+            <h2 id="sequence-title">Chain order</h2>
+            <ol id="chain-rail" class="chain-rail"></ol>
+            <div class="stop-rule">
+              <strong>Stop rule</strong>
+              <p>
+                Any mismatch freezes this portal. Do not fund or authorize a
+                temporary Safe.
+              </p>
+            </div>
+          </aside>
+
+          <div class="workspace">
+            <section class="wallet-strip" aria-labelledby="wallet-title">
+              <div>
+                <p class="section-label" id="wallet-title">Signing boundary</p>
+                <p id="wallet-status" class="wallet-status">
+                  Searching for Rabby…
+                </p>
+              </div>
+              <div id="wallet-identity" class="wallet-identity" hidden>
+                <span id="wallet-account"></span>
+                <span id="wallet-chain"></span>
+              </div>
+              <button
+                id="connect-wallet"
+                class="button button-ink"
+                type="button"
+                disabled
+              >
+                Connect Rabby
+              </button>
+            </section>
+
+            <section class="manifest-band" aria-labelledby="manifest-title">
+              <div>
+                <p class="section-label">Immutable manifest</p>
+                <h2 id="manifest-title">Canonical SafeL2 v1.5.0</h2>
+              </div>
+              <dl class="manifest-facts">
+                <div>
+                  <dt>Factory</dt>
+                  <dd id="manifest-factory"></dd>
+                </div>
+                <div>
+                  <dt>Singleton</dt>
+                  <dd id="manifest-singleton"></dd>
+                </div>
+                <div>
+                  <dt>Initializer hash</dt>
+                  <dd id="manifest-initializer-hash"></dd>
+                </div>
+                <div>
+                  <dt>Bootstrap hash</dt>
+                  <dd id="manifest-bootstrap-hash"></dd>
+                </div>
+              </dl>
+            </section>
+
+            <section class="active-chain" aria-labelledby="active-chain-title">
+              <div class="active-chain-heading">
+                <div>
+                  <p class="section-label">Active chain</p>
+                  <h2 id="active-chain-title">Connect Rabby to begin</h2>
+                </div>
+                <button
+                  id="refresh-state"
+                  class="button button-quiet"
+                  type="button"
+                  disabled
+                >
+                  Refresh state
+                </button>
+              </div>
+
+              <div
+                id="portal-alert"
+                class="portal-alert"
+                role="status"
+                aria-live="polite"
+              >
+                The portal is read-only until the approved deployer account is
+                connected.
+              </div>
+
+              <div class="preflight-area">
+                <div class="preflight-heading">
+                  <h3>Live preflight</h3>
+                  <span id="preflight-summary">Not started</span>
+                </div>
+                <ul
+                  id="preflight-list"
+                  class="check-list"
+                  aria-live="polite"
+                ></ul>
+              </div>
+
+              <div class="action-stages">
+                <article
+                  id="deployment-stage"
+                  class="action-stage"
+                  aria-labelledby="deployment-title"
+                >
+                  <div class="stage-number">01</div>
+                  <div class="stage-body">
+                    <div class="stage-heading">
+                      <div>
+                        <p class="section-label">
+                          EOA → SafeProxyFactory v1.5.0
+                        </p>
+                        <h3 id="deployment-title">Deploy the empty Safe</h3>
+                      </div>
+                      <span id="deployment-status" class="stage-status"
+                        >Waiting</span
+                      >
+                    </div>
+                    <p>
+                      Calls <code>createProxyWithNonceL2</code> to create the
+                      deterministic SafeL2 proxy with only the deployer as owner
+                      at threshold one. The receipt must contain both deployment
+                      events before this stage is accepted.
+                    </p>
+                    <dl class="stage-metrics">
+                      <div>
+                        <dt>Estimated gas</dt>
+                        <dd id="deployment-gas">—</dd>
+                      </div>
+                      <div>
+                        <dt>Transaction hash</dt>
+                        <dd id="deployment-tx">—</dd>
+                      </div>
+                    </dl>
+                    <label
+                      class="confirmation-field"
+                      for="deployment-confirmation"
+                    >
+                      <span
+                        >Type
+                        <strong id="deployment-phrase"
+                          >the confirmation phrase</strong
+                        ></span
+                      >
+                      <input
+                        id="deployment-confirmation"
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        disabled
+                      />
+                    </label>
+                    <button
+                      id="broadcast-deployment"
+                      class="button button-danger"
+                      type="button"
+                      disabled
+                    >
+                      Broadcast deployment
+                    </button>
+                  </div>
+                </article>
+
+                <article
+                  id="bootstrap-stage"
+                  class="action-stage"
+                  aria-labelledby="bootstrap-title"
+                >
+                  <div class="stage-number">02</div>
+                  <div class="stage-body">
+                    <div class="stage-heading">
+                      <div>
+                        <p class="section-label">Deployer → New Safe</p>
+                        <h3 id="bootstrap-title">Install the council</h3>
+                      </div>
+                      <span id="bootstrap-status" class="stage-status"
+                        >Locked</span
+                      >
+                    </div>
+                    <p>
+                      Executes 16 reviewed Safe self-calls atomically: 15 owner
+                      additions, then deployer removal and the final threshold
+                      change.
+                    </p>
+                    <dl class="stage-metrics">
+                      <div>
+                        <dt>Terminal state</dt>
+                        <dd>15 owners · threshold 7 · nonce 1</dd>
+                      </div>
+                      <div>
+                        <dt>Estimated gas</dt>
+                        <dd id="bootstrap-gas">—</dd>
+                      </div>
+                      <div>
+                        <dt>Transaction hash</dt>
+                        <dd id="bootstrap-tx">—</dd>
+                      </div>
+                    </dl>
+                    <label
+                      class="confirmation-field"
+                      for="bootstrap-confirmation"
+                    >
+                      <span
+                        >Type
+                        <strong id="bootstrap-phrase"
+                          >the confirmation phrase</strong
+                        ></span
+                      >
+                      <input
+                        id="bootstrap-confirmation"
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        disabled
+                      />
+                    </label>
+                    <button
+                      id="broadcast-bootstrap"
+                      class="button button-danger"
+                      type="button"
+                      disabled
+                    >
+                      Broadcast 7-of-15 bootstrap
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="evidence-band" aria-labelledby="evidence-title">
+              <div>
+                <p class="section-label">Local record</p>
+                <h2 id="evidence-title">Receipt evidence</h2>
+                <p>
+                  Transaction hashes and verified post-state are stored only in
+                  this browser.
+                </p>
+              </div>
+              <button
+                id="download-evidence"
+                class="button button-quiet"
+                type="button"
+                disabled
+              >
+                Download JSON
+              </button>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span>Fame Lady Society · One-time operator portal</span>
+        <span>No asset migration transactions are included here.</span>
+      </footer>
+    </div>
+
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
