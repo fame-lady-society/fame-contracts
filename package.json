@@ -36,7 +36,10 @@
     "society-safe:portal:build": "node tools/society-safe-portal/build.mjs",
     "society-safe:portal:rehearse": "node tools/society-safe-portal/fork-rehearsal.mjs",
     "society-safe:portal:test": "node --test tools/society-safe-portal/*.test.mjs",
-    "society-safe:portal": "npm run society-safe:portal:build && node tools/society-safe-portal/server.mjs"
+    "society-safe:portal": "npm run society-safe:portal:build && node tools/society-safe-portal/server.mjs",
+    "society-safe:migration:generate": "node tools/society-safe-migration/generate.mjs",
+    "society-safe:migration:rehearse": "node tools/society-safe-migration/fork-rehearsal.mjs",
+    "society-safe:migration:test": "node --test tools/society-safe-migration/*.test.mjs"
   },
   "dependencies": {
     "@irys/sdk": "^0.2.6",
